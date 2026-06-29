@@ -1,0 +1,10 @@
+﻿.gradle/
+build/
+.idea/
+local.properties
+dist/
+__pycache__/
+*.exe
+*.apk
+*.aab
+*.spec
