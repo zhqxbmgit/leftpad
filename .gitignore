@@ -16,5 +16,6 @@ __pycache__/
 # C# / .NET
 bin/
 obj/
+publish/
 *.user
 *.suo
