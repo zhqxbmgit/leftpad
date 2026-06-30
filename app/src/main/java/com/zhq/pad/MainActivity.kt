@@ -1,7 +1,9 @@
 package com.zhq.pad
 
+import android.app.Activity
 import android.content.Context
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -43,6 +45,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -108,6 +111,16 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ControllerScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    
+    // 第九阶段：保持屏幕常亮
+    DisposableEffect(Unit) {
+        val activity = context as? Activity
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     val configPrefs = remember { context.getSharedPreferences("button_layout", Context.MODE_PRIVATE) }
     val pcPrefs = remember { context.getSharedPreferences("pc_configs", Context.MODE_PRIVATE) }
     
