@@ -8,7 +8,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -27,11 +30,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -55,11 +60,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -112,7 +119,6 @@ class MainActivity : ComponentActivity() {
 fun ControllerScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     
-    // 第九阶段：保持屏幕常亮
     DisposableEffect(Unit) {
         val activity = context as? Activity
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -142,7 +148,8 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
     var writer: PrintWriter? by remember { mutableStateOf(null) }
     var isUserDisconnected by remember { mutableStateOf(false) }
     var isConnecting by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
+    
+    var showPanel by remember { mutableStateOf(false) }
     var isEditMode by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
     
@@ -150,31 +157,43 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
 
     fun getDefaultConfigs() = listOf(
-        ButtonConfig("triangle", "△", Color(0xFF4CAF50), 0f, -100f, 90f),
-        ButtonConfig("square", "▢", Color(0xFFE91E63), -100f, 0f, 90f),
-        ButtonConfig("circle", "○", Color(0xFFF44336), 100f, 0f, 90f),
-        ButtonConfig("cross", "✖", Color(0xFF2196F3), 0f, 100f, 90f)
+        ButtonConfig("triangle", "△", Color(0xFF4CAF50), 100f, -60f, 90f),
+        ButtonConfig("square", "▢", Color(0xFFE91E63), 0f, 40f, 90f),
+        ButtonConfig("circle", "○", Color(0xFFF44336), 200f, 40f, 90f),
+        ButtonConfig("cross", "✖", Color(0xFF2196F3), 100f, 140f, 90f),
+        // 第十二阶段：新增“任务管理器”按钮，默认位置偏上
+        ButtonConfig("task_manager", "TM", Color(0xFF607D8B), -180f, -100f, 60f, isVisible = true)
     )
 
     fun loadLayout() {
         buttonConfigs.clear()
-        val ids = listOf("triangle", "square", "circle", "cross")
-        val labels = mapOf("triangle" to "△", "square" to "▢", "circle" to "○", "cross" to "✖")
-        val colors = mapOf("triangle" to Color(0xFF4CAF50), "square" to Color(0xFFE91E63), "circle" to Color(0xFFF44336), "cross" to Color(0xFF2196F3))
+        val defaultList = getDefaultConfigs()
         var hasSaved = false
-        ids.forEach { id ->
+        
+        defaultList.forEach { defaultConfig ->
+            val id = defaultConfig.id
             if (configPrefs.contains("${id}_isVisible")) {
                 hasSaved = true
                 buttonConfigs.add(ButtonConfig(
-                    id = id, label = labels[id]!!, color = colors[id]!!,
-                    x = configPrefs.getFloat("${id}_x", 0f),
-                    y = configPrefs.getFloat("${id}_y", 0f),
-                    size = configPrefs.getFloat("${id}_size", 90f),
-                    isVisible = configPrefs.getBoolean("${id}_isVisible", true)
+                    id = id,
+                    label = defaultConfig.label,
+                    color = defaultConfig.color,
+                    x = configPrefs.getFloat("${id}_x", defaultConfig.x),
+                    y = configPrefs.getFloat("${id}_y", defaultConfig.y),
+                    size = configPrefs.getFloat("${id}_size", defaultConfig.size),
+                    isVisible = configPrefs.getBoolean("${id}_isVisible", defaultConfig.isVisible)
                 ))
             }
         }
-        if (!hasSaved) buttonConfigs.addAll(getDefaultConfigs())
+        if (!hasSaved) buttonConfigs.addAll(defaultList)
+        else {
+            // 补全由于升级新增的按钮（如 TM）
+            defaultList.forEach { def ->
+                if (buttonConfigs.none { it.id == def.id }) {
+                    buttonConfigs.add(def)
+                }
+            }
+        }
     }
 
     fun saveLayout() {
@@ -241,8 +260,9 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
         }
     }
 
+    // 发送手柄按键 JSON
     fun sendMessage(button: String, action: String) {
-        if (isEditMode) return
+        if (isEditMode || showPanel) return
         if (isConnected && writer != null) {
             scope.launch(Dispatchers.IO) {
                 try {
@@ -251,121 +271,134 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
                     if (writer?.checkError() == true) disconnect(isManual = false)
                 } catch (e: Exception) { disconnect(isManual = false) }
             }
-        } else { connectionStatus = "未连接" }
+        }
     }
 
-    Row(modifier = modifier.fillMaxSize().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        // 左侧栏: 压缩宽度至 0.25f
-        Column(
-            modifier = Modifier.weight(0.25f).fillMaxHeight().verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.Start
-        ) {
-            Text(
-                text = currentName, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = "状态: $connectionStatus", fontSize = 11.sp,
-                color = if (isConnected) Color(0xFF4CAF50) else Color.Gray, lineHeight = 13.sp
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // 按钮组: 缩小尺寸与间距
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Button(
-                        onClick = { if (!isConnected) connect(currentIp, currentPort) else disconnect(isManual = true) },
-                        modifier = Modifier.weight(1f).height(32.dp),
-                        contentPadding = PaddingValues(0.dp)
-                    ) { Text(if (isConnected) "断开" else "连接", fontSize = 12.sp) }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Button(
-                        onClick = { showSettings = !showSettings },
-                        modifier = Modifier.weight(1f).height(32.dp),
-                        contentPadding = PaddingValues(0.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                    ) { Text(if (showSettings) "收起" else "设置", fontSize = 12.sp) }
-                }
-                
-                Button(
-                    onClick = { if (isEditMode) { saveLayout(); connectionStatus = "布局已保存" }; isEditMode = !isEditMode },
-                    modifier = Modifier.fillMaxWidth().height(32.dp),
-                    contentPadding = PaddingValues(0.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (isEditMode) Color(0xFF4CAF50) else MaterialTheme.colorScheme.tertiary)
-                ) { Text(if (isEditMode) "完成编辑" else "编辑布局", fontSize = 12.sp) }
+    // 第十二阶段：发送系统命令 JSON
+    fun sendSystemCommand(command: String) {
+        if (isEditMode || showPanel) return
+        if (isConnected && writer != null) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    writer?.println("{\"command\":\"$command\"}")
+                    writer?.flush()
+                    if (writer?.checkError() == true) disconnect(isManual = false)
+                } catch (e: Exception) { disconnect(isManual = false) }
             }
-
-            if (isEditMode) {
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Box {
-                        Button(
-                            onClick = { showAddMenu = true },
-                            modifier = Modifier.height(28.dp).padding(end = 2.dp),
-                            contentPadding = PaddingValues(horizontal = 4.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Text("添加", fontSize = 10.sp)
-                        }
-                        DropdownMenu(expanded = showAddMenu, onDismissRequest = { showAddMenu = false }) {
-                            buttonConfigs.filter { !it.isVisible }.forEach { config ->
-                                DropdownMenuItem(
-                                    text = { Text(config.label) },
-                                    onClick = {
-                                        val index = buttonConfigs.indexOfFirst { it.id == config.id }
-                                        buttonConfigs[index] = config.copy(isVisible = true, x = 0f, y = 0f)
-                                        showAddMenu = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    Button(
-                        onClick = { buttonConfigs.clear(); buttonConfigs.addAll(getDefaultConfigs()); saveLayout() },
-                        modifier = Modifier.height(28.dp),
-                        contentPadding = PaddingValues(horizontal = 4.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Text("重置", fontSize = 10.sp)
-                    }
-                }
-            }
-
-            AnimatedVisibility(visible = showSettings) {
-                Column(modifier = Modifier.padding(top = 8.dp)) {
-                    HorizontalDivider()
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        Button(onClick = { if (selectedPcId != "A") { disconnect(); selectedPcId = "A" } }, modifier = Modifier.weight(1f).height(28.dp).padding(end = 2.dp), contentPadding = PaddingValues(0.dp), colors = ButtonDefaults.buttonColors(containerColor = if (selectedPcId == "A") MaterialTheme.colorScheme.primary else Color.Gray)) { Text("A", fontSize = 11.sp) }
-                        Button(onClick = { if (selectedPcId != "B") { disconnect(); selectedPcId = "B" } }, modifier = Modifier.weight(1f).height(28.dp).padding(start = 2.dp), contentPadding = PaddingValues(0.dp), colors = ButtonDefaults.buttonColors(containerColor = if (selectedPcId == "B") MaterialTheme.colorScheme.primary else Color.Gray)) { Text("B", fontSize = 11.sp) }
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    OutlinedTextField(value = currentName, onValueChange = { currentName = it }, label = { Text("名称", fontSize = 10.sp) }, modifier = Modifier.fillMaxWidth(), enabled = !isConnected, singleLine = true)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    OutlinedTextField(value = currentIp, onValueChange = { currentIp = it }, label = { Text("IP", fontSize = 10.sp) }, modifier = Modifier.fillMaxWidth(), enabled = !isConnected, singleLine = true)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    OutlinedTextField(value = currentPort, onValueChange = { currentPort = it }, label = { Text("端口", fontSize = 10.sp) }, modifier = Modifier.fillMaxWidth(), enabled = !isConnected, singleLine = true)
-                }
-            }
+        } else {
+            connectionStatus = "未连接"
         }
+    }
 
-        Spacer(modifier = Modifier.width(8.dp))
-
-        // 右侧按键区: 扩大至 0.75f
-        Box(modifier = Modifier.weight(0.75f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+    Box(modifier = modifier.fillMaxSize().background(Color(0xFF121212))) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             buttonConfigs.forEachIndexed { index, config ->
                 if (config.isVisible) {
                     DraggablePadButton(
                         config = config, isEditMode = isEditMode,
                         onUpdate = { updated -> buttonConfigs[index] = updated },
-                        onPress = { sendMessage(config.id, "down") },
-                        onRelease = { sendMessage(config.id, "up") },
+                        onPress = { 
+                            if (config.id == "task_manager") sendSystemCommand("task_manager")
+                            else sendMessage(config.id, "down") 
+                        },
+                        onRelease = { 
+                            if (config.id != "task_manager") sendMessage(config.id, "up") 
+                        },
                         onDelete = { buttonConfigs[index] = config.copy(isVisible = false) }
                     )
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = { showPanel = true },
+                modifier = Modifier.size(36.dp).background(Color(0x88000000), CircleShape)
+            ) {
+                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier.size(10.dp).clip(CircleShape)
+                    .background(when {
+                        isConnected -> Color(0xFF4CAF50)
+                        connectionStatus.contains("重连") -> Color(0xFFFFEB3B)
+                        else -> Color(0xFFF44336)
+                    })
+            )
+            if (isEditMode) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("编辑模式", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showPanel,
+            enter = slideInHorizontally(initialOffsetX = { -it }),
+            exit = slideOutHorizontally(targetOffsetX = { -it })
+        ) {
+            Box(modifier = Modifier.fillMaxSize().background(Color(0x66000000)).clickable { showPanel = false }) {
+                Surface(
+                    modifier = Modifier.fillMaxHeight().width(240.dp).clickable(enabled = false) { },
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 8.dp,
+                    shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.Start) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("控制面板", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            IconButton(onClick = { showPanel = false }) { Icon(Icons.Default.Close, contentDescription = "Close") }
+                        }
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(text = currentName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(text = "状态: $connectionStatus", fontSize = 12.sp, color = if (isConnected) Color(0xFF4CAF50) else Color.Gray)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { if (!isConnected) connect(currentIp, currentPort) else disconnect(isManual = true) }, modifier = Modifier.fillMaxWidth().height(40.dp)) { Text(if (isConnected) "断开连接" else "开始连接") }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(onClick = { if (isEditMode) { saveLayout(); connectionStatus = "布局已保存" }; isEditMode = !isEditMode }, modifier = Modifier.fillMaxWidth().height(40.dp), colors = ButtonDefaults.buttonColors(containerColor = if (isEditMode) Color(0xFF4CAF50) else MaterialTheme.colorScheme.secondary)) { Text(if (isEditMode) "完成布局编辑" else "进入布局编辑") }
+                        if (isEditMode) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    Button(onClick = { showAddMenu = true }, modifier = Modifier.fillMaxWidth().padding(end = 4.dp)) {
+                                        Icon(Icons.Default.Add, null, modifier = Modifier.size(14.dp))
+                                        Text("添加", fontSize = 11.sp)
+                                    }
+                                    DropdownMenu(expanded = showAddMenu, onDismissRequest = { showAddMenu = false }) {
+                                        buttonConfigs.filter { !it.isVisible }.forEach { config ->
+                                            DropdownMenuItem(text = { Text(config.label) }, onClick = {
+                                                val index = buttonConfigs.indexOfFirst { it.id == config.id }
+                                                buttonConfigs[index] = config.copy(isVisible = true, x = 0f, y = 0f)
+                                                showAddMenu = false
+                                            })
+                                        }
+                                    }
+                                }
+                                Button(onClick = { buttonConfigs.clear(); buttonConfigs.addAll(getDefaultConfigs()); saveLayout() }, modifier = Modifier.weight(1f).padding(start = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
+                                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(14.dp))
+                                    Text("重置", fontSize = 11.sp)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text("电脑配置", style = MaterialTheme.typography.labelLarge, color = Color.Gray)
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Button(onClick = { if (selectedPcId != "A") { disconnect(); selectedPcId = "A" } }, modifier = Modifier.weight(1f).height(32.dp).padding(end = 4.dp), contentPadding = PaddingValues(0.dp), colors = ButtonDefaults.buttonColors(containerColor = if (selectedPcId == "A") MaterialTheme.colorScheme.primary else Color.Gray)) { Text("电脑 A", fontSize = 11.sp) }
+                            Button(onClick = { if (selectedPcId != "B") { disconnect(); selectedPcId = "B" } }, modifier = Modifier.weight(1f).height(32.dp).padding(start = 4.dp), contentPadding = PaddingValues(0.dp), colors = ButtonDefaults.buttonColors(containerColor = if (selectedPcId == "B") MaterialTheme.colorScheme.primary else Color.Gray)) { Text("电脑 B", fontSize = 11.sp) }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(value = currentName, onValueChange = { currentName = it }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth(), enabled = !isConnected, singleLine = true)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(value = currentIp, onValueChange = { currentIp = it }, label = { Text("IP 地址") }, modifier = Modifier.fillMaxWidth(), enabled = !isConnected, singleLine = true)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(value = currentPort, onValueChange = { currentPort = it }, label = { Text("端口") }, modifier = Modifier.fillMaxWidth(), enabled = !isConnected, singleLine = true)
+                    }
                 }
             }
         }
@@ -404,7 +437,13 @@ fun DraggablePadButton(
             shape = CircleShape, color = config.color, shadowElevation = if (isEditMode) 0.dp else 8.dp
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(text = config.label, fontSize = (currentSize.value * 0.4).sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(
+                    text = config.label, 
+                    fontSize = (currentSize.value * if (config.id == "task_manager") 0.3 else 0.4).sp, 
+                    fontWeight = FontWeight.Bold, 
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
             }
         }
 
@@ -421,7 +460,6 @@ fun DraggablePadButton(
                         detectDragGestures { change, dragAmount ->
                             change.consume()
                             val deltaDp = (dragAmount.x.toDp() + dragAmount.y.toDp()) / 2f
-                            // 提升缩放上限至 320dp
                             val newSize = (currentSize + deltaDp).coerceIn(60.dp, 320.dp)
                             currentSize = newSize
                             onUpdate(config.copy(size = currentSize.value))
