@@ -6,20 +6,26 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -40,24 +46,28 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.zhq.pad.ui.theme.PadTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.PrintWriter
 import java.net.InetSocketAddress
 import java.net.Socket
 
-data class PCConfig(
-    val id: String, // "A" or "B"
-    var name: String,
-    var ip: String,
-    var port: String
-)
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // 开启全屏沉浸模式
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
         enableEdgeToEdge()
         setContent {
             PadTheme {
@@ -74,18 +84,14 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("pc_configs", Context.MODE_PRIVATE) }
     
-    // 加载保存的数据
     var selectedPcId by remember { mutableStateOf(sharedPrefs.getString("selected_pc", "A") ?: "A") }
-    
     var pcAName by remember { mutableStateOf(sharedPrefs.getString("pc_a_name", "电脑 A") ?: "电脑 A") }
     var pcAIp by remember { mutableStateOf(sharedPrefs.getString("pc_a_ip", "") ?: "") }
     var pcAPort by remember { mutableStateOf(sharedPrefs.getString("pc_a_port", "8888") ?: "8888") }
-    
     var pcBName by remember { mutableStateOf(sharedPrefs.getString("pc_b_name", "电脑 B") ?: "电脑 B") }
     var pcBIp by remember { mutableStateOf(sharedPrefs.getString("pc_b_ip", "") ?: "") }
     var pcBPort by remember { mutableStateOf(sharedPrefs.getString("pc_b_port", "8888") ?: "8888") }
 
-    // 当前显示的 IP/端口/名称（绑定到输入框）
     var currentName by remember(selectedPcId) { mutableStateOf(if (selectedPcId == "A") pcAName else pcBName) }
     var currentIp by remember(selectedPcId) { mutableStateOf(if (selectedPcId == "A") pcAIp else pcBIp) }
     var currentPort by remember(selectedPcId) { mutableStateOf(if (selectedPcId == "A") pcAPort else pcBPort) }
@@ -94,73 +100,75 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
     var isConnected by remember { mutableStateOf(false) }
     var socket: Socket? by remember { mutableStateOf(null) }
     var writer: PrintWriter? by remember { mutableStateOf(null) }
+    
+    // 断线重连相关状态
+    var isUserDisconnected by remember { mutableStateOf(false) }
+    var isConnecting by remember { mutableStateOf(false) }
+    
+    var showSettings by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
 
-    // 保存配置到本地
     fun saveConfig() {
         sharedPrefs.edit().apply {
             putString("selected_pc", selectedPcId)
             if (selectedPcId == "A") {
-                putString("pc_a_name", currentName)
-                putString("pc_a_ip", currentIp)
-                putString("pc_a_port", currentPort)
-                pcAName = currentName
-                pcAIp = currentIp
-                pcAPort = currentPort
+                putString("pc_a_name", currentName); putString("pc_a_ip", currentIp); putString("pc_a_port", currentPort)
+                pcAName = currentName; pcAIp = currentIp; pcAPort = currentPort
             } else {
-                putString("pc_b_name", currentName)
-                putString("pc_b_ip", currentIp)
-                putString("pc_b_port", currentPort)
-                pcBName = currentName
-                pcBIp = currentIp
-                pcBPort = currentPort
+                putString("pc_b_name", currentName); putString("pc_b_ip", currentIp); putString("pc_b_port", currentPort)
+                pcBName = currentName; pcBIp = currentIp; pcBPort = currentPort
             }
             apply()
         }
     }
 
-    // 统一断开连接逻辑
-    fun disconnect() {
+    // 修改 disconnect 函数，区分手动和异常
+    fun disconnect(isManual: Boolean = true) {
         scope.launch(Dispatchers.IO) {
             try {
                 writer?.close()
                 socket?.close()
             } catch (e: Exception) {
-                Log.e("TCP", "关闭连接出错: ${e.message}")
+                Log.e("TCP", "关闭出错: ${e.message}")
             } finally {
                 withContext(Dispatchers.Main) {
                     isConnected = false
                     socket = null
                     writer = null
-                    connectionStatus = "已断开"
+                    if (isManual) {
+                        isUserDisconnected = true
+                        connectionStatus = "已断开"
+                    } else {
+                        connectionStatus = "连接已断开，正在尝试重连..."
+                    }
                 }
             }
         }
     }
 
-    // 建立连接逻辑
     fun connect(ip: String, port: String, isAuto: Boolean = false) {
-        if (ip.isEmpty()) {
-            connectionStatus = "请填写电脑 IP"
-            return
+        if (ip.isEmpty() || isConnecting || isConnected) return
+        
+        isConnecting = true
+        if (!isAuto) {
+            connectionStatus = "正在连接..."
+            isUserDisconnected = false // 用户主动点击连接，重置手动断开标识
         }
         
-        connectionStatus = if (isAuto) "正在自动连接..." else "正在连接..."
         scope.launch(Dispatchers.IO) {
             try {
                 val newSocket = Socket()
-                newSocket.connect(InetSocketAddress(ip, port.toInt()), 3000)
+                newSocket.connect(InetSocketAddress(ip, port.toInt()), 2000) // 超时缩短为 2s 提升重连体验
                 val newWriter = PrintWriter(newSocket.getOutputStream(), true)
-                
                 withContext(Dispatchers.Main) {
                     socket = newSocket
                     writer = newWriter
                     isConnected = true
                     connectionStatus = "✅ 已连接"
-                    saveConfig() // 连接成功后保存
+                    isConnecting = false
+                    saveConfig()
                 }
-                
                 launch(Dispatchers.IO) {
                     try {
                         val inputStream = newSocket.getInputStream()
@@ -168,29 +176,34 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
                             if (inputStream.read() == -1) break
                         }
                     } catch (e: Exception) {
-                        Log.d("TCP", "监听断开: ${e.message}")
+                        Log.d("TCP", "异常断开: ${e.message}")
                     } finally {
-                        disconnect()
+                        disconnect(isManual = false)
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    connectionStatus = if (isAuto) "自动连接失败" else "❌ 连接失败: ${e.localizedMessage}"
+                    isConnecting = false
+                    if (!isAuto) {
+                        connectionStatus = "❌ 失败: ${e.localizedMessage}"
+                    } else if (!isUserDisconnected) {
+                        connectionStatus = "正在重连中..."
+                    }
                 }
             }
         }
     }
 
-    // 启动时自动连接
-    LaunchedEffect(Unit) {
-        if (currentIp.isNotEmpty()) {
-            connect(currentIp, currentPort, isAuto = true)
-        } else {
-            connectionStatus = "请填写电脑 IP"
+    // 自动重连循环逻辑
+    LaunchedEffect(isConnected, isUserDisconnected, currentIp, currentPort) {
+        if (!isConnected && !isUserDisconnected && currentIp.isNotEmpty()) {
+            while (!isConnected && !isUserDisconnected) {
+                connect(currentIp, currentPort, isAuto = true)
+                delay(3000) // 每 3 秒重连一次
+            }
         }
     }
 
-    // 发送消息
     fun sendMessage(button: String, action: String) {
         if (isConnected && writer != null) {
             scope.launch(Dispatchers.IO) {
@@ -198,11 +211,9 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
                     val json = "{\"button\":\"$button\",\"action\":\"$action\"}"
                     writer?.println(json)
                     writer?.flush()
-                    if (writer?.checkError() == true) {
-                        disconnect()
-                    }
+                    if (writer?.checkError() == true) disconnect(isManual = false)
                 } catch (e: Exception) {
-                    disconnect()
+                    disconnect(isManual = false)
                 }
             }
         } else {
@@ -210,167 +221,79 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+    Row(
+        modifier = modifier.fillMaxSize().padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // 1. 电脑选择 A / B
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+        Column(
+            modifier = Modifier.weight(0.4f).fillMaxHeight().verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.Start
         ) {
-            Button(
-                onClick = {
-                    if (selectedPcId != "A") {
-                        disconnect()
-                        selectedPcId = "A"
-                        // UI 会通过 remember(selectedPcId) 自动更新 currentIp 等
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selectedPcId == "A") MaterialTheme.colorScheme.primary else Color.Gray
-                ),
-                modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
-            ) {
-                Text("电脑 A")
+            Text(text = currentName, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text(
+                text = "状态: $connectionStatus",
+                fontSize = 13.sp,
+                color = if (isConnected) Color(0xFF4CAF50) else Color.Gray,
+                lineHeight = 16.sp
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = { if (!isConnected) connect(currentIp, currentPort) else disconnect(isManual = true) },
+                    modifier = Modifier.weight(1f)
+                ) { Text(if (isConnected) "断开" else "连接") }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = { showSettings = !showSettings },
+                    modifier = Modifier.weight(0.8f),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                ) { Text(if (showSettings) "收起" else "设置") }
             }
-            Button(
-                onClick = {
-                    if (selectedPcId != "B") {
-                        disconnect()
-                        selectedPcId = "B"
+
+            AnimatedVisibility(visible = showSettings) {
+                Column(modifier = Modifier.padding(top = 16.dp)) {
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Button(
+                            onClick = { if (selectedPcId != "A") { disconnect(isManual = true); selectedPcId = "A"; isUserDisconnected = false } },
+                            modifier = Modifier.weight(1f).padding(end = 4.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = if (selectedPcId == "A") MaterialTheme.colorScheme.primary else Color.Gray)
+                        ) { Text("电脑 A", fontSize = 12.sp) }
+                        Button(
+                            onClick = { if (selectedPcId != "B") { disconnect(isManual = true); selectedPcId = "B"; isUserDisconnected = false } },
+                            modifier = Modifier.weight(1f).padding(start = 4.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = if (selectedPcId == "B") MaterialTheme.colorScheme.primary else Color.Gray)
+                        ) { Text("电脑 B", fontSize = 12.sp) }
                     }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selectedPcId == "B") MaterialTheme.colorScheme.primary else Color.Gray
-                ),
-                modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
-            ) {
-                Text("电脑 B")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 2. 配置输入区域
-        OutlinedTextField(
-            value = currentName,
-            onValueChange = { currentName = it },
-            label = { Text("电脑名称") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isConnected
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = currentIp,
-            onValueChange = { currentIp = it },
-            label = { Text("IP 地址") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isConnected
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = currentPort,
-            onValueChange = { currentPort = it },
-            label = { Text("端口号") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isConnected
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 3. 连接控制
-        Button(
-            onClick = {
-                if (!isConnected) {
-                    connect(currentIp, currentPort)
-                } else {
-                    disconnect()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = currentName, onValueChange = { currentName = it }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth(), enabled = !isConnected)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(value = currentIp, onValueChange = { currentIp = it }, label = { Text("IP 地址") }, modifier = Modifier.fillMaxWidth(), enabled = !isConnected)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(value = currentPort, onValueChange = { currentPort = it }, label = { Text("端口") }, modifier = Modifier.fillMaxWidth(), enabled = !isConnected)
                 }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (isConnected) "断开连接" else "连接电脑")
-        }
-        
-        Text(
-            text = "状态: $connectionStatus", 
-            modifier = Modifier.padding(vertical = 8.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (isConnected) Color(0xFF4CAF50) else Color.Gray
-        )
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // 4. 四个面部按钮
-        Box(modifier = Modifier.size(280.dp), contentAlignment = Alignment.Center) {
-            PadButton(
-                label = "△",
-                color = Color(0xFF4CAF50),
-                modifier = Modifier.align(Alignment.TopCenter),
-                onDown = { sendMessage("triangle", "down") },
-                onUp = { sendMessage("triangle", "up") }
-            )
-            PadButton(
-                label = "▢",
-                color = Color(0xFFE91E63),
-                modifier = Modifier.align(Alignment.CenterStart),
-                onDown = { sendMessage("square", "down") },
-                onUp = { sendMessage("square", "up") }
-            )
-            PadButton(
-                label = "○",
-                color = Color(0xFFF44336),
-                modifier = Modifier.align(Alignment.CenterEnd),
-                onDown = { sendMessage("circle", "down") },
-                onUp = { sendMessage("circle", "up") }
-            )
-            PadButton(
-                label = "✖",
-                color = Color(0xFF2196F3),
-                modifier = Modifier.align(Alignment.BottomCenter),
-                onDown = { sendMessage("cross", "down") },
-                onUp = { sendMessage("cross", "up") }
-            )
+            }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.width(32.dp))
+
+        Box(modifier = Modifier.weight(0.6f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+            val buttonSize = 90.dp
+            val offset = 100.dp
+            PadButton(label = "△", color = Color(0xFF4CAF50), modifier = Modifier.align(Alignment.Center).padding(bottom = offset * 2), size = buttonSize, onDown = { sendMessage("triangle", "down") }, onUp = { sendMessage("triangle", "up") })
+            PadButton(label = "▢", color = Color(0xFFE91E63), modifier = Modifier.align(Alignment.Center).padding(end = offset * 2), size = buttonSize, onDown = { sendMessage("square", "down") }, onUp = { sendMessage("square", "up") })
+            PadButton(label = "○", color = Color(0xFFF44336), modifier = Modifier.align(Alignment.Center).padding(start = offset * 2), size = buttonSize, onDown = { sendMessage("circle", "down") }, onUp = { sendMessage("circle", "up") })
+            PadButton(label = "✖", color = Color(0xFF2196F3), modifier = Modifier.align(Alignment.Center).padding(top = offset * 2), size = buttonSize, onDown = { sendMessage("cross", "down") }, onUp = { sendMessage("cross", "up") })
+        }
     }
 }
 
 @Composable
-fun PadButton(
-    label: String,
-    color: Color,
-    modifier: Modifier = Modifier,
-    onDown: () -> Unit,
-    onUp: () -> Unit
-) {
-    Surface(
-        modifier = modifier
-            .size(80.dp)
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = {
-                        onDown()
-                        tryAwaitRelease()
-                        onUp()
-                    }
-                )
-            },
-        shape = CircleShape,
-        color = color,
-        shadowElevation = 8.dp
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = label,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-        }
+fun PadButton(label: String, color: Color, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.Dp = 80.dp, onDown: () -> Unit, onUp: () -> Unit) {
+    Surface(modifier = modifier.size(size).pointerInput(Unit) { detectTapGestures(onPress = { onDown(); tryAwaitRelease(); onUp() }) }, shape = CircleShape, color = color, shadowElevation = 8.dp) {
+        Box(contentAlignment = Alignment.Center) { Text(text = label, fontSize = (size.value * 0.4).sp, fontWeight = FontWeight.Bold, color = Color.White) }
     }
 }
