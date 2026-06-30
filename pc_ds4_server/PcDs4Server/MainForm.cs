@@ -1,17 +1,38 @@
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using Nefarius.ViGEm.Client.Targets.DualShock4;
 
 namespace PcDs4Server
 {
     public class MainForm : Form
     {
         private readonly Ds4Service _service;
-        private NotifyIcon _notifyIcon;
-        private ContextMenuStrip _trayMenu;
+        private NotifyIcon? _notifyIcon;
+        private ContextMenuStrip? _trayMenu;
+
+        // 核心布局控件
+        private Panel _sidebar, _topBar, _mainContent;
+        private RoundedPanel _contentPanel;
         private RichTextBox _logBox;
-        private Label _lblIp, _lblPort, _lblVigem, _lblConnection, _lblLastKey;
+        private Label _lblStatusBadge;
         private bool _isReallyClosing = false;
+
+        // 状态卡片
+        private ModernStatusCard _cardVigem, _cardDs4, _cardPhone, _cardPort;
+
+        // 手柄监视器按钮状态
+        private readonly Dictionary<string, bool> _btnStates = new() {
+            { "triangle", false }, { "square", false }, { "cross", false }, { "circle", false }
+        };
+
+        // 用于拖动无边框窗口
+        [DllImport("user32.DLL", EntryPoint = "ReleaseCapture")]
+        private extern static void ReleaseCapture();
+        [DllImport("user32.DLL", EntryPoint = "SendMessage")]
+        private extern static void SendMessage(System.IntPtr hWnd, int wMsg, int wParam, int lParam);
 
         public MainForm(Ds4Service service)
         {
@@ -22,98 +43,234 @@ namespace PcDs4Server
 
         private void InitializeComponent()
         {
+            // 基础属性：无边框现代化设计
             this.Text = "LeftPad DS4 Receiver";
-            this.Size = new Size(500, 450);
-            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+            this.Size = new Size(960, 620);
+            this.FormBorderStyle = FormBorderStyle.None;
+            this.StartPosition = FormStartPosition.CenterScreen;
+            this.BackColor = ThemeColors.Background;
             this.Icon = SystemIcons.Application;
 
-            // 布局控件
-            var panel = new TableLayoutPanel { Dock = DockStyle.Top, Height = 120, ColumnCount = 2, Padding = new Padding(10) };
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
+            // 1. 顶部栏 (用于拖动和关闭按钮)
+            _topBar = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Color.Transparent };
+            _topBar.MouseDown += (s, e) => { ReleaseCapture(); SendMessage(Handle, 0x112, 0xf012, 0); };
 
-            panel.Controls.Add(new Label { Text = "本机 IP:", Font = new Font(DefaultFont, FontStyle.Bold) }, 0, 0);
-            _lblIp = new Label { Text = _service.LocalIp, AutoSize = true };
-            panel.Controls.Add(_lblIp, 1, 0);
+            var btnExit = new Button {
+                Text = "✕", Size = new Size(40, 40), Dock = DockStyle.Right,
+                FlatStyle = FlatStyle.Flat, ForeColor = Color.Gray
+            };
+            btnExit.FlatAppearance.BorderSize = 0;
+            btnExit.Click += (s, e) => { this.Close(); };
 
-            panel.Controls.Add(new Label { Text = "监听端口:", Font = new Font(DefaultFont, FontStyle.Bold) }, 0, 1);
-            _lblPort = new Label { Text = _service.Port.ToString(), AutoSize = true };
-            panel.Controls.Add(_lblPort, 1, 1);
+            var btnMin = new Button {
+                Text = "—", Size = new Size(40, 40), Dock = DockStyle.Right,
+                FlatStyle = FlatStyle.Flat, ForeColor = Color.Gray
+            };
+            btnMin.FlatAppearance.BorderSize = 0;
+            btnMin.Click += (s, e) => { this.WindowState = FormWindowState.Minimized; };
 
-            panel.Controls.Add(new Label { Text = "手柄状态:", Font = new Font(DefaultFont, FontStyle.Bold) }, 0, 2);
-            _lblVigem = new Label { Text = "初始化中...", AutoSize = true };
-            panel.Controls.Add(_lblVigem, 1, 2);
+            _topBar.Controls.Add(btnMin);
+            _topBar.Controls.Add(btnExit);
 
-            panel.Controls.Add(new Label { Text = "手机连接:", Font = new Font(DefaultFont, FontStyle.Bold) }, 0, 3);
-            _lblConnection = new Label { Text = "等待连接", AutoSize = true };
-            panel.Controls.Add(_lblConnection, 1, 3);
+            // 2. 左侧导航栏
+            _sidebar = new Panel { Dock = DockStyle.Left, Width = 200, BackColor = ThemeColors.Sidebar };
 
-            panel.Controls.Add(new Label { Text = "最近按键:", Font = new Font(DefaultFont, FontStyle.Bold) }, 0, 4);
-            _lblLastKey = new Label { Text = "-", AutoSize = true, ForeColor = Color.Blue };
-            panel.Controls.Add(_lblLastKey, 1, 4);
+            var lblLogo = new Label {
+                Text = "LeftPad\nDS4 RECEIVER",
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                ForeColor = ThemeColors.AccentPurple,
+                Location = new Point(20, 20),
+                AutoSize = true
+            };
+            _sidebar.Controls.Add(lblLogo);
 
-            _logBox = new RichTextBox { Dock = DockStyle.Fill, ReadOnly = true, BackColor = Color.Black, ForeColor = Color.LightGray };
+            var btnOverview = new SidebarButton { Text = "🎮 Overview", Location = new Point(0, 100), Width = 200, IsSelected = true };
+            var btnGamepad = new SidebarButton { Text = "🕹 Gamepad", Location = new Point(0, 145), Width = 200 };
+            var btnSettings = new SidebarButton { Text = "⚙ Settings", Location = new Point(0, 190), Width = 200 };
+            var btnLog = new SidebarButton { Text = "📋 Logs", Location = new Point(0, 235), Width = 200 };
 
-            this.Controls.Add(_logBox);
-            this.Controls.Add(panel);
+            _sidebar.Controls.AddRange(new Control[] { btnOverview, btnGamepad, btnSettings, btnLog });
+
+            // 3. 右侧主内容区
+            _mainContent = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 0, 20, 20) };
+
+            _contentPanel = new RoundedPanel {
+                Dock = DockStyle.Fill,
+                BackColor = ThemeColors.ContentPanel,
+                Radius = 20,
+                Padding = new Padding(25)
+            };
+
+            // 4. 内容区头部
+            var header = new Panel { Dock = DockStyle.Top, Height = 60 };
+            var lblPageTitle = new Label {
+                Text = "Control Center", Font = new Font("Segoe UI", 16, FontStyle.Bold),
+                ForeColor = ThemeColors.TextMain, Location = new Point(0, 5), AutoSize = true
+            };
+            _lblStatusBadge = new Label {
+                Text = "WAITING", TextAlign = ContentAlignment.MiddleCenter,
+                Size = new Size(110, 28), Location = new Point(580, 8),
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                BackColor = Color.FromArgb(40, 40, 0), ForeColor = ThemeColors.Warning
+            };
+            header.Controls.Add(lblPageTitle);
+            header.Controls.Add(_lblStatusBadge);
+            _contentPanel.Controls.Add(header);
+
+            // 5. 状态卡片布局
+            var cardFlow = new FlowLayoutPanel {
+                Dock = DockStyle.Top, Height = 100,
+                FlowDirection = FlowDirection.LeftToRight
+            };
+            _cardVigem = new ModernStatusCard("ViGEmBus", "Checking...");
+            _cardDs4 = new ModernStatusCard("Virtual DS4", "Created");
+            _cardPhone = new ModernStatusCard("Phone", "Waiting");
+            _cardPort = new ModernStatusCard("Port", "8888");
+            _cardPort.SetStatusColor(ThemeColors.Success);
+            cardFlow.Controls.AddRange(new Control[] { _cardVigem, _cardDs4, _cardPhone, _cardPort });
+            _contentPanel.Controls.Add(cardFlow);
+
+            // 6. 手柄监控区 (绘制在 Panel 上)
+            var monitorSection = new Panel { Dock = DockStyle.Top, Height = 130, Padding = new Padding(0, 10, 0, 0) };
+            var lblMonitorTitle = new Label {
+                Text = "Gamepad Input Monitor", Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = ThemeColors.TextSecondary, Dock = DockStyle.Top
+            };
+            var monitorCanvas = new Panel { Dock = DockStyle.Fill };
+            monitorCanvas.Paint += (s, e) => DrawGamepadMonitor(e.Graphics, monitorCanvas.Width, monitorCanvas.Height);
+            monitorSection.Controls.Add(monitorCanvas);
+            monitorSection.Controls.Add(lblMonitorTitle);
+            _contentPanel.Controls.Add(monitorSection);
+
+            // 7. 日志区
+            var logSection = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 15, 0, 0) };
+            var lblLogTitle = new Label {
+                Text = "Live Feed", Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = ThemeColors.TextSecondary, Dock = DockStyle.Top
+            };
+            _logBox = new RichTextBox {
+                Dock = DockStyle.Fill, BackColor = Color.FromArgb(20, 20, 50),
+                ForeColor = ThemeColors.TextSecondary, BorderStyle = BorderStyle.None,
+                Font = new Font("Consolas", 8), ReadOnly = true
+            };
+            logSection.Controls.Add(_logBox);
+            logSection.Controls.Add(lblLogTitle);
+            _contentPanel.Controls.Add(logSection);
+
+            _mainContent.Controls.Add(_contentPanel);
+            this.Controls.Add(_mainContent);
+            this.Controls.Add(_sidebar);
+            this.Controls.Add(_topBar);
 
             // 托盘菜单
             _trayMenu = new ContextMenuStrip();
-            _trayMenu.Items.Add("显示窗口", null, (s, e) => { this.Show(); this.WindowState = FormWindowState.Normal; });
+            _trayMenu.Items.Add("Show Dashboard", null, (s, e) => ShowMainForm());
             _trayMenu.Items.Add(new ToolStripSeparator());
-            _trayMenu.Items.Add("退出", null, (s, e) => ExitProgram());
+            _trayMenu.Items.Add("Exit Receiver", null, (s, e) => ExitProgram());
 
-            _notifyIcon = new NotifyIcon
-            {
-                Icon = this.Icon,
-                ContextMenuStrip = _trayMenu,
-                Text = "LeftPad DS4 Receiver",
-                Visible = true
+            _notifyIcon = new NotifyIcon {
+                Icon = this.Icon, ContextMenuStrip = _trayMenu,
+                Text = "LeftPad DS4 Receiver", Visible = true
             };
-            _notifyIcon.DoubleClick += (s, e) => { this.Show(); this.WindowState = FormWindowState.Normal; };
-
+            _notifyIcon.DoubleClick += (s, e) => ShowMainForm();
             this.FormClosing += MainForm_FormClosing;
+        }
+
+        private void DrawGamepadMonitor(Graphics g, int w, int h)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            int radius = 42, gap = 70;
+            int startX = (w - (4 * radius + 3 * gap)) / 2;
+            int y = 25;
+
+            string[] keys = { "triangle", "square", "cross", "circle" };
+            string[] labels = { "△", "▢", "✖", "○" };
+            Color[] colors = { ThemeColors.Success, Color.HotPink, Color.DeepSkyBlue, Color.OrangeRed };
+
+            for (int i = 0; i < 4; i++)
+            {
+                bool active = _btnStates[keys[i]];
+                var rect = new Rectangle(startX + i * (radius + gap), y, radius, radius);
+
+                // 绘制按钮背景 (按下时带发光感)
+                using (var brush = new SolidBrush(active ? colors[i] : Color.FromArgb(35, 38, 80)))
+                {
+                    g.FillEllipse(brush, rect);
+                }
+
+                // 绘制描边
+                using (var pen = new Pen(active ? colors[i] : Color.FromArgb(60, 65, 120), 2))
+                {
+                    g.DrawEllipse(pen, rect);
+                }
+
+                // 绘制符号
+                using (var font = new Font("Segoe UI", 12, FontStyle.Bold))
+                {
+                    var size = g.MeasureString(labels[i], font);
+                    g.DrawString(labels[i], font, active ? Brushes.White : Brushes.DimGray,
+                        rect.X + (radius - size.Width) / 2, rect.Y + (radius - size.Height) / 2);
+                }
+            }
         }
 
         private void SetupServiceEvents()
         {
             _service.OnLog += msg => AppendLog(msg);
-            _service.OnStatusChanged += status => this.Invoke((MethodInvoker)(() => _lblVigem.Text = status));
-            _service.OnConnectionChanged += conn => this.Invoke((MethodInvoker)(() => _lblConnection.Text = conn));
-            _service.OnButtonEvent += btn => this.Invoke((MethodInvoker)(() => _lblLastKey.Text = btn));
+            _service.OnStatusChanged += status => this.Invoke((MethodInvoker)(() => {
+                bool ready = status.Contains("已连接");
+                _cardVigem.Value = ready ? "Ready" : "Error";
+                _cardVigem.SetStatusColor(ready ? ThemeColors.Success : ThemeColors.Error);
+            }));
+            _service.OnConnectionChanged += conn => this.Invoke((MethodInvoker)(() => {
+                bool connected = conn.Contains("已连接");
+                _cardPhone.Value = connected ? "Active" : "Waiting";
+                _cardPhone.SetStatusColor(connected ? ThemeColors.Success : ThemeColors.Warning);
+
+                _lblStatusBadge.Text = connected ? "CONNECTED" : "WAITING";
+                _lblStatusBadge.ForeColor = connected ? ThemeColors.Success : ThemeColors.Warning;
+                _lblStatusBadge.BackColor = connected ? Color.FromArgb(0, 50, 20) : Color.FromArgb(40, 35, 0);
+            }));
+            _service.OnButtonEvent += btn => this.Invoke((MethodInvoker)(() => {
+                foreach(var key in _btnStates.Keys) {
+                    if (btn.StartsWith(key)) {
+                        _btnStates[key] = btn.EndsWith("down");
+                        break;
+                    }
+                }
+                _contentPanel.Refresh(); // 强制重绘手柄状态
+            }));
         }
 
         private void AppendLog(string message)
         {
-            if (this.IsDisposed) return;
-            this.Invoke((MethodInvoker)(() =>
-            {
-                if (_logBox.Lines.Length > 500) _logBox.Text = ""; // 简易清理
+            if (this.IsDisposed || _logBox == null) return;
+            this.Invoke((MethodInvoker)(() => {
+                if (_logBox.Lines.Length > 300) _logBox.Clear();
                 _logBox.AppendText(message + Environment.NewLine);
-                _logBox.SelectionStart = _logBox.Text.Length;
                 _logBox.ScrollToCaret();
             }));
         }
 
-        private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+        private void ShowMainForm() { this.Show(); this.WindowState = FormWindowState.Normal; this.BringToFront(); }
+
+        private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
         {
             if (!_isReallyClosing && e.CloseReason == CloseReason.UserClosing)
             {
                 e.Cancel = true;
                 this.Hide();
-                _notifyIcon.ShowBalloonTip(2000, "LeftPad", "程序已最小化到托盘，仍在后台运行", ToolTipIcon.Info);
+                _notifyIcon?.ShowBalloonTip(2000, "LeftPad Receiver", "Still running in tray", ToolTipIcon.Info);
             }
         }
 
         private void ExitProgram()
         {
-            var result = MessageBox.Show("确定要退出接收端吗？\n退出后手机手柄将立即断开连接。", "退出确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (result == DialogResult.Yes)
-            {
+            var result = MessageBox.Show("确定要退出接收端吗？\n退出后手机手柄将立即断开连接。", "Confirm Exit", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (result == DialogResult.Yes) {
                 _isReallyClosing = true;
                 _service.Stop();
-                _notifyIcon.Visible = false;
-                _notifyIcon.Dispose();
+                if (_notifyIcon != null) { _notifyIcon.Visible = false; _notifyIcon.Dispose(); }
                 Application.Exit();
             }
         }
@@ -121,9 +278,11 @@ namespace PcDs4Server
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            if (!_service.Initialize())
-            {
-                MessageBox.Show("初始化虚拟手柄失败！请检查是否安装了 ViGEmBus 驱动。", "驱动错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            if (!_service.Initialize()) {
+                _cardVigem.Value = "Error"; _cardVigem.SetStatusColor(ThemeColors.Error);
+                MessageBox.Show("ViGEmBus driver not found. Please install it.", "Driver Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            } else {
+                _cardVigem.Value = "Ready"; _cardVigem.SetStatusColor(ThemeColors.Success);
             }
             _service.Start();
         }
