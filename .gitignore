@@ -2,9 +2,19 @@
 build/
 .idea/
 local.properties
+
+# Python & Packaging
 dist/
 __pycache__/
+*.spec
 *.exe
+
+# Android Artifacts
 *.apk
 *.aab
-*.spec
+
+# C# / .NET
+bin/
+obj/
+*.user
+*.suo
