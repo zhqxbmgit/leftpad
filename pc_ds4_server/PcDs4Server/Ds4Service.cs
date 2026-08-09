@@ -9,7 +9,7 @@ using Nefarius.ViGEm.Client.Targets.DualShock4;
 
 namespace PcDs4Server
 {
-    public class Ds4Service
+    public class Ds4Service : ILeftStickOutput
     {
         private ViGEmClient? _client;
         private IDualShock4Controller? _controller;
@@ -17,11 +17,17 @@ namespace PcDs4Server
         private CancellationTokenSource? _cts;
         private readonly HashSet<DualShock4Button> _activeButtons = new();
         private readonly object _lock = new();
+        private readonly object _controllerLock = new();
+        private TcpClient? _activeClient;
+        private long _activeSessionId;
+        private VirtualJoystickController? _joystick;
+        private CursorJoystickSampler? _joystickSampler;
 
         public event Action<string>? OnLog;
         public event Action<string>? OnStatusChanged;
         public event Action<string>? OnConnectionChanged;
         public event Action<string>? OnButtonEvent;
+        public event Action<VirtualJoystickSnapshot>? OnJoystickStateChanged;
 
         public bool IsRunning { get; private set; }
         public string LocalIp { get; private set; } = "Unknown";
@@ -30,6 +36,25 @@ namespace PcDs4Server
         public Ds4Service()
         {
             LocalIp = GetLocalIp();
+        }
+
+        public void ConfigureVirtualJoystick(IJoystickOverlay overlay, ICursorPositionProvider cursor)
+        {
+            if (_joystick != null)
+            {
+                throw new InvalidOperationException("The virtual joystick has already been configured.");
+            }
+
+            _joystick = new VirtualJoystickController(this, overlay, cursor);
+            _joystick.StateChanged += snapshot => OnJoystickStateChanged?.Invoke(snapshot);
+            _joystick.CursorPositionReadFailed += error =>
+                Log($"Cursor sampling stopped: GetCursorPos failed with Win32 error {error}.");
+            OnJoystickStateChanged?.Invoke(_joystick.Snapshot);
+        }
+
+        public void ResetVirtualJoystick(JoystickResetReason reason)
+        {
+            _joystick?.Reset(reason);
         }
 
         public bool Initialize()
@@ -59,6 +84,12 @@ namespace PcDs4Server
             _server.Start();
             IsRunning = true;
             _cts = new CancellationTokenSource();
+            if (_joystick != null)
+            {
+                _joystickSampler = new CursorJoystickSampler(_joystick);
+                _joystickSampler.SamplingFailed += ex =>
+                    Log($"Cursor sampling stopped after an unexpected error: {ex.Message}");
+            }
 
             Log($"🚀 TCP 服务已启动，监听端口: {Port}");
             OnConnectionChanged?.Invoke("等待手机连接...");
@@ -73,7 +104,19 @@ namespace PcDs4Server
                 try
                 {
                     TcpClient client = await _server!.AcceptTcpClientAsync(token);
-                    _ = HandleClientAsync(client, token);
+                    long sessionId;
+                    TcpClient? previousClient;
+                    lock (_lock)
+                    {
+                        previousClient = _activeClient;
+                        _activeClient = client;
+                        sessionId = ++_activeSessionId;
+                    }
+
+                    ResetVirtualJoystick(JoystickResetReason.SessionReplacement);
+                    ReleaseAllButtons();
+                    previousClient?.Dispose();
+                    _ = HandleClientAsync(client, sessionId, token);
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex)
@@ -83,7 +126,7 @@ namespace PcDs4Server
             }
         }
 
-        private async Task HandleClientAsync(TcpClient client, CancellationToken token)
+        private async Task HandleClientAsync(TcpClient client, long sessionId, CancellationToken token)
         {
             string remoteEp = client.Client.RemoteEndPoint?.ToString() ?? "Unknown";
             Log($"✅ 手机已连接！来自: {remoteEp}");
@@ -92,16 +135,13 @@ namespace PcDs4Server
             try
             {
                 using (client)
-                using (var stream = client.GetStream())
+                using (var reader = new StreamReader(client.GetStream(), Encoding.UTF8))
                 {
-                    byte[] buffer = new byte[1024];
                     while (!token.IsCancellationRequested)
                     {
-                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
-                        if (bytesRead == 0) break;
-
-                        string rawData = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                        ProcessMessages(rawData);
+                        string? line = await reader.ReadLineAsync(token);
+                        if (line == null) break;
+                        ProcessMessage(line, sessionId);
                     }
                 }
             }
@@ -111,34 +151,50 @@ namespace PcDs4Server
             }
             finally
             {
-                Log($"❌ 手机断开连接: {remoteEp}");
-                OnConnectionChanged?.Invoke("手机已断开，等待重连");
-                ReleaseAllButtons();
+                bool wasActiveSession;
+                lock (_lock)
+                {
+                    wasActiveSession = sessionId == _activeSessionId;
+                    if (wasActiveSession)
+                    {
+                        _activeClient = null;
+                    }
+                }
+
+                if (wasActiveSession)
+                {
+                    Log($"❌ 手机断开连接: {remoteEp}");
+                    OnConnectionChanged?.Invoke("手机已断开，等待重连");
+                    ResetVirtualJoystick(JoystickResetReason.Disconnect);
+                    ReleaseAllButtons();
+                }
             }
         }
 
-        private void ProcessMessages(string rawData)
+        private void ProcessMessage(string rawData, long sessionId)
         {
-            var lines = rawData.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var line in lines)
+            try
             {
-                try
+                var message = JsonSerializer.Deserialize<ButtonMessage>(rawData.Trim());
+                if (message != null)
                 {
-                    var message = JsonSerializer.Deserialize<ButtonMessage>(line.Trim());
-                    if (message != null)
+                    if (!string.IsNullOrEmpty(message.command))
                     {
-                        if (!string.IsNullOrEmpty(message.command))
+                        lock (_lock)
                         {
-                            HandleCommand(message.command);
-                        }
-                        else
-                        {
-                            UpdateControllerState(message);
+                            if (sessionId == _activeSessionId)
+                            {
+                                HandleCommand(message.command);
+                            }
                         }
                     }
+                    else
+                    {
+                        UpdateControllerState(message, sessionId);
+                    }
                 }
-                catch { /* 忽略格式错误 */ }
             }
+            catch { /* 忽略格式错误 */ }
         }
 
         private void HandleCommand(string command)
@@ -157,23 +213,66 @@ namespace PcDs4Server
             }
         }
 
-        private void UpdateControllerState(ButtonMessage msg)
+        private void UpdateControllerState(ButtonMessage msg, long sessionId)
         {
-            if (_controller == null) return;
-
-            if (TryGetButton(msg.button, out DualShock4Button button))
+            lock (_lock)
             {
-                lock (_lock)
+                if (sessionId != _activeSessionId)
+                {
+                    return;
+                }
+
+                if (msg.button.Equals("move", StringComparison.OrdinalIgnoreCase))
+                {
+                    HandleMoveMessage(msg.action);
+                    OnButtonEvent?.Invoke($"{msg.button} -> {msg.action}");
+                    return;
+                }
+
+                if (TryGetButton(msg.button, out DualShock4Button button))
                 {
                     bool isDown = msg.action == "down";
-                    _controller.SetButtonState(button, isDown);
+                    lock (_controllerLock)
+                    {
+                        if (_controller == null) return;
+                        _controller.SetButtonState(button, isDown);
 
-                    if (isDown) _activeButtons.Add(button);
-                    else _activeButtons.Remove(button);
+                        if (isDown) _activeButtons.Add(button);
+                        else _activeButtons.Remove(button);
 
-                    _controller.SubmitReport();
+                        _controller.SubmitReport();
+                    }
                     OnButtonEvent?.Invoke($"{msg.button} -> {msg.action}");
                 }
+            }
+        }
+
+        private void HandleMoveMessage(string action)
+        {
+            if (_joystick == null)
+            {
+                Log("❌ 收到 MOVE，但虚拟摇杆尚未配置");
+                return;
+            }
+
+            try
+            {
+                if (action == "down")
+                {
+                    if (!_joystick.TryMoveDown(out int win32Error))
+                    {
+                        Log($"MOVE activation failed: GetCursorPos returned Win32 error {win32Error}.");
+                    }
+                }
+                else if (action == "up")
+                {
+                    _joystick.Reset(JoystickResetReason.MoveUp);
+                }
+            }
+            catch (Exception ex)
+            {
+                _joystick.Reset(JoystickResetReason.CursorPositionFailure);
+                Log($"❌ MOVE 激活失败: {ex.Message}");
             }
         }
 
@@ -192,25 +291,64 @@ namespace PcDs4Server
 
         public void ReleaseAllButtons()
         {
-            if (_controller == null) return;
             lock (_lock)
             {
                 if (_activeButtons.Count > 0)
                 {
-                    foreach (var btn in _activeButtons) _controller.SetButtonState(btn, false);
-                    _activeButtons.Clear();
-                    _controller.SubmitReport();
+                    lock (_controllerLock)
+                    {
+                        if (_controller != null)
+                        {
+                            foreach (var btn in _activeButtons) _controller.SetButtonState(btn, false);
+                            _controller.SubmitReport();
+                        }
+                        _activeButtons.Clear();
+                    }
                 }
+            }
+        }
+
+        void ILeftStickOutput.SetLeftStick(byte x, byte y)
+        {
+            lock (_controllerLock)
+            {
+                if (_controller == null)
+                {
+                    return;
+                }
+
+                _controller.SetAxisValue(DualShock4Axis.LeftThumbX, x);
+                _controller.SetAxisValue(DualShock4Axis.LeftThumbY, y);
+                _controller.SubmitReport();
             }
         }
 
         public void Stop()
         {
+            if (!IsRunning && _controller == null && _client == null) return;
+
             _cts?.Cancel();
             _server?.Stop();
+            lock (_lock)
+            {
+                _activeClient?.Dispose();
+                _activeClient = null;
+                _activeSessionId++;
+            }
+            _joystickSampler?.Dispose();
+            _joystickSampler = null;
+            ResetVirtualJoystick(JoystickResetReason.ServiceStop);
             ReleaseAllButtons();
-            _controller?.Disconnect();
-            _client?.Dispose();
+            ResetVirtualJoystick(JoystickResetReason.ControllerDispose);
+            lock (_controllerLock)
+            {
+                _controller?.Disconnect();
+                _client?.Dispose();
+                _controller = null;
+                _client = null;
+            }
+            _cts?.Dispose();
+            _cts = null;
             IsRunning = false;
             Log("🛑 服务已停止并释放资源");
         }

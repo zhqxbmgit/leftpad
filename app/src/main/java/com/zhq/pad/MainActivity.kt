@@ -82,6 +82,7 @@ object NeonTheme {
     val Accent = Color(0xFFB15CFF)   // 霓虹紫
     val Battery = Color(0xFF00FF41)
     val TaskMgr = Color(0xFFFFD600)  // 亮黄
+    val Move = Color(0xFFFF8A00)
 }
 
 data class ButtonConfig(
@@ -158,7 +159,8 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
         ButtonConfig("square", "▢", NeonTheme.Square, 0.63f, 0.50f, 0.12f, 0.20f),
         ButtonConfig("circle", "○", NeonTheme.Circle, 0.87f, 0.50f, 0.12f, 0.20f),
         ButtonConfig("cross", "✖", NeonTheme.Cross, 0.75f, 0.65f, 0.12f, 0.20f),
-        ButtonConfig("task_manager", "TM", NeonTheme.TaskMgr, 0.15f, 0.35f, 0.10f, 0.12f)
+        ButtonConfig("task_manager", "TM", NeonTheme.TaskMgr, 0.15f, 0.35f, 0.10f, 0.12f),
+        ButtonConfig("move", "MOVE", NeonTheme.Move, 0.18f, 0.62f, 0.16f, 0.20f)
     )
 
     fun saveLayout() {
@@ -305,7 +307,18 @@ fun SharpNeonButton(
                             onUpdate(currentConfig.copy(xRatio = newX, yRatio = newY))
                         }
                     } else {
-                        detectTapGestures(onPress = { isPressed = true; onPress(); tryAwaitRelease(); isPressed = false; onRelease() })
+                        detectTapGestures(onPress = {
+                            isPressed = true
+                            onPress()
+                            try {
+                                tryAwaitRelease()
+                            } finally {
+                                isPressed = false
+                                // Pointer cancellation and composable disposal must both
+                                // emit the required MOVE "up" message.
+                                onRelease()
+                            }
+                        })
                     }
                 }
         ) {

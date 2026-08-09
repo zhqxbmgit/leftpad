@@ -14,14 +14,16 @@ namespace PcDs4Server
         private ContextMenuStrip? _trayMenu;
 
         // 核心布局控件
-        private Panel _sidebar, _topBar, _mainContent;
-        private RoundedPanel _contentPanel;
-        private RichTextBox _logBox;
-        private Label _lblStatusBadge;
+        private Panel _sidebar = null!, _topBar = null!, _mainContent = null!;
+        private RoundedPanel _contentPanel = null!;
+        private RichTextBox _logBox = null!;
+        private Label _lblStatusBadge = null!;
+        private Label _joystickDebug = null!;
         private bool _isReallyClosing = false;
+        private readonly VirtualJoystickOverlay _joystickOverlay;
 
         // 状态卡片
-        private ModernStatusCard _cardVigem, _cardDs4, _cardPhone, _cardPort;
+        private ModernStatusCard _cardVigem = null!, _cardDs4 = null!, _cardPhone = null!, _cardPort = null!;
 
         // 手柄监视器按钮状态
         private readonly Dictionary<string, bool> _btnStates = new() {
@@ -38,6 +40,9 @@ namespace PcDs4Server
         {
             _service = service;
             InitializeComponent();
+            _joystickOverlay = new VirtualJoystickOverlay();
+            _ = _joystickOverlay.Handle;
+            _service.ConfigureVirtualJoystick(_joystickOverlay, new WindowsCursorPositionProvider());
             SetupServiceEvents();
         }
 
@@ -142,6 +147,21 @@ namespace PcDs4Server
             monitorSection.Controls.Add(lblMonitorTitle);
             _contentPanel.Controls.Add(monitorSection);
 
+            var joystickDebugSection = new Panel { Dock = DockStyle.Top, Height = 132, Padding = new Padding(0, 8, 0, 4) };
+            var lblJoystickTitle = new Label {
+                Text = "Visible Virtual Joystick", Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                ForeColor = ThemeColors.TextSecondary, Dock = DockStyle.Top, Height = 20
+            };
+            _joystickDebug = new Label {
+                Dock = DockStyle.Fill,
+                Font = new Font("Consolas", 8),
+                ForeColor = ThemeColors.TextSecondary,
+                Text = "MOVE: Released    Joystick: Inactive\nCenter: - / -    Current Cursor: - / -\nCursor Delta: 0.0 / 0.0    Cursor Distance: 0.0\nActivation Radius: 4.0    Direction Active: No\nLogical Knob: 0.0 / 0.0    Stick: 0.000 / 0.000\nStick Magnitude: 0.000    DS4: 128 / 128"
+            };
+            joystickDebugSection.Controls.Add(_joystickDebug);
+            joystickDebugSection.Controls.Add(lblJoystickTitle);
+            _contentPanel.Controls.Add(joystickDebugSection);
+
             // 7. 日志区
             var logSection = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 15, 0, 0) };
             var lblLogTitle = new Label {
@@ -217,12 +237,12 @@ namespace PcDs4Server
         private void SetupServiceEvents()
         {
             _service.OnLog += msg => AppendLog(msg);
-            _service.OnStatusChanged += status => this.Invoke((MethodInvoker)(() => {
+            _service.OnStatusChanged += status => PostToUi(() => {
                 bool ready = status.Contains("已连接");
                 _cardVigem.Value = ready ? "Ready" : "Error";
                 _cardVigem.SetStatusColor(ready ? ThemeColors.Success : ThemeColors.Error);
-            }));
-            _service.OnConnectionChanged += conn => this.Invoke((MethodInvoker)(() => {
+            });
+            _service.OnConnectionChanged += conn => PostToUi(() => {
                 bool connected = conn.Contains("已连接");
                 _cardPhone.Value = connected ? "Active" : "Waiting";
                 _cardPhone.SetStatusColor(connected ? ThemeColors.Success : ThemeColors.Warning);
@@ -230,8 +250,8 @@ namespace PcDs4Server
                 _lblStatusBadge.Text = connected ? "CONNECTED" : "WAITING";
                 _lblStatusBadge.ForeColor = connected ? ThemeColors.Success : ThemeColors.Warning;
                 _lblStatusBadge.BackColor = connected ? Color.FromArgb(0, 50, 20) : Color.FromArgb(40, 35, 0);
-            }));
-            _service.OnButtonEvent += btn => this.Invoke((MethodInvoker)(() => {
+            });
+            _service.OnButtonEvent += btn => PostToUi(() => {
                 foreach(var key in _btnStates.Keys) {
                     if (btn.StartsWith(key)) {
                         _btnStates[key] = btn.EndsWith("down");
@@ -239,17 +259,48 @@ namespace PcDs4Server
                     }
                 }
                 _contentPanel.Refresh(); // 强制重绘手柄状态
-            }));
+            });
+            _service.OnJoystickStateChanged += state => PostToUi(() => {
+                string center = state.Center is ScreenPoint centerPoint
+                    ? $"{centerPoint.X} / {centerPoint.Y}"
+                    : "- / -";
+                string currentCursor = state.CurrentCursor is ScreenPoint cursorPoint
+                    ? $"{cursorPoint.X} / {cursorPoint.Y}"
+                    : "- / -";
+                double stickMagnitude = Math.Sqrt(
+                    (state.StickX * state.StickX) +
+                    (state.StickY * state.StickY));
+                _joystickDebug.Text =
+                    $"MOVE: {(state.MoveButtonPressed ? "Held" : "Released")}    Joystick: {(state.JoystickActive ? "Active" : "Inactive")}\n" +
+                    $"Center: {center}    Current Cursor: {currentCursor}\n" +
+                    $"Cursor Delta: {state.CursorDeltaX:F1} / {state.CursorDeltaY:F1}    Cursor Distance: {state.CursorDistance:F1}\n" +
+                    $"Activation Radius: {VirtualJoystickController.ActivationRadius:F1}    Direction Active: {(state.DirectionActive ? "Yes" : "No")}\n" +
+                    $"Logical Knob: {state.LogicalKnobX:F1} / {state.LogicalKnobY:F1}    Stick: {state.StickX:F3} / {state.StickY:F3}\n" +
+                    $"Stick Magnitude: {stickMagnitude:F3}    DS4: {state.Ds4X} / {state.Ds4Y}";
+            });
         }
 
         private void AppendLog(string message)
         {
             if (this.IsDisposed || _logBox == null) return;
-            this.Invoke((MethodInvoker)(() => {
+            PostToUi(() => {
                 if (_logBox.Lines.Length > 300) _logBox.Clear();
                 _logBox.AppendText(message + Environment.NewLine);
                 _logBox.ScrollToCaret();
-            }));
+            });
+        }
+
+        private void PostToUi(Action action)
+        {
+            if (IsDisposed || Disposing) return;
+            if (InvokeRequired)
+            {
+                BeginInvoke(action);
+            }
+            else
+            {
+                action();
+            }
         }
 
         private void ShowMainForm() { this.Show(); this.WindowState = FormWindowState.Normal; this.BringToFront(); }
@@ -284,7 +335,15 @@ namespace PcDs4Server
             } else {
                 _cardVigem.Value = "Ready"; _cardVigem.SetStatusColor(ThemeColors.Success);
             }
+
             _service.Start();
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _service.ResetVirtualJoystick(JoystickResetReason.NormalExit);
+            _joystickOverlay.Dispose();
+            base.OnFormClosed(e);
         }
     }
 }

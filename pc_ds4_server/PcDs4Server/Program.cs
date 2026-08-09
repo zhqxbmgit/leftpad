@@ -27,9 +27,15 @@ namespace PcDs4Server
             var service = new Ds4Service();
             var mainForm = new MainForm(service);
 
-            Application.Run(mainForm);
-
-            _mutex.ReleaseMutex();
+            try
+            {
+                Application.Run(mainForm);
+            }
+            finally
+            {
+                service.Stop();
+                _mutex.ReleaseMutex();
+            }
         }
     }
 }
