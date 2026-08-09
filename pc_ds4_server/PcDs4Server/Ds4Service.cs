@@ -266,7 +266,7 @@ namespace PcDs4Server
                 }
                 else if (action == "up")
                 {
-                    _joystick.Reset(JoystickResetReason.MoveUp);
+                    _joystick.ReleaseMove();
                 }
             }
             catch (Exception ex)

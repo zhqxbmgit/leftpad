@@ -147,7 +147,7 @@ namespace PcDs4Server
             monitorSection.Controls.Add(lblMonitorTitle);
             _contentPanel.Controls.Add(monitorSection);
 
-            var joystickDebugSection = new Panel { Dock = DockStyle.Top, Height = 132, Padding = new Padding(0, 8, 0, 4) };
+            var joystickDebugSection = new Panel { Dock = DockStyle.Top, Height = 148, Padding = new Padding(0, 8, 0, 4) };
             var lblJoystickTitle = new Label {
                 Text = "Visible Virtual Joystick", Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 ForeColor = ThemeColors.TextSecondary, Dock = DockStyle.Top, Height = 20
@@ -156,7 +156,7 @@ namespace PcDs4Server
                 Dock = DockStyle.Fill,
                 Font = new Font("Consolas", 8),
                 ForeColor = ThemeColors.TextSecondary,
-                Text = "MOVE: Released    Joystick: Inactive\nCenter: - / -    Current Cursor: - / -\nCursor Delta: 0.0 / 0.0    Cursor Distance: 0.0\nActivation Radius: 4.0    Direction Active: No\nLogical Knob: 0.0 / 0.0    Stick: 0.000 / 0.000\nStick Magnitude: 0.000    DS4: 128 / 128"
+                Text = "MOVE: Released    Mode: Stopped    Cursor sampling: Inactive\nDirection Captured This Hold: No    Movement Locked: No\nCurrent Direction: 0.000 / 0.000    Locked Direction: 0.000 / 0.000\nStick: 0.000 / 0.000    DS4: 128 / 128\nCenter: - / -    Current Cursor: - / -\nCursor Delta: 0.0 / 0.0    Cursor Distance: 0.0"
             };
             joystickDebugSection.Controls.Add(_joystickDebug);
             joystickDebugSection.Controls.Add(lblJoystickTitle);
@@ -270,13 +270,19 @@ namespace PcDs4Server
                 double stickMagnitude = Math.Sqrt(
                     (state.StickX * state.StickX) +
                     (state.StickY * state.StickY));
+                string mode = state.JoystickActive
+                    ? "Live"
+                    : state.MovementLocked ? "Locked" : "Stopped";
+                string sampling = state.MoveButtonPressed && state.JoystickActive
+                    ? "Active"
+                    : "Inactive";
                 _joystickDebug.Text =
-                    $"MOVE: {(state.MoveButtonPressed ? "Held" : "Released")}    Joystick: {(state.JoystickActive ? "Active" : "Inactive")}\n" +
+                    $"MOVE: {(state.MoveButtonPressed ? "Held" : "Released")}    Mode: {mode}    Cursor sampling: {sampling}\n" +
+                    $"Direction Captured This Hold: {(state.DirectionCapturedDuringHold ? "Yes" : "No")}    Movement Locked: {(state.MovementLocked ? "Yes" : "No")}\n" +
+                    $"Current Direction: {state.CurrentDirectionX:F3} / {state.CurrentDirectionY:F3}    Locked Direction: {state.LockedDirectionX:F3} / {state.LockedDirectionY:F3}\n" +
+                    $"Stick: {state.StickX:F3} / {state.StickY:F3}    Magnitude: {stickMagnitude:F3}    DS4: {state.Ds4X} / {state.Ds4Y}\n" +
                     $"Center: {center}    Current Cursor: {currentCursor}\n" +
-                    $"Cursor Delta: {state.CursorDeltaX:F1} / {state.CursorDeltaY:F1}    Cursor Distance: {state.CursorDistance:F1}\n" +
-                    $"Activation Radius: {VirtualJoystickController.ActivationRadius:F1}    Direction Active: {(state.DirectionActive ? "Yes" : "No")}\n" +
-                    $"Logical Knob: {state.LogicalKnobX:F1} / {state.LogicalKnobY:F1}    Stick: {state.StickX:F3} / {state.StickY:F3}\n" +
-                    $"Stick Magnitude: {stickMagnitude:F3}    DS4: {state.Ds4X} / {state.Ds4Y}";
+                    $"Cursor Delta: {state.CursorDeltaX:F1} / {state.CursorDeltaY:F1}    Cursor Distance: {state.CursorDistance:F1}";
             });
         }
 

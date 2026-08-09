@@ -4,7 +4,6 @@ public readonly record struct ScreenPoint(int X, int Y);
 
 public enum JoystickResetReason
 {
-    MoveUp,
     Disconnect,
     SessionReplacement,
     ServiceStop,
@@ -35,12 +34,18 @@ public interface ILeftStickOutput
 public sealed record VirtualJoystickSnapshot(
     bool MoveButtonPressed,
     bool JoystickActive,
+    bool MovementLocked,
+    bool DirectionCapturedDuringHold,
     ScreenPoint? Center,
     ScreenPoint? CurrentCursor,
     double CursorDeltaX,
     double CursorDeltaY,
     double CursorDistance,
     bool DirectionActive,
+    double CurrentDirectionX,
+    double CurrentDirectionY,
+    double LockedDirectionX,
+    double LockedDirectionY,
     double LogicalKnobX,
     double LogicalKnobY,
     double StickX,
@@ -63,12 +68,18 @@ public sealed class VirtualJoystickController
 
     private bool _moveButtonPressed;
     private bool _joystickActive;
+    private bool _movementLocked;
+    private bool _directionCapturedDuringHold;
     private ScreenPoint? _center;
     private ScreenPoint? _currentCursor;
     private double _cursorDeltaX;
     private double _cursorDeltaY;
     private double _cursorDistance;
     private bool _directionActive;
+    private double _currentDirectionX;
+    private double _currentDirectionY;
+    private double _lockedDirectionX;
+    private double _lockedDirectionY;
     private double _logicalKnobX;
     private double _logicalKnobY;
     private double _stickX;
@@ -116,12 +127,7 @@ public sealed class VirtualJoystickController
 
             if (!_cursor.TryGetPosition(out ScreenPoint cursor, out win32Error))
             {
-                _moveButtonPressed = false;
-                _joystickActive = false;
-                _lastResetReason = JoystickResetReason.CursorPositionFailure;
-                ClearPositionAndMotion();
-                _stickOutput.SetLeftStick(NeutralAxis, NeutralAxis);
-                _overlay.Hide();
+                ClearAllStateLocked(JoystickResetReason.CursorPositionFailure);
                 snapshot = CreateSnapshot();
                 activated = false;
             }
@@ -129,12 +135,24 @@ public sealed class VirtualJoystickController
             {
                 _moveButtonPressed = true;
                 _joystickActive = true;
+                _directionCapturedDuringHold = false;
                 _center = cursor;
                 _currentCursor = cursor;
                 _lastResetReason = null;
-                ClearMotion();
+                ClearCursorTracking();
                 _directionActive = false;
-                _stickOutput.SetLeftStick(NeutralAxis, NeutralAxis);
+                _currentDirectionX = 0;
+                _currentDirectionY = 0;
+                _logicalKnobX = 0;
+                _logicalKnobY = 0;
+                if (_movementLocked)
+                {
+                    SetStickLocked(_lockedDirectionX, _lockedDirectionY);
+                }
+                else
+                {
+                    SetStickLocked(0, 0);
+                }
                 _overlay.Show(cursor);
                 snapshot = CreateSnapshot();
                 activated = true;
@@ -159,12 +177,7 @@ public sealed class VirtualJoystickController
 
             if (!_cursor.TryGetPosition(out ScreenPoint current, out int win32Error))
             {
-                _moveButtonPressed = false;
-                _joystickActive = false;
-                _lastResetReason = JoystickResetReason.CursorPositionFailure;
-                ClearPositionAndMotion();
-                _stickOutput.SetLeftStick(NeutralAxis, NeutralAxis);
-                _overlay.Hide();
+                ClearAllStateLocked(JoystickResetReason.CursorPositionFailure);
                 snapshot = CreateSnapshot();
                 readError = win32Error;
             }
@@ -199,17 +212,53 @@ public sealed class VirtualJoystickController
         StateChanged?.Invoke(snapshot);
     }
 
+    public void ReleaseMove()
+    {
+        VirtualJoystickSnapshot? snapshot = null;
+
+        lock (_sync)
+        {
+            if (!_moveButtonPressed)
+            {
+                return;
+            }
+
+            _moveButtonPressed = false;
+            _joystickActive = false;
+            _lastResetReason = null;
+
+            if (_directionCapturedDuringHold)
+            {
+                _lockedDirectionX = _currentDirectionX;
+                _lockedDirectionY = _currentDirectionY;
+                _movementLocked = true;
+                SetStickLocked(_lockedDirectionX, _lockedDirectionY);
+            }
+            else
+            {
+                _movementLocked = false;
+                _lockedDirectionX = 0;
+                _lockedDirectionY = 0;
+                _currentDirectionX = 0;
+                _currentDirectionY = 0;
+                SetStickLocked(0, 0);
+            }
+
+            _directionCapturedDuringHold = false;
+            ClearReleasedCursorState();
+            _overlay.Hide();
+            snapshot = CreateSnapshot();
+        }
+
+        StateChanged?.Invoke(snapshot);
+    }
+
     public void Reset(JoystickResetReason reason)
     {
         VirtualJoystickSnapshot snapshot;
         lock (_sync)
         {
-            _moveButtonPressed = false;
-            _joystickActive = false;
-            _lastResetReason = reason;
-            ClearPositionAndMotion();
-            _stickOutput.SetLeftStick(NeutralAxis, NeutralAxis);
-            _overlay.Hide();
+            ClearAllStateLocked(reason);
             snapshot = CreateSnapshot();
         }
 
@@ -244,43 +293,76 @@ public sealed class VirtualJoystickController
         {
             _logicalKnobX = 0;
             _logicalKnobY = 0;
-            _stickX = 0;
-            _stickY = 0;
+            if (!_directionCapturedDuringHold)
+            {
+                if (_movementLocked)
+                {
+                    SetStickLocked(_lockedDirectionX, _lockedDirectionY);
+                }
+                else
+                {
+                    SetStickLocked(0, 0);
+                }
+            }
+            else
+            {
+                SetStickLocked(0, 0);
+            }
         }
         else
         {
             double inverseDistance = 1.0 / _cursorDistance;
-            _stickX = _cursorDeltaX * inverseDistance;
-            _stickY = _cursorDeltaY * inverseDistance;
-            _logicalKnobX = _stickX * JoystickRadius;
-            _logicalKnobY = _stickY * JoystickRadius;
+            _currentDirectionX = _cursorDeltaX * inverseDistance;
+            _currentDirectionY = _cursorDeltaY * inverseDistance;
+            _directionCapturedDuringHold = true;
+            _logicalKnobX = _currentDirectionX * JoystickRadius;
+            _logicalKnobY = _currentDirectionY * JoystickRadius;
+            SetStickLocked(_currentDirectionX, _currentDirectionY);
         }
 
-        _ds4X = MapAxis(_stickX);
-        _ds4Y = MapAxis(_stickY);
-        _stickOutput.SetLeftStick(_ds4X, _ds4Y);
         _overlay.UpdateKnob(_logicalKnobX, _logicalKnobY);
     }
 
-    private void ClearPositionAndMotion()
+    private void ClearAllStateLocked(JoystickResetReason reason)
+    {
+        _moveButtonPressed = false;
+        _joystickActive = false;
+        _movementLocked = false;
+        _directionCapturedDuringHold = false;
+        _lockedDirectionX = 0;
+        _lockedDirectionY = 0;
+        _currentDirectionX = 0;
+        _currentDirectionY = 0;
+        _lastResetReason = reason;
+        ClearReleasedCursorState();
+        SetStickLocked(0, 0);
+        _overlay.Hide();
+    }
+
+    private void ClearReleasedCursorState()
     {
         _center = null;
         _currentCursor = null;
-        ClearMotion();
+        ClearCursorTracking();
         _directionActive = false;
+        _logicalKnobX = 0;
+        _logicalKnobY = 0;
     }
 
-    private void ClearMotion()
+    private void ClearCursorTracking()
     {
         _cursorDeltaX = 0;
         _cursorDeltaY = 0;
         _cursorDistance = 0;
-        _logicalKnobX = 0;
-        _logicalKnobY = 0;
-        _stickX = 0;
-        _stickY = 0;
-        _ds4X = NeutralAxis;
-        _ds4Y = NeutralAxis;
+    }
+
+    private void SetStickLocked(double x, double y)
+    {
+        _stickX = x;
+        _stickY = y;
+        _ds4X = MapAxis(x);
+        _ds4Y = MapAxis(y);
+        _stickOutput.SetLeftStick(_ds4X, _ds4Y);
     }
 
     private VirtualJoystickSnapshot CreateSnapshot()
@@ -288,12 +370,18 @@ public sealed class VirtualJoystickController
         return new VirtualJoystickSnapshot(
             _moveButtonPressed,
             _joystickActive,
+            _movementLocked,
+            _directionCapturedDuringHold,
             _center,
             _currentCursor,
             _cursorDeltaX,
             _cursorDeltaY,
             _cursorDistance,
             _directionActive,
+            _currentDirectionX,
+            _currentDirectionY,
+            _lockedDirectionX,
+            _lockedDirectionY,
             _logicalKnobX,
             _logicalKnobY,
             _stickX,
