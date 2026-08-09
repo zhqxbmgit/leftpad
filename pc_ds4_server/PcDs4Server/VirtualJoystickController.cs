@@ -58,7 +58,7 @@ public sealed record VirtualJoystickSnapshot(
 
 public sealed class VirtualJoystickController
 {
-    public const double JoystickRadius = 20.0;
+    public const double JoystickRadius = 10.0;
     public const double ActivationRadius = 4.0;
     public const byte NeutralAxis = 128;
 

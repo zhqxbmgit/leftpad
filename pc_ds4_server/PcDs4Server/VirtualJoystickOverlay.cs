@@ -4,9 +4,9 @@ namespace PcDs4Server;
 
 public sealed class VirtualJoystickOverlay : Form, IJoystickOverlay
 {
-    public const int VisualRadius = 20;
+    public const int VisualRadius = 10;
     public const int BaseDiameter = VisualRadius * 2;
-    public const int KnobDiameter = 11;
+    public const int KnobDiameter = 6;
     public const double VisualScale = VisualRadius / VirtualJoystickController.JoystickRadius;
 
     private const int MarginSize = (KnobDiameter / 2) + 2;
