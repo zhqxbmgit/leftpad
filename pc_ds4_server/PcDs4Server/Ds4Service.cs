@@ -268,6 +268,10 @@ namespace PcDs4Server
                 {
                     _joystick.ReleaseMove();
                 }
+                else if (action == "stop")
+                {
+                    _joystick.StopMovement();
+                }
             }
             catch (Exception ex)
             {

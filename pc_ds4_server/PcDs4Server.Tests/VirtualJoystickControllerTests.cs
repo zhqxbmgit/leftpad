@@ -562,6 +562,85 @@ public sealed class VirtualJoystickControllerTests
     }
 
     [Fact]
+    public void ExplicitStopFromLockedRight_NeutralizesUnlocksAndHides()
+    {
+        var fixture = LockedRightFixture();
+        fixture.Actions.Clear();
+
+        fixture.Controller.StopMovement();
+
+        AssertStopped(fixture);
+        Assert.Equal(new[] { "stick:128/128", "hide" }, fixture.Actions);
+        Assert.Equal(JoystickResetReason.ExplicitStop, fixture.Controller.Snapshot.LastResetReason);
+    }
+
+    [Fact]
+    public void ExplicitStopFromLockedDiagonal_ClearsNormalizedLockedDirection()
+    {
+        var fixture = ActiveFixture();
+        fixture.Controller.UpdateCursor(new ScreenPoint(600, 400));
+        fixture.Controller.ReleaseMove();
+        Assert.True(fixture.Controller.Snapshot.MovementLocked);
+        Assert.Equal(1.0, StickMagnitude(fixture.Controller.Snapshot), 6);
+
+        fixture.Controller.StopMovement();
+
+        AssertStopped(fixture);
+        Assert.Equal(0.0, fixture.Controller.Snapshot.LockedDirectionX);
+        Assert.Equal(0.0, fixture.Controller.Snapshot.LockedDirectionY);
+    }
+
+    [Fact]
+    public void ExplicitStopDuringLiveHeldDirection_NeutralizesAndHides()
+    {
+        var fixture = ActiveFixture();
+        fixture.Controller.UpdateCursor(new ScreenPoint(520, 500));
+        Assert.True(fixture.Controller.Snapshot.DirectionCapturedDuringHold);
+        fixture.Actions.Clear();
+
+        fixture.Controller.StopMovement();
+
+        AssertStopped(fixture);
+        Assert.Equal(new[] { "stick:128/128", "hide" }, fixture.Actions);
+        Assert.False(fixture.Controller.Snapshot.MoveButtonPressed);
+        Assert.False(fixture.Controller.Snapshot.JoystickActive);
+        Assert.False(fixture.Controller.Snapshot.DirectionCapturedDuringHold);
+    }
+
+    [Fact]
+    public void RepeatedExplicitStop_IsIdempotent()
+    {
+        var fixture = LockedRightFixture();
+
+        fixture.Controller.StopMovement();
+        fixture.Controller.StopMovement();
+
+        AssertStopped(fixture);
+        Assert.Equal(JoystickResetReason.ExplicitStop, fixture.Controller.Snapshot.LastResetReason);
+    }
+
+    [Fact]
+    public void MoveDownAfterExplicitStop_StartsANewLiveMovementRound()
+    {
+        var fixture = LockedRightFixture();
+        fixture.Controller.StopMovement();
+        fixture.Cursor.Position = new ScreenPoint(700, 500);
+
+        Assert.True(fixture.Controller.TryMoveDown(out int error));
+        fixture.Controller.UpdateCursor(new ScreenPoint(690, 490));
+
+        VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
+        Assert.Equal(0, error);
+        Assert.True(state.MoveButtonPressed);
+        Assert.True(state.JoystickActive);
+        Assert.False(state.MovementLocked);
+        Assert.True(state.DirectionCapturedDuringHold);
+        Assert.Equal(-0.707107, state.StickX, 6);
+        Assert.Equal(-0.707107, state.StickY, 6);
+        Assert.True(fixture.Overlay.IsVisible);
+    }
+
+    [Fact]
     public void MoveDownCursorFailure_DoesNotActivateAndReportsWin32Error()
     {
         var fixture = new Fixture();
@@ -633,6 +712,7 @@ public sealed class VirtualJoystickControllerTests
     }
 
     [Theory]
+    [InlineData(JoystickResetReason.ExplicitStop)]
     [InlineData(JoystickResetReason.Disconnect)]
     [InlineData(JoystickResetReason.SessionReplacement)]
     [InlineData(JoystickResetReason.ServiceStop)]

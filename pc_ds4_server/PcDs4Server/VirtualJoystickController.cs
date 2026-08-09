@@ -4,6 +4,7 @@ public readonly record struct ScreenPoint(int X, int Y);
 
 public enum JoystickResetReason
 {
+    ExplicitStop,
     Disconnect,
     SessionReplacement,
     ServiceStop,
@@ -263,6 +264,11 @@ public sealed class VirtualJoystickController
         }
 
         StateChanged?.Invoke(snapshot);
+    }
+
+    public void StopMovement()
+    {
+        Reset(JoystickResetReason.ExplicitStop);
     }
 
     public static byte MapAxis(double normalized)

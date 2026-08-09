@@ -96,6 +96,23 @@ data class ButtonConfig(
     var isVisible: Boolean = true
 )
 
+enum class MainButtonMode(
+    val protocolButtonKey: String,
+    val mainLabel: String,
+    val switchLabel: String
+) {
+    MOVE(protocolButtonKey = "move", mainLabel = "MOVE", switchLabel = "X"),
+    CROSS(protocolButtonKey = "cross", mainLabel = "X", switchLabel = "MOVE");
+
+    companion object {
+        fun fromStoredValue(value: String?): MainButtonMode =
+            values().firstOrNull { it.name == value } ?: MOVE
+    }
+}
+
+private const val MAIN_BUTTON_PREFERENCES = "main_button_preferences"
+private const val MAIN_BUTTON_MODE_KEY = "main_button_mode"
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -128,6 +145,7 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
 
     val pcPrefs = remember { context.getSharedPreferences("pc_configs", Context.MODE_PRIVATE) }
     val layoutPrefs = remember { context.getSharedPreferences("button_layout_v4_ratio", Context.MODE_PRIVATE) }
+    val mainButtonPrefs = remember { context.getSharedPreferences(MAIN_BUTTON_PREFERENCES, Context.MODE_PRIVATE) }
 
     var selectedPcId by remember { mutableStateOf(pcPrefs.getString("selected_pc", "A") ?: "A") }
     var pcAName by remember { mutableStateOf(pcPrefs.getString("pc_a_name", "电脑 A") ?: "电脑 A") }
@@ -151,6 +169,15 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
     var showPanel by remember { mutableStateOf(false) }
     var isEditMode by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
+    var mainButtonMode by remember {
+        mutableStateOf(
+            MainButtonMode.fromStoredValue(
+                mainButtonPrefs.getString(MAIN_BUTTON_MODE_KEY, MainButtonMode.MOVE.name)
+            )
+        )
+    }
+    var mainButtonPressed by remember { mutableStateOf(false) }
+    var pressedButtonKey by remember { mutableStateOf<String?>(null) }
     
     val buttonConfigs = remember { mutableStateListOf<ButtonConfig>() }
 
@@ -204,7 +231,20 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
     fun connect(ip: String, port: String, isAuto: Boolean = false) { if (ip.isEmpty() || isConnecting || isConnected) return; isConnecting = true; if (!isAuto) { connectionStatus = "连接中..."; isUserDisconnected = false }; scope.launch(Dispatchers.IO) { try { val newSocket = Socket(); newSocket.connect(InetSocketAddress(ip, port.toInt()), 2000)
     val newWriter = PrintWriter(newSocket.getOutputStream(), true); withContext(Dispatchers.Main) { socket = newSocket; writer = newWriter; isConnected = true; connectionStatus = "已连接"; isConnecting = false; pcPrefs.edit().apply { putString("selected_pc", selectedPcId); if (selectedPcId == "A") { putString("pc_a_name", currentName); putString("pc_a_ip", currentIp); putString("pc_a_port", currentPort) } else { putString("pc_b_name", currentName); putString("pc_b_ip", currentIp); putString("pc_b_port", currentPort) }; apply() } }; launch(Dispatchers.IO) { try { val inputStream = newSocket.getInputStream(); while (isConnected) { if (inputStream.read() == -1) break } } catch (e: Exception) {} finally { disconnect(isManual = false) } } } catch (e: Exception) { withContext(Dispatchers.Main) { isConnecting = false; if (!isAuto) connectionStatus = "连接失败" else if (!isUserDisconnected) connectionStatus = "正在重连" } } } }
     LaunchedEffect(isConnected, isUserDisconnected, currentIp, currentPort) { if (!isConnected && !isUserDisconnected && currentIp.isNotEmpty()) { while (!isConnected && !isUserDisconnected) { connect(currentIp, currentPort, isAuto = true); delay(3000) } } }
-    fun sendMessage(button: String, action: String) { if (isEditMode || showPanel) return; if (isConnected && writer != null) { scope.launch(Dispatchers.IO) { try { writer?.println("{\"button\":\"$button\",\"action\":\"$action\"}"); writer?.flush(); if (writer?.checkError() == true) disconnect(isManual = false) } catch (e: Exception) { disconnect(isManual = false) } } } }
+    fun sendMessage(button: String, action: String, allowWhenUiBlocked: Boolean = false) {
+        if (!allowWhenUiBlocked && (isEditMode || showPanel)) return
+        if (isConnected && writer != null) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    writer?.println("{\"button\":\"$button\",\"action\":\"$action\"}")
+                    writer?.flush()
+                    if (writer?.checkError() == true) disconnect(isManual = false)
+                } catch (e: Exception) {
+                    disconnect(isManual = false)
+                }
+            }
+        }
+    }
     fun sendSystemCommand(command: String) { if (isEditMode || showPanel) return; if (isConnected && writer != null) { scope.launch(Dispatchers.IO) { try { writer?.println("{\"command\":\"$command\"}"); writer?.flush(); if (writer?.checkError() == true) disconnect(isManual = false) } catch (e: Exception) { disconnect(isManual = false) } } } }
 
     Box(modifier = modifier.fillMaxSize().background(NeonTheme.Background)) {
@@ -212,12 +252,62 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
             val areaW = maxWidth; val areaH = maxHeight
             buttonConfigs.forEachIndexed { index, config ->
                 if (config.isVisible) {
+                    val isMainButton = config.id == "move"
+                    val displayLabel = if (isMainButton) mainButtonMode.mainLabel else config.label
+                    val displayColor = if (isMainButton && mainButtonMode == MainButtonMode.CROSS) {
+                        NeonTheme.Cross
+                    } else {
+                        config.color
+                    }
                     SharpNeonButton(
                         config = config, isEditMode = isEditMode,
                         parentW = areaW, parentH = areaH,
+                        displayLabel = displayLabel,
+                        displayColor = displayColor,
+                        modeSwitchLabel = if (isMainButton) mainButtonMode.switchLabel else null,
+                        modeSwitchEnabled = !isEditMode && !mainButtonPressed && pressedButtonKey == null,
+                        onModeSwitch = {
+                            if (!isEditMode && !mainButtonPressed && pressedButtonKey == null) {
+                                val nextMode = when (mainButtonMode) {
+                                    MainButtonMode.MOVE -> {
+                                        sendMessage(MainButtonMode.MOVE.protocolButtonKey, "stop")
+                                        MainButtonMode.CROSS
+                                    }
+                                    MainButtonMode.CROSS -> MainButtonMode.MOVE
+                                }
+                                mainButtonMode = nextMode
+                                mainButtonPrefs.edit()
+                                    .putString(MAIN_BUTTON_MODE_KEY, nextMode.name)
+                                    .apply()
+                            }
+                        },
                         onUpdate = { updated -> buttonConfigs[index] = updated },
-                        onPress = { if (config.id == "task_manager") sendSystemCommand("task_manager") else sendMessage(config.id, "down") },
-                        onRelease = { if (config.id != "task_manager") sendMessage(config.id, "up") },
+                        onPress = {
+                            when {
+                                config.id == "task_manager" -> sendSystemCommand("task_manager")
+                                isMainButton -> {
+                                    val buttonKey = mainButtonMode.protocolButtonKey
+                                    pressedButtonKey = buttonKey
+                                    mainButtonPressed = true
+                                    sendMessage(buttonKey, "down")
+                                }
+                                else -> sendMessage(config.id, "down")
+                            }
+                        },
+                        onRelease = {
+                            when {
+                                config.id == "task_manager" -> Unit
+                                isMainButton -> {
+                                    val buttonKey = pressedButtonKey
+                                    pressedButtonKey = null
+                                    mainButtonPressed = false
+                                    if (buttonKey != null) {
+                                        sendMessage(buttonKey, "up", allowWhenUiBlocked = true)
+                                    }
+                                }
+                                else -> sendMessage(config.id, "up", allowWhenUiBlocked = true)
+                            }
+                        },
                         onDelete = { buttonConfigs[index] = config.copy(isVisible = false); saveLayout() }
                     )
                 }
@@ -278,10 +368,17 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
 fun SharpNeonButton(
     config: ButtonConfig, isEditMode: Boolean,
     parentW: Dp, parentH: Dp,
+    displayLabel: String = config.label,
+    displayColor: Color = config.color,
+    modeSwitchLabel: String? = null,
+    modeSwitchEnabled: Boolean = true,
+    onModeSwitch: () -> Unit = {},
     onUpdate: (ButtonConfig) -> Unit,
     onPress: () -> Unit, onRelease: () -> Unit, onDelete: () -> Unit
 ) {
     val currentConfig by rememberUpdatedState(config)
+    val currentOnPress by rememberUpdatedState(onPress)
+    val currentOnRelease by rememberUpdatedState(onRelease)
     val btnW = parentW * config.wRatio; val btnH = parentH * config.hRatio
     val posX = parentW * config.xRatio; val posY = parentH * config.yRatio
     
@@ -309,14 +406,12 @@ fun SharpNeonButton(
                     } else {
                         detectTapGestures(onPress = {
                             isPressed = true
-                            onPress()
                             try {
+                                currentOnPress()
                                 tryAwaitRelease()
                             } finally {
                                 isPressed = false
-                                // Pointer cancellation and composable disposal must both
-                                // emit the required MOVE "up" message.
-                                onRelease()
+                                currentOnRelease()
                             }
                         })
                     }
@@ -329,7 +424,7 @@ fun SharpNeonButton(
             
             // 2. 克制、贴边的微弱发光 (锐化霓虹感)
             drawRoundRect(
-                color = config.color.copy(alpha = glowAlpha * 0.3f),
+                color = displayColor.copy(alpha = glowAlpha * 0.3f),
                 size = Size(size.width + 4.dp.toPx(), size.height + 4.dp.toPx()),
                 topLeft = Offset(-2.dp.toPx(), -2.dp.toPx()),
                 cornerRadius = CornerRadius(corner + 2.dp.toPx()),
@@ -338,7 +433,7 @@ fun SharpNeonButton(
 
             // 3. 高亮细描边 (核心视觉)
             drawRoundRect(
-                color = config.color.copy(alpha = glowAlpha),
+                color = displayColor.copy(alpha = glowAlpha),
                 size = size,
                 cornerRadius = CornerRadius(corner),
                 style = Stroke(width = strokeWidth.dp.toPx())
@@ -348,7 +443,7 @@ fun SharpNeonButton(
             val center = Offset(size.width / 2, size.height / 2)
             val iconScale = 0.38f
             val baseSize = Math.min(size.width, size.height) * iconScale
-            val activeColor = config.color.copy(alpha = glowAlpha)
+            val activeColor = displayColor.copy(alpha = glowAlpha)
 
             when (config.id) {
                 "triangle" -> {
@@ -377,7 +472,41 @@ fun SharpNeonButton(
         }
 
         if (config.id == "task_manager") {
-            Text(text = "TM", color = config.color.copy(alpha = glowAlpha), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.align(Alignment.Center))
+            Text(text = "TM", color = displayColor.copy(alpha = glowAlpha), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.align(Alignment.Center))
+        }
+
+        if (config.id == "move") {
+            Text(
+                text = displayLabel,
+                color = displayColor.copy(alpha = glowAlpha),
+                fontSize = if (displayLabel == "MOVE") 15.sp else 24.sp,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
+
+        if (modeSwitchLabel != null) {
+            val switchEnabled = !isEditMode && modeSwitchEnabled
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(NeonTheme.ButtonInner)
+                    .border(1.dp, displayColor.copy(alpha = if (switchEnabled) 0.9f else 0.4f), RoundedCornerShape(8.dp))
+                    .clickable(enabled = switchEnabled) { onModeSwitch() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = modeSwitchLabel,
+                    color = displayColor.copy(alpha = if (switchEnabled) 1f else 0.4f),
+                    fontSize = if (modeSwitchLabel == "MOVE") 8.sp else 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+            }
         }
 
         if (isEditMode) {
