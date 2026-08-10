@@ -15,7 +15,7 @@ namespace PcDs4Server
         private IDualShock4Controller? _controller;
         private TcpListener? _server;
         private CancellationTokenSource? _cts;
-        private readonly HashSet<DualShock4Button> _activeButtons = new();
+        private readonly Ds4ControlState _controlState = new();
         private readonly object _lock = new();
         private readonly object _controllerLock = new();
         private TcpClient? _activeClient;
@@ -114,7 +114,7 @@ namespace PcDs4Server
                     }
 
                     ResetVirtualJoystick(JoystickResetReason.SessionReplacement);
-                    ReleaseAllButtons();
+                    ReleaseAllControls(Ds4ControlResetReason.SessionReplacement);
                     previousClient?.Dispose();
                     _ = HandleClientAsync(client, sessionId, token);
                 }
@@ -166,7 +166,7 @@ namespace PcDs4Server
                     Log($"❌ 手机断开连接: {remoteEp}");
                     OnConnectionChanged?.Invoke("手机已断开，等待重连");
                     ResetVirtualJoystick(JoystickResetReason.Disconnect);
-                    ReleaseAllButtons();
+                    ReleaseAllControls(Ds4ControlResetReason.Disconnect);
                 }
             }
         }
@@ -229,16 +229,24 @@ namespace PcDs4Server
                     return;
                 }
 
-                if (TryGetButton(msg.button, out DualShock4Button button))
+                if (Ds4ActionMapper.TryGet(msg.button, out Ds4ActionMapping mapping) &&
+                    Ds4ActionMapper.TryGetPressedState(msg.action, out bool isPressed))
                 {
-                    bool isDown = msg.action == "down";
                     lock (_controllerLock)
                     {
                         if (_controller == null) return;
-                        _controller.SetButtonState(button, isDown);
 
-                        if (isDown) _activeButtons.Add(button);
-                        else _activeButtons.Remove(button);
+                        if (mapping.Kind == Ds4ActionKind.DigitalButton)
+                        {
+                            _controller.SetButtonState(mapping.DigitalButton!, isPressed);
+                            _controlState.SetDigitalButton(mapping.DigitalButton!, isPressed);
+                        }
+                        else
+                        {
+                            byte triggerValue = Ds4ActionMapper.GetTriggerValue(isPressed);
+                            _controller.SetSliderValue(mapping.Trigger!, triggerValue);
+                            _controlState.SetTrigger(mapping.Trigger!, triggerValue);
+                        }
 
                         _controller.SubmitReport();
                     }
@@ -280,33 +288,38 @@ namespace PcDs4Server
             }
         }
 
-        private bool TryGetButton(string name, out DualShock4Button button)
-        {
-            button = DualShock4Button.Circle;
-            switch (name.ToLower())
-            {
-                case "circle": button = DualShock4Button.Circle; return true;
-                case "cross": button = DualShock4Button.Cross; return true;
-                case "triangle": button = DualShock4Button.Triangle; return true;
-                case "square": button = DualShock4Button.Square; return true;
-                default: return false;
-            }
-        }
-
-        public void ReleaseAllButtons()
+        public void ReleaseAllControls(Ds4ControlResetReason reason)
         {
             lock (_lock)
             {
-                if (_activeButtons.Count > 0)
+                lock (_controllerLock)
                 {
-                    lock (_controllerLock)
+                    Ds4ControlRelease release = _controlState.ReleaseAll(reason);
+                    if (_controller == null)
                     {
-                        if (_controller != null)
-                        {
-                            foreach (var btn in _activeButtons) _controller.SetButtonState(btn, false);
-                            _controller.SubmitReport();
-                        }
-                        _activeButtons.Clear();
+                        return;
+                    }
+
+                    foreach (DualShock4Button button in release.DigitalButtons)
+                    {
+                        _controller.SetButtonState(button, false);
+                    }
+
+                    if (release.ResetLeftTrigger)
+                    {
+                        _controller.SetSliderValue(DualShock4Slider.LeftTrigger, byte.MinValue);
+                    }
+
+                    if (release.ResetRightTrigger)
+                    {
+                        _controller.SetSliderValue(DualShock4Slider.RightTrigger, byte.MinValue);
+                    }
+
+                    if (release.DigitalButtons.Count > 0 ||
+                        release.ResetLeftTrigger ||
+                        release.ResetRightTrigger)
+                    {
+                        _controller.SubmitReport();
                     }
                 }
             }
@@ -342,7 +355,7 @@ namespace PcDs4Server
             _joystickSampler?.Dispose();
             _joystickSampler = null;
             ResetVirtualJoystick(JoystickResetReason.ServiceStop);
-            ReleaseAllButtons();
+            ReleaseAllControls(Ds4ControlResetReason.ServiceStop);
             ResetVirtualJoystick(JoystickResetReason.ControllerDispose);
             lock (_controllerLock)
             {

@@ -96,16 +96,25 @@ data class ButtonConfig(
     var isVisible: Boolean = true
 )
 
-enum class MainButtonMode(
+enum class MainButtonAction(
     val protocolButtonKey: String,
     val mainLabel: String,
-    val switchLabel: String
+    val displayColor: Color
 ) {
-    MOVE(protocolButtonKey = "move", mainLabel = "MOVE", switchLabel = "X"),
-    CROSS(protocolButtonKey = "cross", mainLabel = "X", switchLabel = "MOVE");
+    MOVE(protocolButtonKey = "move", mainLabel = "MOVE", displayColor = NeonTheme.Move),
+    CROSS(protocolButtonKey = "cross", mainLabel = "X", displayColor = NeonTheme.Cross),
+    CIRCLE(protocolButtonKey = "circle", mainLabel = "O", displayColor = NeonTheme.Circle),
+    SQUARE(protocolButtonKey = "square", mainLabel = "□", displayColor = NeonTheme.Square),
+    TRIANGLE(protocolButtonKey = "triangle", mainLabel = "△", displayColor = NeonTheme.Triangle),
+    L1(protocolButtonKey = "l1", mainLabel = "L1", displayColor = NeonTheme.Accent),
+    R1(protocolButtonKey = "r1", mainLabel = "R1", displayColor = NeonTheme.Accent),
+    L2(protocolButtonKey = "l2", mainLabel = "L2", displayColor = NeonTheme.Accent),
+    R2(protocolButtonKey = "r2", mainLabel = "R2", displayColor = NeonTheme.Accent),
+    L3(protocolButtonKey = "l3", mainLabel = "L3", displayColor = NeonTheme.Accent),
+    R3(protocolButtonKey = "r3", mainLabel = "R3", displayColor = NeonTheme.Accent);
 
     companion object {
-        fun fromStoredValue(value: String?): MainButtonMode =
+        fun fromStoredValue(value: String?): MainButtonAction =
             values().firstOrNull { it.name == value } ?: MOVE
     }
 }
@@ -169,15 +178,16 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
     var showPanel by remember { mutableStateOf(false) }
     var isEditMode by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
-    var mainButtonMode by remember {
+    var mainButtonAction by remember {
         mutableStateOf(
-            MainButtonMode.fromStoredValue(
-                mainButtonPrefs.getString(MAIN_BUTTON_MODE_KEY, MainButtonMode.MOVE.name)
+            MainButtonAction.fromStoredValue(
+                mainButtonPrefs.getString(MAIN_BUTTON_MODE_KEY, MainButtonAction.MOVE.name)
             )
         )
     }
     var mainButtonPressed by remember { mutableStateOf(false) }
     var pressedButtonKey by remember { mutableStateOf<String?>(null) }
+    var showActionSelector by remember { mutableStateOf(false) }
     
     val buttonConfigs = remember { mutableStateListOf<ButtonConfig>() }
 
@@ -247,38 +257,42 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
     }
     fun sendSystemCommand(command: String) { if (isEditMode || showPanel) return; if (isConnected && writer != null) { scope.launch(Dispatchers.IO) { try { writer?.println("{\"command\":\"$command\"}"); writer?.flush(); if (writer?.checkError() == true) disconnect(isManual = false) } catch (e: Exception) { disconnect(isManual = false) } } } }
 
+    fun selectMainButtonAction(nextAction: MainButtonAction) {
+        if (isEditMode || mainButtonPressed || pressedButtonKey != null) return
+        if (nextAction == mainButtonAction) {
+            showActionSelector = false
+            return
+        }
+
+        if (mainButtonAction == MainButtonAction.MOVE && nextAction != MainButtonAction.MOVE) {
+            sendMessage(MainButtonAction.MOVE.protocolButtonKey, "stop")
+        }
+
+        mainButtonAction = nextAction
+        mainButtonPrefs.edit()
+            .putString(MAIN_BUTTON_MODE_KEY, nextAction.name)
+            .apply()
+        showActionSelector = false
+    }
+
     Box(modifier = modifier.fillMaxSize().background(NeonTheme.Background)) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val areaW = maxWidth; val areaH = maxHeight
             buttonConfigs.forEachIndexed { index, config ->
                 if (config.isVisible) {
                     val isMainButton = config.id == "move"
-                    val displayLabel = if (isMainButton) mainButtonMode.mainLabel else config.label
-                    val displayColor = if (isMainButton && mainButtonMode == MainButtonMode.CROSS) {
-                        NeonTheme.Cross
-                    } else {
-                        config.color
-                    }
+                    val displayLabel = if (isMainButton) mainButtonAction.mainLabel else config.label
+                    val displayColor = if (isMainButton) mainButtonAction.displayColor else config.color
                     SharpNeonButton(
                         config = config, isEditMode = isEditMode,
                         parentW = areaW, parentH = areaH,
                         displayLabel = displayLabel,
                         displayColor = displayColor,
-                        modeSwitchLabel = if (isMainButton) mainButtonMode.switchLabel else null,
+                        modeSwitchLabel = if (isMainButton) "⋯" else null,
                         modeSwitchEnabled = !isEditMode && !mainButtonPressed && pressedButtonKey == null,
                         onModeSwitch = {
                             if (!isEditMode && !mainButtonPressed && pressedButtonKey == null) {
-                                val nextMode = when (mainButtonMode) {
-                                    MainButtonMode.MOVE -> {
-                                        sendMessage(MainButtonMode.MOVE.protocolButtonKey, "stop")
-                                        MainButtonMode.CROSS
-                                    }
-                                    MainButtonMode.CROSS -> MainButtonMode.MOVE
-                                }
-                                mainButtonMode = nextMode
-                                mainButtonPrefs.edit()
-                                    .putString(MAIN_BUTTON_MODE_KEY, nextMode.name)
-                                    .apply()
+                                showActionSelector = true
                             }
                         },
                         onUpdate = { updated -> buttonConfigs[index] = updated },
@@ -286,7 +300,7 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
                             when {
                                 config.id == "task_manager" -> sendSystemCommand("task_manager")
                                 isMainButton -> {
-                                    val buttonKey = mainButtonMode.protocolButtonKey
+                                    val buttonKey = mainButtonAction.protocolButtonKey
                                     pressedButtonKey = buttonKey
                                     mainButtonPressed = true
                                     sendMessage(buttonKey, "down")
@@ -361,7 +375,87 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
                 }
             }
         }
+
+        if (showActionSelector) {
+            MainActionSelector(
+                currentAction = mainButtonAction,
+                enabled = !isEditMode && !mainButtonPressed && pressedButtonKey == null,
+                onSelect = ::selectMainButtonAction,
+                onDismiss = { showActionSelector = false }
+            )
+        }
     }
+}
+
+@Composable
+private fun MainActionSelector(
+    currentAction: MainButtonAction,
+    enabled: Boolean,
+    onSelect: (MainButtonAction) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val actionRows = listOf(
+        listOf(
+            MainButtonAction.MOVE,
+            MainButtonAction.CROSS,
+            MainButtonAction.CIRCLE,
+            MainButtonAction.SQUARE,
+            MainButtonAction.TRIANGLE
+        ),
+        listOf(MainButtonAction.L1, MainButtonAction.R1),
+        listOf(MainButtonAction.L2, MainButtonAction.R2),
+        listOf(MainButtonAction.L3, MainButtonAction.R3)
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Main Action", color = NeonTheme.Accent) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                actionRows.forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        row.forEach { action ->
+                            val selected = action == currentAction
+                            OutlinedButton(
+                                onClick = { onSelect(action) },
+                                enabled = enabled,
+                                modifier = Modifier.weight(1f),
+                                border = BorderStroke(
+                                    width = if (selected) 2.dp else 1.dp,
+                                    color = action.displayColor.copy(alpha = if (enabled) 0.9f else 0.4f)
+                                ),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (selected) {
+                                        action.displayColor.copy(alpha = 0.18f)
+                                    } else {
+                                        Color.Transparent
+                                    },
+                                    contentColor = action.displayColor
+                                ),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = action.mainLabel,
+                                    fontSize = if (action == MainButtonAction.MOVE) 10.sp else 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = NeonTheme.Accent)
+            }
+        },
+        containerColor = NeonTheme.PanelBg
+    )
 }
 
 @Composable
