@@ -7,7 +7,7 @@ using Nefarius.ViGEm.Client.Targets.DualShock4;
 
 namespace PcDs4Server;
 
-public sealed class Ds4Service : ILeftStickOutput, IDisposable
+public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
 {
     private readonly IDirectDs4Factory _directDs4Factory;
     private readonly KeyboardKeyState _keyboardState;

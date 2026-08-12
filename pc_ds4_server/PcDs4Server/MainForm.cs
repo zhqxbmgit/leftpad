@@ -10,6 +10,7 @@ namespace PcDs4Server
     public class MainForm : Form
     {
         private readonly Ds4Service _service;
+        private readonly ServerLifecycleController _lifecycle;
         private NotifyIcon? _notifyIcon;
         private ContextMenuStrip? _trayMenu;
 
@@ -44,6 +45,7 @@ namespace PcDs4Server
         public MainForm(Ds4Service service)
         {
             _service = service;
+            _lifecycle = new ServerLifecycleController(service);
             InitializeComponent();
             _joystickOverlay = new VirtualJoystickOverlay();
             _ = _joystickOverlay.Handle;
@@ -383,14 +385,43 @@ namespace PcDs4Server
                 return;
             }
 
-            if (!_service.Initialize())
-            {
-                MessageBox.Show("The selected output could not be initialized.", "Output Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-            _service.Start();
+            StartServer(showErrorDialog: true);
+        }
+
+        private bool StartServer(bool showErrorDialog)
+        {
+            ServerStartResult result = _lifecycle.TryStart();
             UpdateOutputControls();
+            if (result.Succeeded) return true;
+
+            ShowStartFailure(result, showErrorDialog);
+            return false;
+        }
+
+        private void AutoStartDirectDs4Once()
+        {
+            ServerStartResult result = _lifecycle.TryAutoStartDirectDs4();
+            _outputMode.SelectedItem = _service.OutputMode;
+            UpdateOutputControls();
+            if (!result.Succeeded && result.Status != ServerStartStatus.AutoStartAlreadyAttempted)
+            {
+                ShowStartFailure(result, showErrorDialog: false);
+            }
+        }
+
+        private void ShowStartFailure(ServerStartResult result, bool showErrorDialog)
+        {
+            string detail = result.Exception?.Message ?? result.Status.ToString();
+            AppendLog($"[{DateTime.Now:HH:mm:ss}] Output start failed: {detail}");
+            _cardVigem.Value = "Error";
+            _cardDs4.Value = "Not created";
+            _cardVigem.SetStatusColor(ThemeColors.Error);
+            _cardDs4.SetStatusColor(ThemeColors.Error);
+            if (showErrorDialog)
+            {
+                MessageBox.Show($"The selected output could not be started.\n\n{detail}",
+                    "Output Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void UpdateOutputControls()
@@ -472,6 +503,12 @@ namespace PcDs4Server
             base.OnLoad(e);
             _outputMode.SelectedItem = _service.OutputMode;
             UpdateOutputControls();
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            BeginInvoke(AutoStartDirectDs4Once);
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)
