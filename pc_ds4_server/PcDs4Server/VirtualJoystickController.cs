@@ -58,8 +58,8 @@ public sealed record VirtualJoystickSnapshot(
 
 public sealed class VirtualJoystickController
 {
-    public const double JoystickRadius = 10.0;
-    public const double ActivationRadius = 4.0;
+    public const double JoystickRadius = 26.0;
+    public const double ActivationRadius = 2.0;
     public const byte NeutralAxis = 128;
 
     private readonly object _sync = new();
@@ -295,10 +295,20 @@ public sealed class VirtualJoystickController
             (_cursorDeltaY * _cursorDeltaY));
         _directionActive = _cursorDistance > ActivationRadius;
 
-        if (!_directionActive)
+        if (_cursorDistance > 0)
+        {
+            double visualScale = Math.Min(_cursorDistance, JoystickRadius) / _cursorDistance;
+            _logicalKnobX = _cursorDeltaX * visualScale;
+            _logicalKnobY = _cursorDeltaY * visualScale;
+        }
+        else
         {
             _logicalKnobX = 0;
             _logicalKnobY = 0;
+        }
+
+        if (!_directionActive)
+        {
             if (!_directionCapturedDuringHold)
             {
                 if (_movementLocked)
@@ -321,8 +331,6 @@ public sealed class VirtualJoystickController
             _currentDirectionX = _cursorDeltaX * inverseDistance;
             _currentDirectionY = _cursorDeltaY * inverseDistance;
             _directionCapturedDuringHold = true;
-            _logicalKnobX = _currentDirectionX * JoystickRadius;
-            _logicalKnobY = _currentDirectionY * JoystickRadius;
             SetStickLocked(_currentDirectionX, _currentDirectionY);
         }
 

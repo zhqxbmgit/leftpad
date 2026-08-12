@@ -1,3 +1,4 @@
+using System.Drawing;
 using PcDs4Server;
 using Xunit;
 
@@ -8,13 +9,29 @@ public sealed class VirtualJoystickControllerTests
     [Fact]
     public void ControlConstants_MatchVampireSurvivorsCursorModel()
     {
-        Assert.Equal(10.0, VirtualJoystickController.JoystickRadius);
-        Assert.Equal(4.0, VirtualJoystickController.ActivationRadius);
+        Assert.Equal(26.0, VirtualJoystickController.JoystickRadius);
+        Assert.Equal(2.0, VirtualJoystickController.ActivationRadius);
+        Assert.Null(typeof(VirtualJoystickController).GetField("MinimumOutputMagnitude"));
         Assert.Equal(10, CursorJoystickSampler.IntervalMilliseconds);
-        Assert.Equal(10, VirtualJoystickOverlay.VisualRadius);
-        Assert.Equal(20, VirtualJoystickOverlay.BaseDiameter);
-        Assert.Equal(6, VirtualJoystickOverlay.KnobDiameter);
+        Assert.Equal(26, VirtualJoystickOverlay.VisualRadius);
+        Assert.Equal(52, VirtualJoystickOverlay.BaseDiameter);
+        Assert.Equal(26, VirtualJoystickOverlay.KnobDiameter);
         Assert.Equal(1.0, VirtualJoystickOverlay.VisualScale);
+        Assert.Equal(
+            2.0 / 26.0,
+            VirtualJoystickController.ActivationRadius / VirtualJoystickController.JoystickRadius);
+        Assert.Equal(
+            0.5,
+            (double)VirtualJoystickOverlay.KnobDiameter / VirtualJoystickOverlay.BaseDiameter);
+        Assert.Equal(155, VirtualJoystickOverlay.BaseFillAlpha);
+        Assert.Equal(191, VirtualJoystickOverlay.KnobAlpha);
+        Assert.Equal(Color.FromArgb(155, 255, 255, 255), VirtualJoystickOverlay.BaseFillColor);
+        Assert.Equal(Color.FromArgb(191, 255, 255, 255), VirtualJoystickOverlay.KnobFillColor);
+        Assert.True(VirtualJoystickOverlay.KnobAlpha > VirtualJoystickOverlay.BaseFillAlpha);
+
+        using var overlay = new VirtualJoystickOverlay();
+        Assert.Equal(1.0, overlay.Opacity);
+        Assert.Equal(Color.Empty, overlay.TransparencyKey);
     }
 
     [Fact]
@@ -36,18 +53,22 @@ public sealed class VirtualJoystickControllerTests
     }
 
     [Fact]
-    public void OverlayForm_RecalculatesCanvasForHalfSizeVisuals()
+    public void OverlayForm_RecalculatesCanvasForEnlargedVisuals()
     {
         using var overlay = new VirtualJoystickOverlay();
 
-        Assert.Equal(30, overlay.ClientSize.Width);
-        Assert.Equal(30, overlay.ClientSize.Height);
+        Assert.Equal(82, overlay.ClientSize.Width);
+        Assert.Equal(82, overlay.ClientSize.Height);
+        int transparentMargin = (overlay.ClientSize.Width - VirtualJoystickOverlay.BaseDiameter) / 2;
+        Assert.Equal(15, transparentMargin);
+        Assert.True(transparentMargin >= (VirtualJoystickOverlay.KnobDiameter / 2) + 2);
     }
 
     [Theory]
-    [InlineData(10.0, 10.0)]
-    [InlineData(5.0, 5.0)]
-    [InlineData(-10.0, -10.0)]
+    [InlineData(26.0, 26.0)]
+    [InlineData(20.0, 20.0)]
+    [InlineData(12.0, 12.0)]
+    [InlineData(-26.0, -26.0)]
     public void OverlayVisualScale_MapsLogicalOffsetWithoutChangingControllerMath(
         double logicalOffset,
         double expectedVisualOffset)
@@ -61,10 +82,36 @@ public sealed class VirtualJoystickControllerTests
     [Fact]
     public void OverlayVisualScale_MapsFullDiagonalToCircleEdge()
     {
-        double logical = 10.0 / Math.Sqrt(2.0);
+        double logical = 26.0 / Math.Sqrt(2.0);
 
-        Assert.Equal(7.071068, VirtualJoystickOverlay.MapLogicalOffsetToVisual(logical), 6);
-        Assert.Equal(-7.071068, VirtualJoystickOverlay.MapLogicalOffsetToVisual(-logical), 6);
+        Assert.Equal(18.384776, VirtualJoystickOverlay.MapLogicalOffsetToVisual(logical), 6);
+        Assert.Equal(-18.384776, VirtualJoystickOverlay.MapLogicalOffsetToVisual(-logical), 6);
+    }
+
+    [Theory]
+    [InlineData(26.0, 0.0)]
+    [InlineData(-26.0, 0.0)]
+    [InlineData(0.0, 26.0)]
+    [InlineData(0.0, -26.0)]
+    [InlineData(18.384776310850235, 18.384776310850235)]
+    [InlineData(18.384776310850235, -18.384776310850235)]
+    [InlineData(-18.384776310850235, 18.384776310850235)]
+    [InlineData(-18.384776310850235, -18.384776310850235)]
+    public void KnobAtMaximumCardinalAndDiagonalOffsets_RemainsInsideCanvas(
+        double logicalX,
+        double logicalY)
+    {
+        using var overlay = new VirtualJoystickOverlay();
+        double center = overlay.ClientSize.Width / 2.0;
+        double knobRadius = VirtualJoystickOverlay.KnobDiameter / 2.0;
+        double visualX = VirtualJoystickOverlay.MapLogicalOffsetToVisual(logicalX);
+        double visualY = VirtualJoystickOverlay.MapLogicalOffsetToVisual(logicalY);
+        double safeMargin = 2.0;
+
+        Assert.True(center + visualX - knobRadius >= safeMargin);
+        Assert.True(center + visualY - knobRadius >= safeMargin);
+        Assert.True(center + visualX + knobRadius <= overlay.ClientSize.Width - safeMargin);
+        Assert.True(center + visualY + knobRadius <= overlay.ClientSize.Height - safeMargin);
     }
 
     [Fact]
@@ -86,7 +133,7 @@ public sealed class VirtualJoystickControllerTests
     }
 
     [Fact]
-    public void DeltaTen_ProducesFullDirection()
+    public void DeltaTen_ProducesFullMagnitudeWhileOverlayTracksRealCursorGeometry()
     {
         var fixture = ActiveFixture();
 
@@ -98,9 +145,15 @@ public sealed class VirtualJoystickControllerTests
     }
 
     [Theory]
+    [InlineData(3)]
     [InlineData(5)]
+    [InlineData(10)]
     [InlineData(15)]
-    public void DeltaBeyondActivationRadius_ProducesFullDirection(int deltaX)
+    [InlineData(20)]
+    [InlineData(25)]
+    [InlineData(26)]
+    [InlineData(40)]
+    public void DistanceBeyondActivationRadius_ProducesFullMagnitude(int deltaX)
     {
         var fixture = ActiveFixture();
 
@@ -110,56 +163,126 @@ public sealed class VirtualJoystickControllerTests
             fixture.Controller.Snapshot,
             deltaX,
             0,
-            10,
+            Math.Min(deltaX, 26),
             0,
             1,
             0);
+        Assert.True(fixture.Controller.Snapshot.DirectionActive);
+        Assert.Equal(1.0, StickMagnitude(fixture.Controller.Snapshot), 6);
+        Assert.Equal(byte.MaxValue, fixture.Controller.Snapshot.Ds4X);
     }
 
     [Fact]
-    public void DeltaTwenty_IsExactlyFullStrength()
+    public void FullMagnitude_IsIndependentOfPhysicalTravel()
     {
         var fixture = ActiveFixture();
+        (byte X, byte Y)? firstOutput = null;
 
-        fixture.Controller.UpdateCursor(new ScreenPoint(520, 500));
-
-        AssertState(fixture.Controller.Snapshot, 20, 0, 10, 0, 1, 0);
-        Assert.True(fixture.Controller.Snapshot.DirectionActive);
-        Assert.Equal((255, 128), fixture.Stick.LastValue);
-    }
-
-    [Fact]
-    public void DeltaOneHundred_ClampsKnobToTenAndStaysFullStrength()
-    {
-        var fixture = ActiveFixture();
-
-        fixture.Controller.UpdateCursor(new ScreenPoint(600, 500));
-
-        AssertState(fixture.Controller.Snapshot, 100, 0, 10, 0, 1, 0);
-        Assert.True(fixture.Controller.Snapshot.DirectionActive);
+        foreach (int distance in new[] { 3, 5, 10, 15, 20, 25, 26 })
+        {
+            fixture.Controller.UpdateCursor(new ScreenPoint(500 + distance, 500));
+            VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
+            Assert.Equal(1.0, StickMagnitude(state), 6);
+            firstOutput ??= (state.Ds4X, state.Ds4Y);
+            Assert.Equal(firstOutput.Value, (state.Ds4X, state.Ds4Y));
+        }
     }
 
     [Theory]
-    [InlineData(21)]
-    [InlineData(70)]
-    public void DeltaOutsideRadius_ClampsKnobToTenAndStaysFullStrength(int deltaX)
+    [InlineData(15, 0, 1.0, 0.0)]
+    [InlineData(25, 0, 1.0, 0.0)]
+    [InlineData(-15, 0, -1.0, 0.0)]
+    [InlineData(-25, 0, -1.0, 0.0)]
+    [InlineData(0, -15, 0.0, -1.0)]
+    [InlineData(0, -25, 0.0, -1.0)]
+    [InlineData(0, 15, 0.0, 1.0)]
+    [InlineData(0, 25, 0.0, 1.0)]
+    public void CardinalDirections_AreFullMagnitudeAtMultipleDistances(
+        int deltaX,
+        int deltaY,
+        double expectedDirectionX,
+        double expectedDirectionY)
+    {
+        var fixture = ActiveFixture();
+
+        fixture.Controller.UpdateCursor(new ScreenPoint(500 + deltaX, 500 + deltaY));
+
+        VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
+        Assert.Equal(expectedDirectionX, state.CurrentDirectionX, 6);
+        Assert.Equal(expectedDirectionY, state.CurrentDirectionY, 6);
+        Assert.Equal(1.0, StickMagnitude(state), 6);
+        Assert.Equal(expectedDirectionX, state.StickX, 6);
+        Assert.Equal(expectedDirectionY, state.StickY, 6);
+        Assert.Equal(VirtualJoystickController.MapAxis(state.StickX), state.Ds4X);
+        Assert.Equal(VirtualJoystickController.MapAxis(state.StickY), state.Ds4Y);
+    }
+
+    [Theory]
+    [InlineData(5, 5)]
+    [InlineData(10, 10)]
+    [InlineData(15, 15)]
+    [InlineData(20, 20)]
+    [InlineData(25, 25)]
+    [InlineData(26, 26)]
+    [InlineData(40, 26)]
+    public void CursorDistance_MapsOneToOneToVisualRadiusThenClamps(
+        int deltaX,
+        double expectedKnobX)
     {
         var fixture = ActiveFixture();
 
         fixture.Controller.UpdateCursor(new ScreenPoint(500 + deltaX, 500));
 
-        AssertState(fixture.Controller.Snapshot, deltaX, 0, 10, 0, 1, 0);
+        VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
+        Assert.Equal((double)deltaX, state.CursorDistance);
+        Assert.Equal(expectedKnobX, state.LogicalKnobX);
+        Assert.Equal((expectedKnobX, 0.0), fixture.Overlay.LastKnob);
+    }
+
+    [Fact]
+    public void DeltaFifteen_IsFullStrengthInsideVisualRadius()
+    {
+        var fixture = ActiveFixture();
+
+        fixture.Controller.UpdateCursor(new ScreenPoint(515, 500));
+
+        AssertState(fixture.Controller.Snapshot, 15, 0, 15, 0, 1, 0);
+        Assert.True(fixture.Controller.Snapshot.DirectionActive);
+        Assert.Equal((byte.MaxValue, (byte)128), fixture.Stick.LastValue);
+    }
+
+    [Fact]
+    public void DeltaOneHundred_ClampsKnobToJoystickRadiusAndStaysFullStrength()
+    {
+        var fixture = ActiveFixture();
+
+        fixture.Controller.UpdateCursor(new ScreenPoint(600, 500));
+
+        AssertState(fixture.Controller.Snapshot, 100, 0, 26, 0, 1, 0);
+        Assert.True(fixture.Controller.Snapshot.DirectionActive);
+    }
+
+    [Theory]
+    [InlineData(31)]
+    [InlineData(70)]
+    public void DeltaOutsideRadius_ClampsKnobToJoystickRadiusAndStaysFullStrength(int deltaX)
+    {
+        var fixture = ActiveFixture();
+
+        fixture.Controller.UpdateCursor(new ScreenPoint(500 + deltaX, 500));
+
+        AssertState(fixture.Controller.Snapshot, deltaX, 0, 26, 0, 1, 0);
         Assert.True(fixture.Controller.Snapshot.DirectionActive);
     }
 
     [Fact]
-    public void DeltaOneHundredFifty_ClampsKnobToTenAndStaysFullStrength()
+    public void DeltaOneHundredFifty_ClampsKnobToJoystickRadiusAndStaysFullStrength()
     {
         var fixture = ActiveFixture();
 
         fixture.Controller.UpdateCursor(new ScreenPoint(650, 500));
 
-        AssertState(fixture.Controller.Snapshot, 150, 0, 10, 0, 1, 0);
+        AssertState(fixture.Controller.Snapshot, 150, 0, 26, 0, 1, 0);
     }
 
     [Fact]
@@ -168,22 +291,23 @@ public sealed class VirtualJoystickControllerTests
         var fixture = ActiveFixture();
         fixture.Controller.UpdateCursor(new ScreenPoint(650, 500));
 
-        foreach (int currentX in new[] { 520, 510, 505 })
+        foreach (int currentX in new[] { 530, 525, 520, 515, 513 })
         {
             fixture.Controller.UpdateCursor(new ScreenPoint(currentX, 500));
 
+            double distance = currentX - 500;
             AssertState(
                 fixture.Controller.Snapshot,
-                currentX - 500,
+                distance,
                 0,
-                10,
+                Math.Min(distance, VirtualJoystickController.JoystickRadius),
                 0,
                 1,
                 0);
         }
 
-        fixture.Controller.UpdateCursor(new ScreenPoint(504, 500));
-        AssertState(fixture.Controller.Snapshot, 4, 0, 0, 0, 0, 0);
+        fixture.Controller.UpdateCursor(new ScreenPoint(502, 500));
+        AssertState(fixture.Controller.Snapshot, 2, 0, 2, 0, 0, 0);
         Assert.False(fixture.Controller.Snapshot.DirectionActive);
         Assert.True(fixture.Controller.Snapshot.DirectionCapturedDuringHold);
     }
@@ -193,7 +317,7 @@ public sealed class VirtualJoystickControllerTests
     {
         var fixture = ActiveFixture();
         fixture.Controller.UpdateCursor(new ScreenPoint(520, 500));
-        fixture.Controller.UpdateCursor(new ScreenPoint(504, 500));
+        fixture.Controller.UpdateCursor(new ScreenPoint(502, 500));
 
         Assert.Equal((128, 128), fixture.Stick.LastValue);
         Assert.True(fixture.Controller.Snapshot.DirectionCapturedDuringHold);
@@ -203,7 +327,8 @@ public sealed class VirtualJoystickControllerTests
         Assert.True(fixture.Controller.Snapshot.MovementLocked);
         Assert.Equal(1.0, fixture.Controller.Snapshot.LockedDirectionX);
         Assert.Equal(0.0, fixture.Controller.Snapshot.LockedDirectionY);
-        Assert.Equal((255, 128), fixture.Stick.LastValue);
+        Assert.Equal(1.0, StickMagnitude(fixture.Controller.Snapshot), 6);
+        Assert.Equal((byte.MaxValue, (byte)128), fixture.Stick.LastValue);
     }
 
     [Fact]
@@ -214,18 +339,18 @@ public sealed class VirtualJoystickControllerTests
 
         fixture.Controller.UpdateCursor(new ScreenPoint(600, 500));
 
-        AssertState(fixture.Controller.Snapshot, 100, 0, 10, 0, 1, 0);
+        AssertState(fixture.Controller.Snapshot, 100, 0, 26, 0, 1, 0);
     }
 
     [Fact]
-    public void DeltaNineteen_RemainsFullDirection()
+    public void DeltaNineteen_HasFullMagnitude()
     {
         var fixture = ActiveFixture();
         fixture.Controller.UpdateCursor(new ScreenPoint(650, 500));
 
         fixture.Controller.UpdateCursor(new ScreenPoint(519, 500));
 
-        AssertState(fixture.Controller.Snapshot, 19, 0, 10, 0, 1, 0);
+        AssertState(fixture.Controller.Snapshot, 19, 0, 19, 0, 1, 0);
         Assert.True(fixture.Controller.Snapshot.DirectionActive);
     }
 
@@ -240,12 +365,12 @@ public sealed class VirtualJoystickControllerTests
         VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
         Assert.Equal(100.0, state.CursorDeltaX);
         Assert.Equal(-100.0, state.CursorDeltaY);
-        Assert.Equal(7.071068, state.LogicalKnobX, 6);
-        Assert.Equal(-7.071068, state.LogicalKnobY, 6);
+        Assert.Equal(18.384776, state.LogicalKnobX, 6);
+        Assert.Equal(-18.384776, state.LogicalKnobY, 6);
         Assert.Equal(0.707107, state.StickX, 6);
         Assert.Equal(-0.707107, state.StickY, 6);
         Assert.Equal(1.0, Math.Sqrt((state.StickX * state.StickX) + (state.StickY * state.StickY)), 6);
-        Assert.Equal(10.0, Math.Sqrt((state.LogicalKnobX * state.LogicalKnobX) + (state.LogicalKnobY * state.LogicalKnobY)), 6);
+        Assert.Equal(26.0, Math.Sqrt((state.LogicalKnobX * state.LogicalKnobX) + (state.LogicalKnobY * state.LogicalKnobY)), 6);
     }
 
     [Fact]
@@ -253,15 +378,34 @@ public sealed class VirtualJoystickControllerTests
     {
         var fixture = ActiveFixture();
 
-        fixture.Controller.UpdateCursor(new ScreenPoint(510, 495));
+        fixture.Controller.UpdateCursor(new ScreenPoint(520, 490));
 
         VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
-        Assert.Equal(0.894427, state.StickX, 6);
-        Assert.Equal(-0.447214, state.StickY, 6);
-        Assert.Equal(8.944272, state.LogicalKnobX, 6);
-        Assert.Equal(-4.472136, state.LogicalKnobY, 6);
-        Assert.Equal(1.0, Math.Sqrt((state.StickX * state.StickX) + (state.StickY * state.StickY)), 6);
-        Assert.Equal(10.0, Math.Sqrt((state.LogicalKnobX * state.LogicalKnobX) + (state.LogicalKnobY * state.LogicalKnobY)), 6);
+        Assert.Equal(0.894427, state.CurrentDirectionX, 6);
+        Assert.Equal(-0.447214, state.CurrentDirectionY, 6);
+        Assert.Equal(state.CurrentDirectionX, state.StickX, 6);
+        Assert.Equal(state.CurrentDirectionY, state.StickY, 6);
+        Assert.Equal(20.0, state.LogicalKnobX, 6);
+        Assert.Equal(-10.0, state.LogicalKnobY, 6);
+        Assert.Equal(1.0, StickMagnitude(state), 6);
+        Assert.Equal(22.36068, state.CursorDistance, 6);
+    }
+
+    [Fact]
+    public void Diagonal_NormalizesDirectionToFullUnitCircleMagnitude()
+    {
+        var fixture = ActiveFixture();
+
+        fixture.Controller.UpdateCursor(new ScreenPoint(515, 515));
+
+        VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
+        Assert.Equal(0.707107, state.CurrentDirectionX, 6);
+        Assert.Equal(0.707107, state.CurrentDirectionY, 6);
+        Assert.Equal(1.0 / Math.Sqrt(2.0), state.StickX, 6);
+        Assert.Equal(1.0 / Math.Sqrt(2.0), state.StickY, 6);
+        Assert.Equal(1.0, StickMagnitude(state), 6);
+        Assert.True(Math.Abs(state.StickX) < 1.0);
+        Assert.True(Math.Abs(state.StickY) < 1.0);
     }
 
     [Fact]
@@ -280,7 +424,7 @@ public sealed class VirtualJoystickControllerTests
             fixture.Controller.UpdateCursor(cursor);
             VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
             Assert.Equal(1.0, Math.Sqrt((state.StickX * state.StickX) + (state.StickY * state.StickY)), 6);
-            Assert.Equal(10.0, Math.Sqrt((state.LogicalKnobX * state.LogicalKnobX) + (state.LogicalKnobY * state.LogicalKnobY)), 6);
+            Assert.Equal(26.0, Math.Sqrt((state.LogicalKnobX * state.LogicalKnobX) + (state.LogicalKnobY * state.LogicalKnobY)), 6);
         }
 
         Assert.Equal(0.0, fixture.Controller.Snapshot.StickX, 6);
@@ -288,40 +432,41 @@ public sealed class VirtualJoystickControllerTests
     }
 
     [Fact]
-    public void NegativeYTwenty_MapsToFullUp()
+    public void NegativeYAtRadius_MapsToFullUp()
     {
         var fixture = ActiveFixture();
 
-        fixture.Controller.UpdateCursor(new ScreenPoint(500, 480));
+        fixture.Controller.UpdateCursor(new ScreenPoint(500, 474));
 
         Assert.Equal((128, 0), fixture.Stick.LastValue);
         Assert.Equal(-1.0, fixture.Controller.Snapshot.StickY);
     }
 
     [Fact]
-    public void PositiveYTwenty_MapsToFullDownWithoutExtraInversion()
+    public void PositiveYAtRadius_MapsToFullDownWithoutExtraInversion()
     {
         var fixture = ActiveFixture();
 
-        fixture.Controller.UpdateCursor(new ScreenPoint(500, 520));
+        fixture.Controller.UpdateCursor(new ScreenPoint(500, 526));
 
         Assert.Equal((128, 255), fixture.Stick.LastValue);
         Assert.Equal(1.0, fixture.Controller.Snapshot.StickY);
     }
 
     [Fact]
-    public void NegativeXTwenty_MapsToFullLeft()
+    public void NegativeXAtRadius_MapsToFullLeft()
     {
         var fixture = ActiveFixture();
 
-        fixture.Controller.UpdateCursor(new ScreenPoint(480, 500));
+        fixture.Controller.UpdateCursor(new ScreenPoint(474, 500));
 
         Assert.Equal((0, 128), fixture.Stick.LastValue);
     }
 
     [Theory]
+    [InlineData(0)]
     [InlineData(1)]
-    [InlineData(4)]
+    [InlineData(2)]
     public void DisplacementAtOrWithinActivationRadius_RemainsNeutral(int deltaX)
     {
         var fixture = ActiveFixture();
@@ -329,7 +474,7 @@ public sealed class VirtualJoystickControllerTests
         fixture.Controller.UpdateCursor(new ScreenPoint(500 + deltaX, 500));
 
         Assert.Equal(0.0, fixture.Controller.Snapshot.StickX);
-        Assert.Equal(0.0, fixture.Controller.Snapshot.LogicalKnobX);
+        Assert.Equal((double)deltaX, fixture.Controller.Snapshot.LogicalKnobX);
         Assert.Equal(VirtualJoystickController.NeutralAxis, fixture.Controller.Snapshot.Ds4X);
         Assert.False(fixture.Controller.Snapshot.DirectionActive);
     }
@@ -415,7 +560,7 @@ public sealed class VirtualJoystickControllerTests
         fixture.Controller.SampleCursor();
 
         Assert.Equal(readsAtRelease, fixture.Cursor.ReadCount);
-        Assert.Equal((255, 128), fixture.Stick.LastValue);
+        Assert.Equal((byte.MaxValue, (byte)128), fixture.Stick.LastValue);
         Assert.True(fixture.Controller.Snapshot.MovementLocked);
         Assert.False(fixture.Controller.Snapshot.JoystickActive);
     }
@@ -433,9 +578,9 @@ public sealed class VirtualJoystickControllerTests
 
         Assert.Equal(1.0, fixture.Controller.Snapshot.LockedDirectionX);
         Assert.Equal(0.0, fixture.Controller.Snapshot.LockedDirectionY);
-        Assert.Equal(1.0, fixture.Controller.Snapshot.StickX);
+        Assert.Equal(1.0, fixture.Controller.Snapshot.StickX, 6);
         Assert.Equal(0.0, fixture.Controller.Snapshot.StickY);
-        Assert.Equal((255, 128), fixture.Stick.LastValue);
+        Assert.Equal((byte.MaxValue, (byte)128), fixture.Stick.LastValue);
     }
 
     [Fact]
@@ -445,7 +590,7 @@ public sealed class VirtualJoystickControllerTests
         fixture.Cursor.Position = new ScreenPoint(700, 500);
 
         Assert.True(fixture.Controller.TryMoveDown(out _));
-        fixture.Controller.UpdateCursor(new ScreenPoint(704, 500));
+        fixture.Controller.UpdateCursor(new ScreenPoint(702, 500));
 
         VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
         Assert.True(state.MoveButtonPressed);
@@ -454,8 +599,8 @@ public sealed class VirtualJoystickControllerTests
         Assert.False(state.DirectionCapturedDuringHold);
         Assert.False(state.DirectionActive);
         Assert.Equal(new ScreenPoint(700, 500), state.Center);
-        Assert.Equal(1.0, state.StickX);
-        Assert.Equal((255, 128), fixture.Stick.LastValue);
+        Assert.Equal(1.0, state.StickX, 6);
+        Assert.Equal((byte.MaxValue, (byte)128), fixture.Stick.LastValue);
         Assert.True(fixture.Overlay.IsVisible);
     }
 
@@ -466,14 +611,14 @@ public sealed class VirtualJoystickControllerTests
         fixture.Cursor.Position = new ScreenPoint(700, 500);
         fixture.Controller.TryMoveDown(out _);
 
-        fixture.Controller.UpdateCursor(new ScreenPoint(690, 490));
+        fixture.Controller.UpdateCursor(new ScreenPoint(691, 488));
 
         VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
         Assert.True(state.DirectionCapturedDuringHold);
-        Assert.Equal(-0.707107, state.CurrentDirectionX, 6);
-        Assert.Equal(-0.707107, state.CurrentDirectionY, 6);
-        Assert.Equal(-0.707107, state.StickX, 6);
-        Assert.Equal(-0.707107, state.StickY, 6);
+        Assert.Equal(-0.6, state.CurrentDirectionX, 6);
+        Assert.Equal(-0.8, state.CurrentDirectionY, 6);
+        Assert.Equal(-0.6, state.StickX, 6);
+        Assert.Equal(-0.8, state.StickY, 6);
         Assert.Equal(1.0, StickMagnitude(state), 6);
     }
 
@@ -483,18 +628,23 @@ public sealed class VirtualJoystickControllerTests
         var fixture = LockedRightFixture();
         fixture.Cursor.Position = new ScreenPoint(700, 500);
         fixture.Controller.TryMoveDown(out _);
-        fixture.Controller.UpdateCursor(new ScreenPoint(690, 490));
+        fixture.Controller.UpdateCursor(new ScreenPoint(691, 488));
 
         fixture.Controller.ReleaseMove();
 
         VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
         Assert.True(state.MovementLocked);
         Assert.False(state.JoystickActive);
-        Assert.Equal(-0.707107, state.LockedDirectionX, 6);
-        Assert.Equal(-0.707107, state.LockedDirectionY, 6);
-        Assert.Equal(-0.707107, state.StickX, 6);
-        Assert.Equal(-0.707107, state.StickY, 6);
+        Assert.Equal(-0.6, state.LockedDirectionX, 6);
+        Assert.Equal(-0.8, state.LockedDirectionY, 6);
+        Assert.Equal(-0.6, state.StickX, 6);
+        Assert.Equal(-0.8, state.StickY, 6);
         Assert.Equal(1.0, StickMagnitude(state), 6);
+        Assert.Equal(
+            (
+                VirtualJoystickController.MapAxis(state.StickX),
+                VirtualJoystickController.MapAxis(state.StickY)),
+            fixture.Stick.LastValue);
         Assert.False(fixture.Overlay.IsVisible);
     }
 
@@ -536,8 +686,9 @@ public sealed class VirtualJoystickControllerTests
     }
 
     [Theory]
+    [InlineData(0)]
     [InlineData(1)]
-    [InlineData(4)]
+    [InlineData(2)]
     public void ReleaseAtOrWithinActivationRadius_StopsWithoutCapturingDirection(int deltaX)
     {
         var fixture = ActiveFixture();
@@ -552,13 +703,54 @@ public sealed class VirtualJoystickControllerTests
     public void ReleaseBeyondActivationRadius_LocksFullDirection()
     {
         var fixture = ActiveFixture();
-        fixture.Controller.UpdateCursor(new ScreenPoint(505, 500));
+        fixture.Controller.UpdateCursor(new ScreenPoint(520, 500));
 
         fixture.Controller.ReleaseMove();
 
         Assert.True(fixture.Controller.Snapshot.MovementLocked);
         Assert.Equal(1.0, fixture.Controller.Snapshot.LockedDirectionX);
-        Assert.Equal((255, 128), fixture.Stick.LastValue);
+        Assert.Equal(1.0, StickMagnitude(fixture.Controller.Snapshot), 6);
+        Assert.Equal((byte.MaxValue, (byte)128), fixture.Stick.LastValue);
+    }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(15)]
+    [InlineData(26)]
+    public void ReleaseAtDifferentDistances_LocksIdenticalFullDirection(int distance)
+    {
+        var fixture = ActiveFixture();
+        fixture.Controller.UpdateCursor(new ScreenPoint(500 + distance, 500));
+
+        fixture.Controller.ReleaseMove();
+
+        VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
+        Assert.True(state.MovementLocked);
+        Assert.Equal(1.0, state.LockedDirectionX);
+        Assert.Equal(0.0, state.LockedDirectionY);
+        Assert.Equal(1.0, StickMagnitude(state), 6);
+        Assert.Equal((byte.MaxValue, (byte)128), fixture.Stick.LastValue);
+    }
+
+    [Fact]
+    public void Reaim_FromRightToUp_UpdatesFullDirection()
+    {
+        var fixture = ActiveFixture();
+        fixture.Controller.UpdateCursor(new ScreenPoint(505, 500));
+        fixture.Controller.ReleaseMove();
+        Assert.Equal(1.0, StickMagnitude(fixture.Controller.Snapshot), 6);
+
+        fixture.Cursor.Position = new ScreenPoint(700, 500);
+        fixture.Controller.TryMoveDown(out _);
+        fixture.Controller.UpdateCursor(new ScreenPoint(700, 485));
+        fixture.Controller.ReleaseMove();
+
+        VirtualJoystickSnapshot state = fixture.Controller.Snapshot;
+        Assert.True(state.MovementLocked);
+        Assert.Equal(0.0, state.LockedDirectionX, 6);
+        Assert.Equal(-1.0, state.LockedDirectionY, 6);
+        Assert.Equal(1.0, StickMagnitude(state), 6);
+        Assert.Equal(((byte)128, byte.MinValue), fixture.Stick.LastValue);
     }
 
     [Fact]
@@ -635,8 +827,9 @@ public sealed class VirtualJoystickControllerTests
         Assert.True(state.JoystickActive);
         Assert.False(state.MovementLocked);
         Assert.True(state.DirectionCapturedDuringHold);
-        Assert.Equal(-0.707107, state.StickX, 6);
-        Assert.Equal(-0.707107, state.StickY, 6);
+        double expectedStickAxis = -1.0 / Math.Sqrt(2.0);
+        Assert.Equal(expectedStickAxis, state.StickX, 6);
+        Assert.Equal(expectedStickAxis, state.StickY, 6);
         Assert.True(fixture.Overlay.IsVisible);
     }
 

@@ -111,6 +111,45 @@ public sealed class KeyboardOutputTests
         Assert.Empty(fixture.State.CurrentPressedKeys);
     }
 
+    [Theory]
+    [InlineData(5)]
+    [InlineData(15)]
+    [InlineData(26)]
+    public void MoveDistance_DoesNotChangeDigitalKeyboardDirection(int distance)
+    {
+        var fixture = MoveFixture();
+        fixture.Controller.TryMoveDown(out _);
+
+        fixture.Controller.UpdateCursor(new ScreenPoint(500 + distance, 500));
+
+        Assert.Equal(new[] { KeyboardKey.D }, fixture.State.CurrentPressedKeys);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void MoveAtOrWithinActivationRadius_ProducesNoWasd(int distance)
+    {
+        var fixture = MoveFixture();
+        fixture.Controller.TryMoveDown(out _);
+
+        fixture.Controller.UpdateCursor(new ScreenPoint(500 + distance, 500));
+
+        Assert.Empty(fixture.State.CurrentPressedKeys);
+    }
+
+    [Fact]
+    public void MoveBeyondActivationRadius_ProducesDigitalWasd()
+    {
+        var fixture = MoveFixture();
+        fixture.Controller.TryMoveDown(out _);
+
+        fixture.Controller.UpdateCursor(new ScreenPoint(503, 500));
+
+        Assert.Equal(new[] { KeyboardKey.D }, fixture.State.CurrentPressedKeys);
+    }
+
     [Fact]
     public void Reaim_ChangesOnlyMovementKeyDifference()
     {
