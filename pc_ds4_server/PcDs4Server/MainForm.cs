@@ -19,6 +19,11 @@ namespace PcDs4Server
         private RichTextBox _logBox = null!;
         private Label _lblStatusBadge = null!;
         private Label _joystickDebug = null!;
+        private ComboBox _outputMode = null!;
+        private Button _startStop = null!;
+        private FlowLayoutPanel _keyboardMapping = null!;
+        private readonly Dictionary<string, ComboBox> _bindingEditors = new(StringComparer.OrdinalIgnoreCase);
+        private bool _initializingBindingEditors = true;
         private bool _isReallyClosing = false;
         private readonly VirtualJoystickOverlay _joystickOverlay;
 
@@ -135,6 +140,55 @@ namespace PcDs4Server
             cardFlow.Controls.AddRange(new Control[] { _cardVigem, _cardDs4, _cardPhone, _cardPort });
             _contentPanel.Controls.Add(cardFlow);
 
+            var outputSection = new FlowLayoutPanel {
+                Dock = DockStyle.Top, Height = 82, FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false, Padding = new Padding(0, 8, 0, 4)
+            };
+            outputSection.Controls.Add(new Label {
+                Text = "Output Mode", AutoSize = false, Width = 90, Height = 28,
+                TextAlign = ContentAlignment.MiddleLeft, ForeColor = ThemeColors.TextSecondary
+            });
+            _outputMode = new ComboBox {
+                DropDownStyle = ComboBoxStyle.DropDownList, Width = 125,
+                DataSource = new[] { OutputMode.DirectDs4, OutputMode.Keyboard }
+            };
+            _outputMode.Format += (_, e) => e.Value = (OutputMode)e.ListItem! == OutputMode.DirectDs4
+                ? "Direct DS4" : "Keyboard";
+            _outputMode.SelectedValueChanged += (_, _) => ApplySelectedOutputMode();
+            outputSection.Controls.Add(_outputMode);
+            _startStop = new Button {
+                Text = "Start", Width = 80, Height = 28,
+                FlatStyle = FlatStyle.Flat,
+                UseVisualStyleBackColor = false,
+                BackColor = ThemeColors.ControlDark,
+                ForeColor = ThemeColors.TextMain
+            };
+            _startStop.FlatAppearance.BorderColor = ThemeColors.BorderPurple;
+            _startStop.Click += (_, _) => ToggleServer();
+            outputSection.Controls.Add(_startStop);
+            _keyboardMapping = new FlowLayoutPanel {
+                Width = 385, Height = 66, AutoScroll = true, WrapContents = true,
+                FlowDirection = FlowDirection.LeftToRight
+            };
+            foreach (string action in KeyboardBindings.ProtocolActions)
+            {
+                var label = new Label {
+                    Text = action.ToUpperInvariant(), Width = 58, Height = 25,
+                    TextAlign = ContentAlignment.MiddleRight,
+                    ForeColor = ThemeColors.TextSecondary
+                };
+                var editor = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 105 };
+                editor.DataSource = Enum.GetValues<KeyboardKey>();
+                editor.SelectedItem = _service.KeyboardBindings.Get(action);
+                editor.SelectedValueChanged += (_, _) => SaveKeyboardMappings();
+                _bindingEditors[action] = editor;
+                _keyboardMapping.Controls.Add(label);
+                _keyboardMapping.Controls.Add(editor);
+            }
+            _initializingBindingEditors = false;
+            outputSection.Controls.Add(_keyboardMapping);
+            _contentPanel.Controls.Add(outputSection);
+
             // 6. 手柄监控区 (绘制在 Panel 上)
             var monitorSection = new Panel { Dock = DockStyle.Top, Height = 130, Padding = new Padding(0, 10, 0, 0) };
             var lblMonitorTitle = new Label {
@@ -238,12 +292,13 @@ namespace PcDs4Server
         {
             _service.OnLog += msg => AppendLog(msg);
             _service.OnStatusChanged += status => PostToUi(() => {
-                bool ready = status.Contains("已连接");
+                bool ready = status.Contains("Connected", StringComparison.OrdinalIgnoreCase) ||
+                    status.Contains("Ready", StringComparison.OrdinalIgnoreCase);
                 _cardVigem.Value = ready ? "Ready" : "Error";
                 _cardVigem.SetStatusColor(ready ? ThemeColors.Success : ThemeColors.Error);
             });
             _service.OnConnectionChanged += conn => PostToUi(() => {
-                bool connected = conn.Contains("已连接");
+                bool connected = conn.StartsWith("Connected:", StringComparison.OrdinalIgnoreCase);
                 _cardPhone.Value = connected ? "Active" : "Waiting";
                 _cardPhone.SetStatusColor(connected ? ThemeColors.Success : ThemeColors.Warning);
 
@@ -296,6 +351,86 @@ namespace PcDs4Server
             });
         }
 
+        private void ApplySelectedOutputMode()
+        {
+            if (_outputMode.SelectedItem is not OutputMode selected) return;
+            if (!_service.TrySetOutputMode(selected))
+            {
+                _outputMode.SelectedItem = _service.OutputMode;
+                return;
+            }
+            UpdateOutputControls();
+        }
+
+        private void SaveKeyboardMappings()
+        {
+            if (_initializingBindingEditors || _service.IsRunning ||
+                _bindingEditors.Count != KeyboardBindings.ProtocolActions.Count) return;
+            var bindings = _service.KeyboardBindings;
+            foreach ((string action, ComboBox editor) in _bindingEditors)
+            {
+                if (editor.SelectedItem is KeyboardKey key) bindings.Set(action, key);
+            }
+            _service.TryUpdateKeyboardBindings(bindings);
+        }
+
+        private void ToggleServer()
+        {
+            if (_service.IsRunning)
+            {
+                _service.Stop();
+                UpdateOutputControls();
+                return;
+            }
+
+            if (!_service.Initialize())
+            {
+                MessageBox.Show("The selected output could not be initialized.", "Output Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            _service.Start();
+            UpdateOutputControls();
+        }
+
+        private void UpdateOutputControls()
+        {
+            bool stopped = !_service.IsRunning;
+            _outputMode.Enabled = stopped;
+            bool mappingsEditable = ShouldEnableKeyboardMappings(_service.OutputMode, isRunning: !stopped);
+            foreach (ComboBox editor in _bindingEditors.Values)
+            {
+                editor.Enabled = mappingsEditable;
+            }
+            _startStop.Text = stopped ? "Start" : "Stop";
+            if (_service.OutputMode == OutputMode.Keyboard)
+            {
+                _cardVigem.Value = "Disabled";
+                _cardDs4.Value = "Disabled";
+                _cardVigem.SetStatusColor(ThemeColors.TextSecondary);
+                _cardDs4.SetStatusColor(ThemeColors.TextSecondary);
+            }
+            else if (stopped)
+            {
+                _cardVigem.Value = "Not started";
+                _cardDs4.Value = "Not created";
+                _cardVigem.SetStatusColor(ThemeColors.Warning);
+                _cardDs4.SetStatusColor(ThemeColors.Warning);
+            }
+            else
+            {
+                _cardVigem.Value = "Ready";
+                _cardDs4.Value = "Connected";
+                _cardVigem.SetStatusColor(ThemeColors.Success);
+                _cardDs4.SetStatusColor(ThemeColors.Success);
+            }
+        }
+
+        public static bool ShouldEnableKeyboardMappings(OutputMode outputMode, bool isRunning)
+        {
+            return outputMode == OutputMode.Keyboard && !isRunning;
+        }
+
         private void PostToUi(Action action)
         {
             if (IsDisposed || Disposing) return;
@@ -335,14 +470,8 @@ namespace PcDs4Server
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            if (!_service.Initialize()) {
-                _cardVigem.Value = "Error"; _cardVigem.SetStatusColor(ThemeColors.Error);
-                MessageBox.Show("ViGEmBus driver not found. Please install it.", "Driver Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            } else {
-                _cardVigem.Value = "Ready"; _cardVigem.SetStatusColor(ThemeColors.Success);
-            }
-
-            _service.Start();
+            _outputMode.SelectedItem = _service.OutputMode;
+            UpdateOutputControls();
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)

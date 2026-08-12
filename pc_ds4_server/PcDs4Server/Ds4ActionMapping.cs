@@ -82,7 +82,8 @@ public enum Ds4ControlResetReason
 {
     Disconnect,
     SessionReplacement,
-    ServiceStop
+    ServiceStop,
+    OutputFailure
 }
 
 public sealed record Ds4ControlRelease(

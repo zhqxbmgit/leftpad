@@ -9,8 +9,16 @@ namespace PcDs4Server
         private static Mutex? _mutex;
 
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
+            if (args.Contains("--keyboard-smoke-test", StringComparer.OrdinalIgnoreCase))
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Environment.ExitCode = KeyboardSmokeTest.Run();
+                return;
+            }
+
             // 单实例运行控制
             const string mutexName = "Global\\LeftPadDs4Receiver_Mutex";
             _mutex = new Mutex(true, mutexName, out bool createdNew);
