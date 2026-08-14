@@ -201,7 +201,7 @@ public sealed class ActionDoubleTapRecognizerTests
 
 public sealed class MoveTapRecognizerTests
 {
-    private static readonly TimeSpan Window = TimeSpan.FromMilliseconds(300);
+    private static readonly TimeSpan Window = TimeSpan.FromMilliseconds(150);
 
     [Fact]
     public void TwoValidMoveTapsWithinWindow_TriggerOnSecondUp()
@@ -225,12 +225,12 @@ public sealed class MoveTapRecognizerTests
     }
 
     [Fact]
-    public void MoveDoubleTapAfterWindow_DoesNotTrigger()
+    public void SecondMoveDown151MillisecondsAfterFirstUp_DoesNotTrigger()
     {
         var recognizer = FirstValidTapCompletedAt(Ms(20));
 
-        recognizer.MoveDown(Ms(321));
-        MoveTapResult result = recognizer.MoveUp(Ms(340), false);
+        recognizer.MoveDown(Ms(171));
+        MoveTapResult result = recognizer.MoveUp(Ms(190), false);
 
         Assert.False(result.TriggerAccepted);
     }
@@ -249,14 +249,14 @@ public sealed class MoveTapRecognizerTests
     }
 
     [Fact]
-    public void DirectionalSecondHold_CancelsFirstTapCandidate()
+    public void EligibleSecondDirectionalHold_CancelsFirstTapCandidate()
     {
         var recognizer = FirstValidTapCompletedAt(Ms(20));
-        recognizer.MoveDown(Ms(50));
+        recognizer.MoveDown(Ms(169));
 
-        MoveTapResult directionalUp = recognizer.MoveUp(Ms(70), directionCapturedDuringHold: true);
-        recognizer.MoveDown(Ms(90));
-        MoveTapResult nextUp = recognizer.MoveUp(Ms(110), directionCapturedDuringHold: false);
+        MoveTapResult directionalUp = recognizer.MoveUp(Ms(500), directionCapturedDuringHold: true);
+        recognizer.MoveDown(Ms(510));
+        MoveTapResult nextUp = recognizer.MoveUp(Ms(520), directionCapturedDuringHold: false);
 
         Assert.False(directionalUp.TriggerAccepted);
         Assert.False(nextUp.TriggerAccepted);
@@ -307,14 +307,15 @@ public sealed class MoveTapRecognizerTests
     }
 
     [Fact]
-    public void SecondMoveTapMustCompleteWithinWindow()
+    public void SecondMoveDown149MillisecondsAfterFirstUp_CanTriggerAfterLongHold()
     {
         var recognizer = FirstValidTapCompletedAt(Ms(20));
-        recognizer.MoveDown(Ms(50));
+        MoveTapResult secondDown = recognizer.MoveDown(Ms(169));
 
-        MoveTapResult result = recognizer.MoveUp(Ms(321), false);
+        MoveTapResult secondUp = recognizer.MoveUp(Ms(500), false);
 
-        Assert.False(result.TriggerAccepted);
+        Assert.False(secondDown.TriggerAccepted);
+        Assert.True(secondUp.TriggerAccepted);
     }
 
     [Fact]

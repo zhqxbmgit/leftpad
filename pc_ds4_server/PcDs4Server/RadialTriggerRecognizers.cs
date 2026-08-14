@@ -114,6 +114,7 @@ public sealed class MoveTapRecognizer
 {
     private readonly TimeSpan _doubleTapWindow;
     private bool _moveDown;
+    private bool _secondTapTimingEligible;
     private TimeSpan? _firstTapUpTimestamp;
 
     public MoveTapRecognizer(TimeSpan doubleTapWindow)
@@ -132,11 +133,14 @@ public sealed class MoveTapRecognizer
             return default;
         }
 
+        _secondTapTimingEligible = false;
         if (_firstTapUpTimestamp is TimeSpan firstUp)
         {
             TimeSpan elapsed = timestamp - firstUp;
             if (elapsed < TimeSpan.Zero || elapsed > _doubleTapWindow)
                 _firstTapUpTimestamp = null;
+            else
+                _secondTapTimingEligible = true;
         }
 
         _moveDown = true;
@@ -156,26 +160,26 @@ public sealed class MoveTapRecognizer
         if (directionCapturedDuringHold)
         {
             _firstTapUpTimestamp = null;
+            _secondTapTimingEligible = false;
             return default;
         }
 
-        if (_firstTapUpTimestamp is TimeSpan firstUp)
+        if (_secondTapTimingEligible)
         {
-            TimeSpan elapsed = timestamp - firstUp;
-            if (elapsed >= TimeSpan.Zero && elapsed <= _doubleTapWindow)
-            {
-                _firstTapUpTimestamp = null;
-                return new MoveTapResult(TriggerAccepted: true);
-            }
+            _firstTapUpTimestamp = null;
+            _secondTapTimingEligible = false;
+            return new MoveTapResult(TriggerAccepted: true);
         }
 
         _firstTapUpTimestamp = timestamp;
+        _secondTapTimingEligible = false;
         return default;
     }
 
     public void Reset()
     {
         _moveDown = false;
+        _secondTapTimingEligible = false;
         _firstTapUpTimestamp = null;
     }
 }

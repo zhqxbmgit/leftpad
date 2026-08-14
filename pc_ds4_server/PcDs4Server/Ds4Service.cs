@@ -9,11 +9,18 @@ namespace PcDs4Server;
 
 public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
 {
+    private static readonly TimeSpan RadialDoubleTapWindow = TimeSpan.FromMilliseconds(150);
+
     private readonly IDirectDs4Factory _directDs4Factory;
     private readonly KeyboardKeyState _keyboardState;
     private readonly KeyboardMoveOutput _keyboardMoveOutput;
     private readonly IKeyboardBindingStore _bindingStore;
     private readonly Ds4ControlState _controlState = new();
+    private readonly Stopwatch _inputClock = Stopwatch.StartNew();
+    private readonly Func<TimeSpan>? _inputTimestampProvider;
+    private readonly TimeSpan _doubleTapWindow;
+    private readonly ActionDoubleTapRecognizer _actionDoubleTapRecognizer;
+    private readonly MoveTapRecognizer _moveTapRecognizer;
     private readonly object _lock = new();
     private readonly object _outputLock = new();
     private IDirectDs4Session? _directDs4;
@@ -30,13 +37,19 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     public Ds4Service(
         IDirectDs4Factory? directDs4Factory = null,
         IKeyboardOutput? keyboardOutput = null,
-        IKeyboardBindingStore? bindingStore = null)
+        IKeyboardBindingStore? bindingStore = null,
+        TimeSpan? doubleTapWindow = null,
+        Func<TimeSpan>? inputTimestampProvider = null)
     {
         _directDs4Factory = directDs4Factory ?? new VigemDirectDs4Factory();
         _keyboardState = new KeyboardKeyState(keyboardOutput ?? new SendInputKeyboardOutput());
         _keyboardMoveOutput = new KeyboardMoveOutput(_keyboardState);
         _bindingStore = bindingStore ?? new JsonKeyboardBindingStore();
         _keyboardBindings = _bindingStore.Load();
+        _doubleTapWindow = doubleTapWindow ?? RadialDoubleTapWindow;
+        _inputTimestampProvider = inputTimestampProvider;
+        _actionDoubleTapRecognizer = new ActionDoubleTapRecognizer(_doubleTapWindow);
+        _moveTapRecognizer = new MoveTapRecognizer(_doubleTapWindow);
         LocalIp = GetLocalIp();
     }
 
@@ -80,11 +93,21 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         _joystick = new VirtualJoystickController(this, overlay, cursor);
         _joystick.StateChanged += snapshot => OnJoystickStateChanged?.Invoke(snapshot);
         _joystick.CursorPositionReadFailed += error =>
+        {
+            lock (_lock) ResetRadialRecognizers();
             Log($"Cursor sampling stopped: GetCursorPos failed with Win32 error {error}.");
+        };
         OnJoystickStateChanged?.Invoke(_joystick.Snapshot);
     }
 
-    public void ResetVirtualJoystick(JoystickResetReason reason) => _joystick?.Reset(reason);
+    public void ResetVirtualJoystick(JoystickResetReason reason)
+    {
+        lock (_lock)
+        {
+            ResetRadialRecognizers();
+            _joystick?.Reset(reason);
+        }
+    }
 
     public bool Initialize()
     {
@@ -118,6 +141,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         if (_outputMode == OutputMode.DirectDs4 && _directDs4 == null)
             throw new InvalidOperationException("Direct DS4 output must be initialized before starting.");
 
+        ResetRadialRecognizers();
         _server = new TcpListener(IPAddress.Any, Port);
         _server.Start();
         IsRunning = true;
@@ -133,6 +157,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         }
 
         Log($"TCP server listening on port {Port} in {_outputMode} mode.");
+        Log($"[RADIAL] Double-tap window: {_doubleTapWindow.TotalMilliseconds:0} ms");
         OnConnectionChanged?.Invoke("Waiting for phone connection...");
         _ = Task.Run(() => AcceptClientsAsync(_cts.Token));
     }
@@ -234,11 +259,27 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         }
 
         if (!Ds4ActionMapper.TryGetPressedState(action, out bool pressed)) return;
+        bool isGameAction = Ds4ActionMapper.TryGet(protocolAction, out Ds4ActionMapping mapping);
+        if (isGameAction)
+        {
+            ActionDoubleTapResult recognition = _actionDoubleTapRecognizer.Process(
+                mapping.ProtocolKey,
+                pressed,
+                CurrentInputTimestamp);
+            if (recognition.TriggerAccepted)
+                Log($"[RADIAL] Action double-tap trigger: {mapping.ProtocolKey}");
+            if (recognition.ConsumeCurrentEvent)
+            {
+                OnButtonEvent?.Invoke($"{protocolAction} -> {action}");
+                return;
+            }
+        }
+
         if (_outputMode == OutputMode.Keyboard)
         {
             HandleKeyboardAction(protocolAction, pressed);
         }
-        else if (Ds4ActionMapper.TryGet(protocolAction, out Ds4ActionMapping mapping))
+        else if (isGameAction)
         {
             lock (_outputLock)
             {
@@ -286,10 +327,31 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         {
             if (action.Equals("down", StringComparison.OrdinalIgnoreCase))
             {
-                if (!_joystick.TryMoveDown(out int error)) Log($"MOVE activation failed with Win32 error {error}.");
+                bool wasPressed = _joystick.Snapshot.MoveButtonPressed;
+                if (!_joystick.TryMoveDown(out int error))
+                {
+                    ResetRadialRecognizers();
+                    Log($"MOVE activation failed with Win32 error {error}.");
+                }
+                else if (!wasPressed && _joystick.Snapshot.MoveButtonPressed)
+                {
+                    _moveTapRecognizer.MoveDown(CurrentInputTimestamp);
+                }
             }
-            else if (action.Equals("up", StringComparison.OrdinalIgnoreCase)) _joystick.ReleaseMove();
-            else if (action.Equals("stop", StringComparison.OrdinalIgnoreCase)) _joystick.StopMovement();
+            else if (action.Equals("up", StringComparison.OrdinalIgnoreCase))
+            {
+                bool directionCapturedDuringHold = _joystick.Snapshot.DirectionCapturedDuringHold;
+                _joystick.ReleaseMove();
+                MoveTapResult recognition = _moveTapRecognizer.MoveUp(
+                    CurrentInputTimestamp,
+                    directionCapturedDuringHold);
+                if (recognition.TriggerAccepted) Log("[RADIAL] MOVE double-tap trigger");
+            }
+            else if (action.Equals("stop", StringComparison.OrdinalIgnoreCase))
+            {
+                _joystick.StopMovement();
+                _moveTapRecognizer.Reset();
+            }
         }
         catch (Exception ex)
         {
@@ -303,6 +365,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     {
         lock (_lock)
         {
+            ResetRadialRecognizers();
             _keyboardState.ReleaseAll();
             lock (_outputLock)
             {
@@ -377,6 +440,14 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     }
 
     private void Log(string message) => OnLog?.Invoke($"[{DateTime.Now:HH:mm:ss}] {message}");
+
+    private TimeSpan CurrentInputTimestamp => _inputTimestampProvider?.Invoke() ?? _inputClock.Elapsed;
+
+    private void ResetRadialRecognizers()
+    {
+        _actionDoubleTapRecognizer.Reset();
+        _moveTapRecognizer.Reset();
+    }
 
     private static string GetLocalIp()
     {
