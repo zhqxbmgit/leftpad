@@ -29,6 +29,7 @@ namespace PcDs4Server
         private readonly VirtualJoystickOverlay _joystickOverlay;
         private readonly RadialMenuController _radialMenu;
         private readonly RadialMenuSettingsStore _radialSettingsStore;
+        private readonly System.Windows.Forms.Timer _radialSelectionTimer;
 
         // 状态卡片
         private ModernStatusCard _cardVigem = null!, _cardDs4 = null!, _cardPhone = null!, _cardPort = null!;
@@ -56,6 +57,12 @@ namespace PcDs4Server
             var radialOverlay = new RadialMenuOverlay();
             _ = radialOverlay.Handle;
             _radialMenu = new RadialMenuController(radialOverlay, radialSettings.Settings);
+            _radialSelectionTimer = new System.Windows.Forms.Timer
+            {
+                Interval = radialSettings.Settings.SelectionPollIntervalMs
+            };
+            _radialSelectionTimer.Tick += RadialSelectionTimer_Tick;
+            _radialMenu.NormalMenuStateChanged += SyncRadialSelectionTimer;
             _service.SetRadialDoubleTapWindow(radialSettings.Settings.DoubleTapWindowMs);
             _service.ConfigureVirtualJoystick(_joystickOverlay, new WindowsCursorPositionProvider());
             SetupServiceEvents();
@@ -381,6 +388,25 @@ namespace PcDs4Server
         {
             _radialMenu.ApplySettings(settings);
             _service.SetRadialDoubleTapWindow(settings.DoubleTapWindowMs);
+            SyncRadialSelectionTimer();
+        }
+
+        private void RadialSelectionTimer_Tick(object? sender, EventArgs e)
+        {
+            _radialMenu.UpdateSelectionForCursor(Cursor.Position);
+        }
+
+        private void SyncRadialSelectionTimer()
+        {
+            if (_radialMenu.IsNormalMenuOpen)
+            {
+                _radialSelectionTimer.Interval = _radialMenu.ActiveSettings.SelectionPollIntervalMs;
+                _radialSelectionTimer.Start();
+            }
+            else
+            {
+                _radialSelectionTimer.Stop();
+            }
         }
 
         private void LogRadialSettingsLoad(RadialMenuSettingsLoadResult result)
@@ -568,6 +594,9 @@ namespace PcDs4Server
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             _service.ResetVirtualJoystick(JoystickResetReason.NormalExit);
+            _radialMenu.NormalMenuStateChanged -= SyncRadialSelectionTimer;
+            _radialSelectionTimer.Stop();
+            _radialSelectionTimer.Dispose();
             _radialMenu.Dispose();
             _joystickOverlay.Dispose();
             base.OnFormClosed(e);

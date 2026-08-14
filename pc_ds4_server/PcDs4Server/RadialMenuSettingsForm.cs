@@ -11,6 +11,10 @@ public sealed class RadialMenuSettingsForm : Form
     private readonly NumericUpDown _doubleTapWindow = Editor(
         RadialMenuSettings.MinimumDoubleTapWindowMs,
         RadialMenuSettings.MaximumDoubleTapWindowMs);
+    private readonly NumericUpDown _selectionDeadZone = Editor(
+        RadialMenuSettings.MinimumSelectionDeadZone,
+        RadialMenuSettings.MaximumSelectionDeadZone);
+    private readonly NumericUpDown _highlightAlpha = Editor(0, 255);
     private readonly NumericUpDown _fillAlpha = Editor(0, 255);
     private readonly NumericUpDown _borderAlpha = Editor(0, 255);
     private readonly NumericUpDown _textAlpha = Editor(0, 255);
@@ -21,6 +25,9 @@ public sealed class RadialMenuSettingsForm : Form
     private readonly NumericUpDown _textRadius = Editor(1, 399);
     private readonly NumericUpDown _gap = Editor(0, 12, decimalPlaces: 1, increment: 0.5m);
     private readonly NumericUpDown _fontSize = Editor(6, 48, decimalPlaces: 1, increment: 0.5m);
+    private readonly NumericUpDown _selectionPollInterval = Editor(
+        RadialMenuSettings.MinimumSelectionPollIntervalMs,
+        RadialMenuSettings.MaximumSelectionPollIntervalMs);
     private readonly Label _validationStatus = new()
     {
         Dock = DockStyle.Bottom,
@@ -90,6 +97,8 @@ public sealed class RadialMenuSettingsForm : Form
         page.Controls.Add(EditorTable(
             ("整体大小 (%)", _scale),
             ("环形菜单双击窗口 (ms)", _doubleTapWindow),
+            ("选择死区 (px)", _selectionDeadZone),
+            ("选择高亮强度", _highlightAlpha),
             ("花瓣透明度 (0-255)", _fillAlpha),
             ("边框透明度 (0-255)", _borderAlpha),
             ("文字透明度 (0-255)", _textAlpha)));
@@ -106,7 +115,8 @@ public sealed class RadialMenuSettingsForm : Form
             ("花瓣外半径 (px)", _outerRadius),
             ("文字位置半径 (px)", _textRadius),
             ("花瓣间隔角度 (°)", _gap),
-            ("字体大小 (px)", _fontSize)));
+            ("字体大小 (px)", _fontSize),
+            ("选择检测间隔 (ms)", _selectionPollInterval)));
         return page;
     }
 
@@ -150,7 +160,10 @@ public sealed class RadialMenuSettingsForm : Form
             FillAlpha = Decimal.ToInt32(_fillAlpha.Value),
             BorderAlpha = Decimal.ToInt32(_borderAlpha.Value),
             TextAlpha = Decimal.ToInt32(_textAlpha.Value),
-            DoubleTapWindowMs = Decimal.ToInt32(_doubleTapWindow.Value)
+            DoubleTapWindowMs = Decimal.ToInt32(_doubleTapWindow.Value),
+            SelectionDeadZone = Decimal.ToInt32(_selectionDeadZone.Value),
+            HighlightAlpha = Decimal.ToInt32(_highlightAlpha.Value),
+            SelectionPollIntervalMs = Decimal.ToInt32(_selectionPollInterval.Value)
         };
 
         if (settings.TryValidate(out string error))
@@ -175,6 +188,8 @@ public sealed class RadialMenuSettingsForm : Form
         {
             _scale.Value = settings.ScalePercent;
             _doubleTapWindow.Value = settings.DoubleTapWindowMs;
+            _selectionDeadZone.Value = settings.SelectionDeadZone;
+            _highlightAlpha.Value = settings.HighlightAlpha;
             _canvas.Value = settings.BaseCanvasSize;
             _hubRadius.Value = settings.HubRadius;
             _innerRadius.Value = settings.PetalInnerRadius;
@@ -185,6 +200,7 @@ public sealed class RadialMenuSettingsForm : Form
             _fillAlpha.Value = settings.FillAlpha;
             _borderAlpha.Value = settings.BorderAlpha;
             _textAlpha.Value = settings.TextAlpha;
+            _selectionPollInterval.Value = settings.SelectionPollIntervalMs;
         }
         finally
         {

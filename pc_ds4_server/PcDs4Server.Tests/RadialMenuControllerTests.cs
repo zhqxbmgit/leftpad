@@ -16,6 +16,9 @@ public sealed class RadialMenuControllerTests
         controller.ToggleAt(pointA);
 
         Assert.True(controller.IsOpen);
+        Assert.True(controller.IsNormalMenuOpen);
+        Assert.Equal(pointA, controller.NormalAnchor);
+        Assert.Equal(0, controller.SelectedSlot);
         Assert.Equal(1, overlay.ShowCalls);
         Assert.Equal(0, overlay.HideCalls);
         Assert.Equal(pointA, overlay.AnchorPoints.Single());
@@ -169,6 +172,83 @@ public sealed class RadialMenuControllerTests
         Assert.Empty(overlay.Settings);
     }
 
+    [Fact]
+    public void SelectionUpdates_RenderOnlyWhenSlotChangesAndResetOnClose()
+    {
+        var overlay = new FakeRadialMenuOverlay();
+        var anchor = new Point(500, 500);
+        using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
+
+        controller.ToggleAt(anchor);
+        Assert.Equal(0, controller.SelectedSlot);
+        Assert.Equal(new[] { 0 }, overlay.SelectedSlots);
+
+        Assert.True(controller.UpdateSelectionForCursor(new Point(500, 470)));
+        Assert.Equal(1, controller.SelectedSlot);
+        Assert.Equal(2, overlay.ShowCalls);
+
+        Assert.False(controller.UpdateSelectionForCursor(new Point(500, 400)));
+        Assert.Equal(2, overlay.ShowCalls);
+
+        Assert.True(controller.UpdateSelectionForCursor(new Point(550, 450)));
+        Assert.Equal(2, controller.SelectedSlot);
+        Assert.Equal(3, overlay.ShowCalls);
+
+        Assert.True(controller.UpdateSelectionForCursor(anchor));
+        Assert.Equal(0, controller.SelectedSlot);
+        Assert.Equal(4, overlay.ShowCalls);
+
+        controller.Close();
+        Assert.False(controller.IsNormalMenuOpen);
+        Assert.Null(controller.NormalAnchor);
+        Assert.Equal(0, controller.SelectedSlot);
+
+        var newAnchor = new Point(700, 300);
+        controller.ToggleAt(newAnchor);
+        Assert.True(controller.IsNormalMenuOpen);
+        Assert.Equal(newAnchor, controller.NormalAnchor);
+        Assert.Equal(0, controller.SelectedSlot);
+        Assert.Equal(5, overlay.ShowCalls);
+    }
+
+    [Fact]
+    public void PreviewNeverEntersNormalSelectionLifecycle()
+    {
+        var overlay = new FakeRadialMenuOverlay();
+        using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
+
+        controller.PreviewAt(new Point(1000, 500), RadialMenuSettings.Default);
+        bool rendered = controller.UpdateSelectionForCursor(new Point(1000, 400));
+
+        Assert.True(controller.IsPreviewActive);
+        Assert.False(controller.IsNormalMenuOpen);
+        Assert.Equal(0, controller.SelectedSlot);
+        Assert.False(rendered);
+        Assert.Equal(1, overlay.ShowCalls);
+        Assert.Equal(new[] { 0 }, overlay.SelectedSlots);
+
+        controller.ClosePreview();
+        Assert.False(controller.IsPreviewActive);
+        Assert.False(controller.IsOpen);
+    }
+
+    [Fact]
+    public void StartingPreviewStopsAnOpenNormalSelectionSession()
+    {
+        var overlay = new FakeRadialMenuOverlay();
+        using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
+        controller.ToggleAt(new Point(500, 500));
+        controller.UpdateSelectionForCursor(new Point(500, 450));
+
+        controller.PreviewAt(new Point(1000, 500), RadialMenuSettings.Default);
+
+        Assert.False(controller.IsNormalMenuOpen);
+        Assert.True(controller.IsPreviewActive);
+        Assert.Null(controller.NormalAnchor);
+        Assert.Equal(0, controller.SelectedSlot);
+        Assert.Equal(0, overlay.SelectedSlots.Last());
+    }
+
     private sealed class FakeRadialMenuOverlay : IRadialMenuOverlay
     {
         public bool IsVisible { get; private set; }
@@ -177,12 +257,14 @@ public sealed class RadialMenuControllerTests
         public int DisposeCalls { get; private set; }
         public List<Point> AnchorPoints { get; } = new();
         public List<RadialMenuSettings> Settings { get; } = new();
+        public List<int> SelectedSlots { get; } = new();
 
-        public void ShowAt(Point screenPoint, RadialMenuSettings settings)
+        public void ShowAt(Point screenPoint, RadialMenuSettings settings, int selectedSlot)
         {
             ShowCalls++;
             AnchorPoints.Add(screenPoint);
             Settings.Add(settings);
+            SelectedSlots.Add(selectedSlot);
             IsVisible = true;
         }
 

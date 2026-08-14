@@ -8,6 +8,10 @@ public sealed record RadialMenuSettings
     public const float MaximumGapDegrees = 12f;
     public const int MinimumDoubleTapWindowMs = 80;
     public const int MaximumDoubleTapWindowMs = 500;
+    public const int MinimumSelectionDeadZone = 8;
+    public const int MaximumSelectionDeadZone = 80;
+    public const int MinimumSelectionPollIntervalMs = 8;
+    public const int MaximumSelectionPollIntervalMs = 50;
 
     public static RadialMenuSettings Default => new();
 
@@ -23,6 +27,9 @@ public sealed record RadialMenuSettings
     public int BorderAlpha { get; init; } = 100;
     public int TextAlpha { get; init; } = 240;
     public int DoubleTapWindowMs { get; init; } = 150;
+    public int SelectionDeadZone { get; init; } = 28;
+    public int HighlightAlpha { get; init; } = 80;
+    public int SelectionPollIntervalMs { get; init; } = 16;
 
     public bool TryValidate(out string error)
     {
@@ -48,6 +55,12 @@ public sealed record RadialMenuSettings
             return Invalid("透明度数值必须在 0～255 之间。", out error);
         if (DoubleTapWindowMs is < MinimumDoubleTapWindowMs or > MaximumDoubleTapWindowMs)
             return Invalid($"环形菜单双击窗口必须在 {MinimumDoubleTapWindowMs}～{MaximumDoubleTapWindowMs} ms 之间。", out error);
+        if (SelectionDeadZone is < MinimumSelectionDeadZone or > MaximumSelectionDeadZone)
+            return Invalid($"选择死区必须在 {MinimumSelectionDeadZone}～{MaximumSelectionDeadZone} px 之间。", out error);
+        if (!ValidAlpha(HighlightAlpha))
+            return Invalid("选择高亮强度必须在 0～255 之间。", out error);
+        if (SelectionPollIntervalMs is < MinimumSelectionPollIntervalMs or > MaximumSelectionPollIntervalMs)
+            return Invalid($"选择检测间隔必须在 {MinimumSelectionPollIntervalMs}～{MaximumSelectionPollIntervalMs} ms 之间。", out error);
 
         error = string.Empty;
         return true;

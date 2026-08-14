@@ -610,7 +610,8 @@ public sealed class Ds4ServiceRadialIntegrationTests
     private sealed class FakeRadialMenuOverlay : IRadialMenuOverlay
     {
         public bool IsVisible { get; private set; }
-        public void ShowAt(System.Drawing.Point screenPoint, RadialMenuSettings settings) => IsVisible = true;
+        public void ShowAt(System.Drawing.Point screenPoint, RadialMenuSettings settings, int selectedSlot) =>
+            IsVisible = true;
         public void Hide() => IsVisible = false;
         public void Dispose() => IsVisible = false;
     }

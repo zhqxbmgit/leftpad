@@ -21,6 +21,9 @@ public sealed class RadialMenuSettingsTests
         Assert.Equal(100, settings.BorderAlpha);
         Assert.Equal(240, settings.TextAlpha);
         Assert.Equal(150, settings.DoubleTapWindowMs);
+        Assert.Equal(28, settings.SelectionDeadZone);
+        Assert.Equal(80, settings.HighlightAlpha);
+        Assert.Equal(16, settings.SelectionPollIntervalMs);
         Assert.True(settings.TryValidate(out _));
     }
 
@@ -36,7 +39,10 @@ public sealed class RadialMenuSettingsTests
             FillAlpha = 180,
             BorderAlpha = 80,
             TextAlpha = 220,
-            DoubleTapWindowMs = 275
+            DoubleTapWindowMs = 275,
+            SelectionDeadZone = 36,
+            HighlightAlpha = 120,
+            SelectionPollIntervalMs = 24
         };
 
         Assert.True(store.TrySave(expected, out string saveError), saveError);
@@ -105,6 +111,40 @@ public sealed class RadialMenuSettingsTests
     }
 
     [Fact]
+    public void LegacyJsonWithoutSelectionFields_PreservesExistingSettingsAndAddsSelectionDefaults()
+    {
+        using var temporary = new TemporarySettingsPath();
+        Directory.CreateDirectory(temporary.DirectoryPath);
+        File.WriteAllText(temporary.FilePath, """
+            {
+              "scalePercent": 90,
+              "baseCanvasSize": 320,
+              "hubRadius": 34,
+              "petalInnerRadius": 45,
+              "petalOuterRadius": 110,
+              "textRadius": 75,
+              "petalGapDegrees": 5.5,
+              "fontSize": 16,
+              "fillAlpha": 190,
+              "borderAlpha": 90,
+              "textAlpha": 230,
+              "doubleTapWindowMs": 275
+            }
+            """);
+        var store = new RadialMenuSettingsStore(temporary.FilePath);
+
+        RadialMenuSettingsLoadResult result = store.Load();
+
+        Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal(90, result.Settings.ScalePercent);
+        Assert.Equal(190, result.Settings.FillAlpha);
+        Assert.Equal(275, result.Settings.DoubleTapWindowMs);
+        Assert.Equal(28, result.Settings.SelectionDeadZone);
+        Assert.Equal(80, result.Settings.HighlightAlpha);
+        Assert.Equal(16, result.Settings.SelectionPollIntervalMs);
+    }
+
+    [Fact]
     public void InvalidStoredGeometry_LoadsDefaults()
     {
         using var temporary = new TemporarySettingsPath();
@@ -154,6 +194,28 @@ public sealed class RadialMenuSettingsTests
     public void DoubleTapWindowOutsideBoundaries_IsRejected(int milliseconds)
     {
         Assert.False((RadialMenuSettings.Default with { DoubleTapWindowMs = milliseconds }).TryValidate(out _));
+    }
+
+    [Fact]
+    public void SelectionSettingBoundaries_AreValid()
+    {
+        Assert.True((RadialMenuSettings.Default with { SelectionDeadZone = 8 }).TryValidate(out _));
+        Assert.True((RadialMenuSettings.Default with { SelectionDeadZone = 80 }).TryValidate(out _));
+        Assert.True((RadialMenuSettings.Default with { HighlightAlpha = 0 }).TryValidate(out _));
+        Assert.True((RadialMenuSettings.Default with { HighlightAlpha = 255 }).TryValidate(out _));
+        Assert.True((RadialMenuSettings.Default with { SelectionPollIntervalMs = 8 }).TryValidate(out _));
+        Assert.True((RadialMenuSettings.Default with { SelectionPollIntervalMs = 50 }).TryValidate(out _));
+    }
+
+    [Fact]
+    public void SelectionSettingsOutsideBoundaries_AreRejected()
+    {
+        Assert.False((RadialMenuSettings.Default with { SelectionDeadZone = 7 }).TryValidate(out _));
+        Assert.False((RadialMenuSettings.Default with { SelectionDeadZone = 81 }).TryValidate(out _));
+        Assert.False((RadialMenuSettings.Default with { HighlightAlpha = -1 }).TryValidate(out _));
+        Assert.False((RadialMenuSettings.Default with { HighlightAlpha = 256 }).TryValidate(out _));
+        Assert.False((RadialMenuSettings.Default with { SelectionPollIntervalMs = 7 }).TryValidate(out _));
+        Assert.False((RadialMenuSettings.Default with { SelectionPollIntervalMs = 51 }).TryValidate(out _));
     }
 
     private sealed class TemporarySettingsPath : IDisposable

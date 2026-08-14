@@ -16,6 +16,7 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
 
     private readonly object _stateLock = new();
     private RadialMenuSettings _currentSettings = RadialMenuSettings.Default;
+    private int _selectedSlot;
     private bool _overlayVisible;
 
     public RadialMenuOverlay()
@@ -65,13 +66,16 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
         }
     }
 
-    public void ShowAt(Point screenPoint, RadialMenuSettings settings)
+    public void ShowAt(Point screenPoint, RadialMenuSettings settings, int selectedSlot)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        if (selectedSlot is < 0 or > PetalCount)
+            throw new ArgumentOutOfRangeException(nameof(selectedSlot));
         RadialMenuRenderMetrics metrics = settings.CreateRenderMetrics();
         lock (_stateLock)
         {
             _currentSettings = settings with { };
+            _selectedSlot = selectedSlot;
             _overlayVisible = true;
         }
 
@@ -82,7 +86,7 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
                 screenPoint.X - (metrics.CanvasSize / 2),
                 screenPoint.Y - (metrics.CanvasSize / 2));
             _ = Handle;
-            RenderLayeredWindow(settings, metrics);
+            RenderLayeredWindow(settings, metrics, selectedSlot);
             if (!Visible) base.Show();
         });
     }
@@ -101,14 +105,20 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
     {
         base.OnPaint(e);
         RadialMenuSettings settings;
-        lock (_stateLock) settings = _currentSettings;
-        DrawOverlay(e.Graphics, settings, settings.CreateRenderMetrics());
+        int selectedSlot;
+        lock (_stateLock)
+        {
+            settings = _currentSettings;
+            selectedSlot = _selectedSlot;
+        }
+        DrawOverlay(e.Graphics, settings, settings.CreateRenderMetrics(), selectedSlot);
     }
 
     private static void DrawOverlay(
         Graphics graphics,
         RadialMenuSettings settings,
-        RadialMenuRenderMetrics metrics)
+        RadialMenuRenderMetrics metrics,
+        int selectedSlot)
     {
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
@@ -116,14 +126,40 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
         float center = metrics.CanvasSize / 2f;
         var centerPoint = new PointF(center, center);
 
-        using var petalBrush = new SolidBrush(Color.FromArgb(settings.FillAlpha, 27, 27, 36));
-        using var petalPen = new Pen(
-            Color.FromArgb(settings.BorderAlpha, 128, 105, 148),
-            Math.Max(0.5f, 1.2f * metrics.ScaleFactor))
+        Color normalFill = Color.FromArgb(settings.FillAlpha, 27, 27, 36);
+        Color normalBorder = Color.FromArgb(settings.BorderAlpha, 128, 105, 148);
+        Color normalText = Color.FromArgb(settings.TextAlpha, 242, 243, 247);
+        Color selectedFill = BlendColor(
+            normalFill,
+            Color.FromArgb(byte.MaxValue, 118, 80, 150),
+            settings.HighlightAlpha);
+        Color selectedBorder = BlendColor(
+            normalBorder,
+            Color.FromArgb(byte.MaxValue, 218, 180, 242),
+            settings.HighlightAlpha);
+        Color selectedText = BlendColor(
+            normalText,
+            Color.White,
+            settings.HighlightAlpha);
+
+        using var petalBrush = new SolidBrush(normalFill);
+        using var selectedPetalBrush = new SolidBrush(selectedFill);
+        float normalBorderWidth = Math.Max(0.5f, 1.2f * metrics.ScaleFactor);
+        float selectedBorderWidth = normalBorderWidth +
+            ((Math.Max(0.5f, 1.8f * metrics.ScaleFactor) - normalBorderWidth) *
+             (settings.HighlightAlpha / (float)byte.MaxValue));
+        using var petalPen = new Pen(normalBorder, normalBorderWidth)
         {
             LineJoin = LineJoin.Round
         };
-        using var textBrush = new SolidBrush(Color.FromArgb(settings.TextAlpha, 242, 243, 247));
+        using var selectedPetalPen = new Pen(
+            selectedBorder,
+            selectedBorderWidth)
+        {
+            LineJoin = LineJoin.Round
+        };
+        using var textBrush = new SolidBrush(normalText);
+        using var selectedTextBrush = new SolidBrush(selectedText);
         using var font = new Font("Segoe UI", metrics.FontSize, FontStyle.Bold, GraphicsUnit.Pixel);
         using var format = new StringFormat
         {
@@ -135,8 +171,9 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
         {
             float centerAngle = -90 + (index * DirectionAngle);
             using GraphicsPath petal = CreatePetalPath(centerPoint, centerAngle, metrics);
-            graphics.FillPath(petalBrush, petal);
-            graphics.DrawPath(petalPen, petal);
+            bool selected = selectedSlot == index + 1;
+            graphics.FillPath(selected ? selectedPetalBrush : petalBrush, petal);
+            graphics.DrawPath(selected ? selectedPetalPen : petalPen, petal);
 
             PointF textCenter = PointOnCircle(centerPoint, metrics.TextRadius, centerAngle);
             float textWidth = 32f * metrics.ScaleFactor;
@@ -146,7 +183,12 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
                 textCenter.Y - (textHeight / 2f),
                 textWidth,
                 textHeight);
-            graphics.DrawString((index + 1).ToString(), font, textBrush, textBounds, format);
+            graphics.DrawString(
+                (index + 1).ToString(),
+                font,
+                selected ? selectedTextBrush : textBrush,
+                textBounds,
+                format);
         }
 
         var hubBounds = CenteredCircle(centerPoint, metrics.HubRadius * 2f);
@@ -237,6 +279,22 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
         return new RectangleF(center.X - radius, center.Y - radius, diameter, diameter);
     }
 
+    private static Color BlendColor(Color from, Color to, int strength)
+    {
+        if (strength <= 0) return from;
+        if (strength >= byte.MaxValue) return to;
+
+        double amount = strength / (double)byte.MaxValue;
+        return Color.FromArgb(
+            BlendChannel(from.A, to.A, amount),
+            BlendChannel(from.R, to.R, amount),
+            BlendChannel(from.G, to.G, amount),
+            BlendChannel(from.B, to.B, amount));
+    }
+
+    private static int BlendChannel(int from, int to, double amount) =>
+        (int)Math.Round(from + ((to - from) * amount), MidpointRounding.AwayFromZero);
+
     private void RunOnUiThread(Action action)
     {
         if (IsDisposed || Disposing) return;
@@ -252,7 +310,8 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
 
     private void RenderLayeredWindow(
         RadialMenuSettings settings,
-        RadialMenuRenderMetrics metrics)
+        RadialMenuRenderMetrics metrics,
+        int selectedSlot)
     {
         if (!IsHandleCreated || IsDisposed) return;
 
@@ -263,7 +322,7 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
         using (Graphics graphics = Graphics.FromImage(bitmap))
         {
             graphics.Clear(Color.Transparent);
-            DrawOverlay(graphics, settings, metrics);
+            DrawOverlay(graphics, settings, metrics, selectedSlot);
         }
 
         IntPtr screenDc = GetDC(IntPtr.Zero);
