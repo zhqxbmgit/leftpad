@@ -58,6 +58,8 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     public event Action<string>? OnConnectionChanged;
     public event Action<string>? OnButtonEvent;
     public event Action<VirtualJoystickSnapshot>? OnJoystickStateChanged;
+    public event Action? RadialMenuTriggered;
+    public event Action? OnStopped;
 
     public bool IsRunning { get; private set; }
     public OutputMode OutputMode => _outputMode;
@@ -267,7 +269,10 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
                 pressed,
                 CurrentInputTimestamp);
             if (recognition.TriggerAccepted)
+            {
                 Log($"[RADIAL] Action double-tap trigger: {mapping.ProtocolKey}");
+                RadialMenuTriggered?.Invoke();
+            }
             if (recognition.ConsumeCurrentEvent)
             {
                 OnButtonEvent?.Invoke($"{protocolAction} -> {action}");
@@ -345,7 +350,11 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
                 MoveTapResult recognition = _moveTapRecognizer.MoveUp(
                     CurrentInputTimestamp,
                     directionCapturedDuringHold);
-                if (recognition.TriggerAccepted) Log("[RADIAL] MOVE double-tap trigger");
+                if (recognition.TriggerAccepted)
+                {
+                    Log("[RADIAL] MOVE double-tap trigger");
+                    RadialMenuTriggered?.Invoke();
+                }
             }
             else if (action.Equals("stop", StringComparison.OrdinalIgnoreCase))
             {
@@ -420,6 +429,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         _cts = null;
         _server = null;
         IsRunning = false;
+        OnStopped?.Invoke();
         Log("Service stopped and all output state released.");
     }
 

@@ -27,6 +27,8 @@ namespace PcDs4Server
         private bool _initializingBindingEditors = true;
         private bool _isReallyClosing = false;
         private readonly VirtualJoystickOverlay _joystickOverlay;
+        private readonly RadialMenuController _radialMenu;
+        private readonly RadialMenuSettingsStore _radialSettingsStore;
 
         // 状态卡片
         private ModernStatusCard _cardVigem = null!, _cardDs4 = null!, _cardPhone = null!, _cardPort = null!;
@@ -42,15 +44,21 @@ namespace PcDs4Server
         [DllImport("user32.DLL", EntryPoint = "SendMessage")]
         private extern static void SendMessage(System.IntPtr hWnd, int wMsg, int wParam, int lParam);
 
-        public MainForm(Ds4Service service)
+        public MainForm(Ds4Service service, RadialMenuSettingsStore? radialSettingsStore = null)
         {
             _service = service;
             _lifecycle = new ServerLifecycleController(service);
             InitializeComponent();
+            _radialSettingsStore = radialSettingsStore ?? new RadialMenuSettingsStore();
+            RadialMenuSettingsLoadResult radialSettings = _radialSettingsStore.Load();
             _joystickOverlay = new VirtualJoystickOverlay();
             _ = _joystickOverlay.Handle;
+            var radialOverlay = new RadialMenuOverlay();
+            _ = radialOverlay.Handle;
+            _radialMenu = new RadialMenuController(radialOverlay, radialSettings.Settings);
             _service.ConfigureVirtualJoystick(_joystickOverlay, new WindowsCursorPositionProvider());
             SetupServiceEvents();
+            LogRadialSettingsLoad(radialSettings);
         }
 
         private void InitializeComponent()
@@ -102,6 +110,7 @@ namespace PcDs4Server
             var btnLog = new SidebarButton { Text = "📋 Logs", Location = new Point(0, 235), Width = 200 };
 
             _sidebar.Controls.AddRange(new Control[] { btnOverview, btnGamepad, btnSettings, btnLog });
+            btnSettings.Click += (_, _) => OpenRadialMenuSettings();
 
             // 3. 右侧主内容区
             _mainContent = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 0, 20, 20) };
@@ -341,6 +350,9 @@ namespace PcDs4Server
                     $"Center: {center}    Current Cursor: {currentCursor}\n" +
                     $"Cursor Delta: {state.CursorDeltaX:F1} / {state.CursorDeltaY:F1}    Cursor Distance: {state.CursorDistance:F1}";
             });
+            _service.RadialMenuTriggered += () =>
+                PostToUi(() => _radialMenu.ToggleAt(Cursor.Position));
+            _service.OnStopped += () => PostToUi(_radialMenu.Close);
         }
 
         private void AppendLog(string message)
@@ -352,6 +364,29 @@ namespace PcDs4Server
                 _logBox.ScrollToCaret();
             });
         }
+
+        private void OpenRadialMenuSettings()
+        {
+            using var settingsForm = new RadialMenuSettingsForm(
+                _radialMenu,
+                _radialSettingsStore,
+                LogRadialMessage);
+            settingsForm.ShowDialog(this);
+        }
+
+        private void LogRadialSettingsLoad(RadialMenuSettingsLoadResult result)
+        {
+            string message = result.Status switch
+            {
+                RadialMenuSettingsLoadStatus.Loaded => "[RADIAL] Settings loaded",
+                RadialMenuSettingsLoadStatus.Missing => "[RADIAL] Using default settings",
+                _ => "[RADIAL] Settings load failed; using defaults"
+            };
+            LogRadialMessage(message);
+        }
+
+        private void LogRadialMessage(string message) =>
+            AppendLog($"[{DateTime.Now:HH:mm:ss}] {message}");
 
         private void ApplySelectedOutputMode()
         {
@@ -514,6 +549,7 @@ namespace PcDs4Server
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             _service.ResetVirtualJoystick(JoystickResetReason.NormalExit);
+            _radialMenu.Dispose();
             _joystickOverlay.Dispose();
             base.OnFormClosed(e);
         }

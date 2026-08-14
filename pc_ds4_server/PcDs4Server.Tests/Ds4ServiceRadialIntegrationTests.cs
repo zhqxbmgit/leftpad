@@ -21,6 +21,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
         Assert.Equal(2, fixture.DirectDs4.SubmitReportCalls);
         Assert.Single(RadialLogs(fixture.Logs), log =>
             log.Contains("[RADIAL] Action double-tap trigger: cross", StringComparison.Ordinal));
+        Assert.Single(fixture.RadialTriggers);
     }
 
     [Fact]
@@ -56,6 +57,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
         Assert.Equal((DualShock4Button.Cross, false), fixture.DirectDs4.ButtonEvents.Last());
         Assert.Equal(2, fixture.DirectDs4.SubmitReportCalls);
         Assert.Empty(RadialLogs(fixture.Logs));
+        Assert.Empty(fixture.RadialTriggers);
     }
 
     [Fact]
@@ -95,6 +97,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
             fixture.DirectDs4.ButtonEvents);
         Assert.Equal(4, fixture.DirectDs4.SubmitReportCalls);
         Assert.Empty(RadialLogs(fixture.Logs));
+        Assert.Empty(fixture.RadialTriggers);
     }
 
     [Fact]
@@ -184,6 +187,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
 
         Assert.Equal(4, fixture.DirectDs4.ButtonEvents.Count);
         Assert.Empty(RadialLogs(fixture.Logs));
+        Assert.Empty(fixture.RadialTriggers);
     }
 
     [Fact]
@@ -202,6 +206,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
 
         Assert.Single(RadialLogs(fixture.Logs), log =>
             log.Contains("[RADIAL] MOVE double-tap trigger", StringComparison.Ordinal));
+        Assert.Single(fixture.RadialTriggers);
         Assert.False(fixture.LastSnapshot.MovementLocked);
         Assert.Equal((128, 128), fixture.DirectDs4.LeftStickEvents.Last());
     }
@@ -229,6 +234,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
         SendMoveTap(service, fixture.Clock, 171, 190);
 
         Assert.Empty(RadialLogs(fixture.Logs));
+        Assert.Empty(fixture.RadialTriggers);
         Assert.False(fixture.LastSnapshot.MovementLocked);
         Assert.Equal((128, 128), fixture.DirectDs4.LeftStickEvents.Last());
     }
@@ -270,6 +276,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
         SendMoveRound(service, fixture.Clock, 100, 120, !directionalFirst);
 
         Assert.Empty(RadialLogs(fixture.Logs));
+        Assert.Empty(fixture.RadialTriggers);
     }
 
     [Fact]
@@ -347,8 +354,10 @@ public sealed class Ds4ServiceRadialIntegrationTests
             inputTimestampProvider: clock.GetTimestamp);
         Assert.True(service.Initialize());
         var logs = new List<string>();
+        var radialTriggers = new List<int>();
         service.OnLog += logs.Add;
-        return new ServiceFixture(service, clock, factory.Session, keyboard, logs);
+        service.RadialMenuTriggered += () => radialTriggers.Add(1);
+        return new ServiceFixture(service, clock, factory.Session, keyboard, logs, radialTriggers);
     }
 
     private static ServiceFixture KeyboardFixture()
@@ -363,8 +372,10 @@ public sealed class Ds4ServiceRadialIntegrationTests
             inputTimestampProvider: clock.GetTimestamp);
         Assert.True(service.TrySetOutputMode(OutputMode.Keyboard));
         var logs = new List<string>();
+        var radialTriggers = new List<int>();
         service.OnLog += logs.Add;
-        return new ServiceFixture(service, clock, factory.Session, keyboard, logs);
+        service.RadialMenuTriggered += () => radialTriggers.Add(1);
+        return new ServiceFixture(service, clock, factory.Session, keyboard, logs, radialTriggers);
     }
 
     private static MoveServiceFixture MoveFixture()
@@ -442,7 +453,8 @@ public sealed class Ds4ServiceRadialIntegrationTests
         ManualClock Clock,
         FakeDirectDs4Session DirectDs4,
         FakeKeyboardOutput Keyboard,
-        List<string> Logs);
+        List<string> Logs,
+        List<int> RadialTriggers);
 
     private sealed class MoveServiceFixture
     {
@@ -462,6 +474,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
         public ManualClock Clock => _fixture.Clock;
         public FakeDirectDs4Session DirectDs4 => _fixture.DirectDs4;
         public List<string> Logs => _fixture.Logs;
+        public List<int> RadialTriggers => _fixture.RadialTriggers;
         public FakeCursor Cursor { get; }
         public VirtualJoystickSnapshot LastSnapshot { get; set; }
     }
