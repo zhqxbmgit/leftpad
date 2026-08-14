@@ -6,6 +6,8 @@ public sealed record RadialMenuSettings
     public const int MaximumScalePercent = 140;
     public const float MinimumGapDegrees = 0f;
     public const float MaximumGapDegrees = 12f;
+    public const int MinimumDoubleTapWindowMs = 80;
+    public const int MaximumDoubleTapWindowMs = 500;
 
     public static RadialMenuSettings Default => new();
 
@@ -20,29 +22,32 @@ public sealed record RadialMenuSettings
     public int FillAlpha { get; init; } = 218;
     public int BorderAlpha { get; init; } = 100;
     public int TextAlpha { get; init; } = 240;
+    public int DoubleTapWindowMs { get; init; } = 150;
 
     public bool TryValidate(out string error)
     {
         if (ScalePercent is < MinimumScalePercent or > MaximumScalePercent)
-            return Invalid($"Overall size must be between {MinimumScalePercent}% and {MaximumScalePercent}%.", out error);
+            return Invalid($"整体大小必须在 {MinimumScalePercent}%～{MaximumScalePercent}% 之间。", out error);
         if (BaseCanvasSize < 160 || BaseCanvasSize > 800)
-            return Invalid("Base canvas size must be between 160 and 800 pixels.", out error);
+            return Invalid("画布大小必须在 160～800 px 之间。", out error);
         if (HubRadius <= 0)
-            return Invalid("Hub radius must be greater than zero.", out error);
+            return Invalid("中心圆半径必须大于 0。", out error);
         if (PetalInnerRadius <= HubRadius)
-            return Invalid("Petal inner radius must be greater than hub radius.", out error);
+            return Invalid("中心圆半径必须小于花瓣内半径。", out error);
         if (PetalOuterRadius <= PetalInnerRadius)
-            return Invalid("Petal outer radius must be greater than petal inner radius.", out error);
+            return Invalid("花瓣内半径必须小于花瓣外半径。", out error);
         if (PetalOuterRadius >= BaseCanvasSize / 2f)
-            return Invalid("Petal outer radius must fit inside half of the base canvas.", out error);
+            return Invalid("花瓣外半径必须小于画布半径。", out error);
         if (TextRadius < PetalInnerRadius || TextRadius > PetalOuterRadius)
-            return Invalid("Text radius must be between the petal inner and outer radii.", out error);
+            return Invalid("文字位置半径必须位于花瓣内半径和外半径之间。", out error);
         if (PetalGapDegrees is < MinimumGapDegrees or > MaximumGapDegrees)
-            return Invalid($"Petal gap must be between {MinimumGapDegrees:0} and {MaximumGapDegrees:0} degrees.", out error);
+            return Invalid($"花瓣间隔角度必须在 {MinimumGapDegrees:0}°～{MaximumGapDegrees:0}° 之间。", out error);
         if (!float.IsFinite(FontSize) || FontSize is < 6f or > 48f)
-            return Invalid("Font size must be between 6 and 48 pixels.", out error);
+            return Invalid("字体大小必须在 6～48 px 之间。", out error);
         if (!ValidAlpha(FillAlpha) || !ValidAlpha(BorderAlpha) || !ValidAlpha(TextAlpha))
-            return Invalid("Opacity values must be between 0 and 255.", out error);
+            return Invalid("透明度数值必须在 0～255 之间。", out error);
+        if (DoubleTapWindowMs is < MinimumDoubleTapWindowMs or > MaximumDoubleTapWindowMs)
+            return Invalid($"环形菜单双击窗口必须在 {MinimumDoubleTapWindowMs}～{MaximumDoubleTapWindowMs} ms 之间。", out error);
 
         error = string.Empty;
         return true;

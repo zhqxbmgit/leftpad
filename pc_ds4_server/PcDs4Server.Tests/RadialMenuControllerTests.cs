@@ -95,6 +95,80 @@ public sealed class RadialMenuControllerTests
         Assert.Equal(1, overlay.HideCalls);
     }
 
+    [Fact]
+    public void LivePreview_ReusesOriginalAnchorAndStopsUpdatingAfterClose()
+    {
+        var overlay = new FakeRadialMenuOverlay();
+        RadialMenuSettings active = RadialMenuSettings.Default;
+        RadialMenuSettings previewA = active with { ScalePercent = 80, DoubleTapWindowMs = 300 };
+        RadialMenuSettings previewB = active with { ScalePercent = 90, DoubleTapWindowMs = 400 };
+        RadialMenuSettings previewC = active with { ScalePercent = 110 };
+        var anchor = new Point(1000, 500);
+        using var controller = new RadialMenuController(overlay, active);
+
+        controller.PreviewAt(anchor, previewA);
+        controller.UpdatePreview(previewB);
+
+        Assert.True(controller.IsPreviewActive);
+        Assert.Equal(anchor, controller.PreviewAnchor);
+        Assert.Equal(new[] { anchor, anchor }, overlay.AnchorPoints);
+        Assert.Equal(new[] { previewA, previewB }, overlay.Settings);
+        Assert.Equal(active, controller.ActiveSettings);
+
+        controller.ClosePreview();
+        controller.UpdatePreview(previewC);
+
+        Assert.False(controller.IsPreviewActive);
+        Assert.Null(controller.PreviewAnchor);
+        Assert.Equal(2, overlay.ShowCalls);
+        Assert.Equal(1, overlay.HideCalls);
+    }
+
+    [Fact]
+    public void ClosePreview_DoesNotCloseAnUnrelatedNormalMenu()
+    {
+        var overlay = new FakeRadialMenuOverlay();
+        using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
+        controller.ToggleAt(new Point(300, 400));
+
+        controller.ClosePreview();
+
+        Assert.True(controller.IsOpen);
+        Assert.False(controller.IsPreviewActive);
+        Assert.Equal(0, overlay.HideCalls);
+    }
+
+    [Fact]
+    public void ApplySettings_DuringPreviewKeepsAnchorAndPreviewSession()
+    {
+        var overlay = new FakeRadialMenuOverlay();
+        RadialMenuSettings applied = RadialMenuSettings.Default with { ScalePercent = 90 };
+        var anchor = new Point(1000, 500);
+        using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
+        controller.PreviewAt(anchor, RadialMenuSettings.Default with { ScalePercent = 80 });
+
+        controller.ApplySettings(applied);
+
+        Assert.True(controller.IsPreviewActive);
+        Assert.Equal(anchor, controller.PreviewAnchor);
+        Assert.Equal(anchor, overlay.AnchorPoints.Last());
+        Assert.Equal(applied, overlay.Settings.Last());
+        Assert.Equal(applied, controller.ActiveSettings);
+    }
+
+    [Fact]
+    public void ApplySettings_RejectsInvalidDoubleTapWindowWithoutChangingActiveSettings()
+    {
+        var overlay = new FakeRadialMenuOverlay();
+        RadialMenuSettings active = RadialMenuSettings.Default;
+        using var controller = new RadialMenuController(overlay, active);
+
+        Assert.Throws<ArgumentException>(() =>
+            controller.ApplySettings(active with { DoubleTapWindowMs = 79 }));
+        Assert.Equal(active, controller.ActiveSettings);
+        Assert.Empty(overlay.Settings);
+    }
+
     private sealed class FakeRadialMenuOverlay : IRadialMenuOverlay
     {
         public bool IsVisible { get; private set; }

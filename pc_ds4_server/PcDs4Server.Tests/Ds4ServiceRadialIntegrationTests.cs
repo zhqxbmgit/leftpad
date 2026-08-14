@@ -20,7 +20,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
             fixture.DirectDs4.ButtonEvents);
         Assert.Equal(2, fixture.DirectDs4.SubmitReportCalls);
         Assert.Single(RadialLogs(fixture.Logs), log =>
-            log.Contains("[RADIAL] Action double-tap trigger: cross", StringComparison.Ordinal));
+            log.Contains("[环形菜单] Action 双击触发：cross", StringComparison.Ordinal));
         Assert.Single(fixture.RadialTriggers);
     }
 
@@ -38,7 +38,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
             new[] { (KeyboardKey.Space, true), (KeyboardKey.Space, false) },
             fixture.Keyboard.Events);
         Assert.Single(RadialLogs(fixture.Logs), log =>
-            log.Contains("[RADIAL] Action double-tap trigger: cross", StringComparison.Ordinal));
+            log.Contains("[环形菜单] Action 双击触发：cross", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -113,7 +113,35 @@ public sealed class Ds4ServiceRadialIntegrationTests
             new[] { (DualShock4Button.Cross, true), (DualShock4Button.Cross, false) },
             fixture.DirectDs4.ButtonEvents);
         Assert.Single(RadialLogs(fixture.Logs), log =>
-            log.Contains("[RADIAL] Action double-tap trigger: cross", StringComparison.Ordinal));
+            log.Contains("[环形菜单] Action 双击触发：cross", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(300, true)]
+    [InlineData(100, false)]
+    public void ActionDoubleTap_UsesRuntimeWindowAndPreservesPassThroughSemantics(
+        int windowMilliseconds,
+        bool shouldTrigger)
+    {
+        var fixture = DirectFixture();
+        using Ds4Service service = fixture.Service;
+        service.SetRadialDoubleTapWindow(windowMilliseconds);
+
+        SendTap(service, fixture.Clock, "cross", 0, 20);
+        SendTap(service, fixture.Clock, "cross", 220, 240);
+
+        Assert.Equal(
+            shouldTrigger
+                ? new[] { (DualShock4Button.Cross, true), (DualShock4Button.Cross, false) }
+                : new[]
+                {
+                    (DualShock4Button.Cross, true),
+                    (DualShock4Button.Cross, false),
+                    (DualShock4Button.Cross, true),
+                    (DualShock4Button.Cross, false)
+                },
+            fixture.DirectDs4.ButtonEvents);
+        Assert.Equal(shouldTrigger, fixture.RadialTriggers.Count == 1);
     }
 
     [Fact]
@@ -158,7 +186,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
         SendTap(service, fixture.Clock, protocolAction, 100, 120);
 
         Assert.Single(RadialLogs(fixture.Logs), log =>
-            log.Contains($"[RADIAL] Action double-tap trigger: {protocolAction}", StringComparison.Ordinal));
+            log.Contains($"[环形菜单] Action 双击触发：{protocolAction}", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -205,7 +233,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
         service.ProcessProtocolAction("move", "up");
 
         Assert.Single(RadialLogs(fixture.Logs), log =>
-            log.Contains("[RADIAL] MOVE double-tap trigger", StringComparison.Ordinal));
+            log.Contains("[环形菜单] MOVE 双击触发", StringComparison.Ordinal));
         Assert.Single(fixture.RadialTriggers);
         Assert.False(fixture.LastSnapshot.MovementLocked);
         Assert.Equal((128, 128), fixture.DirectDs4.LeftStickEvents.Last());
@@ -221,7 +249,53 @@ public sealed class Ds4ServiceRadialIntegrationTests
         SendMoveTap(service, fixture.Clock, 169, 500);
 
         Assert.Single(RadialLogs(fixture.Logs), log =>
-            log.Contains("[RADIAL] MOVE double-tap trigger", StringComparison.Ordinal));
+            log.Contains("[环形菜单] MOVE 双击触发", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(300, true)]
+    [InlineData(100, false)]
+    public void MoveDoubleTap_UsesTheSharedRuntimeWindow(int windowMilliseconds, bool shouldTrigger)
+    {
+        var fixture = MoveFixture();
+        using Ds4Service service = fixture.Service;
+        service.SetRadialDoubleTapWindow(windowMilliseconds);
+
+        SendMoveTap(service, fixture.Clock, 0, 20);
+        SendMoveTap(service, fixture.Clock, 220, 240);
+
+        Assert.Equal(shouldTrigger, fixture.RadialTriggers.Count == 1);
+    }
+
+    [Fact]
+    public void PreviewSettings_DoNotChangeRuntimeWindowUntilSettingsAreApplied()
+    {
+        var fixture = DirectFixture();
+        using Ds4Service service = fixture.Service;
+        var overlay = new FakeRadialMenuOverlay();
+        using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
+        RadialMenuSettings temporary = RadialMenuSettings.Default with { DoubleTapWindowMs = 300 };
+
+        controller.PreviewAt(new System.Drawing.Point(1000, 500), temporary);
+
+        Assert.Equal(150, service.RadialDoubleTapWindowMs);
+
+        controller.ApplySettings(temporary);
+        service.SetRadialDoubleTapWindow(temporary.DoubleTapWindowMs);
+
+        Assert.Equal(300, service.RadialDoubleTapWindowMs);
+    }
+
+    [Theory]
+    [InlineData(79)]
+    [InlineData(501)]
+    public void InvalidRuntimeWindow_IsRejectedWithoutChangingActiveValue(int milliseconds)
+    {
+        var fixture = DirectFixture();
+        using Ds4Service service = fixture.Service;
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => service.SetRadialDoubleTapWindow(milliseconds));
+        Assert.Equal(150, service.RadialDoubleTapWindowMs);
     }
 
     [Fact]
@@ -261,7 +335,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
         Assert.False(fixture.LastSnapshot.MovementLocked);
         Assert.Equal((128, 128), fixture.DirectDs4.LeftStickEvents.Last());
         Assert.Single(RadialLogs(fixture.Logs), log =>
-            log.Contains("[RADIAL] MOVE double-tap trigger", StringComparison.Ordinal));
+            log.Contains("[环形菜单] MOVE 双击触发", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -308,7 +382,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
         service.ProcessProtocolAction("move", "up");
 
         Assert.Single(RadialLogs(fixture.Logs), log =>
-            log.Contains("[RADIAL] MOVE double-tap trigger", StringComparison.Ordinal));
+            log.Contains("[环形菜单] MOVE 双击触发", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -438,7 +512,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
     }
 
     private static IEnumerable<string> RadialLogs(IEnumerable<string> logs) =>
-        logs.Where(log => log.Contains("[RADIAL]", StringComparison.Ordinal));
+        logs.Where(log => log.Contains("[环形菜单]", StringComparison.Ordinal));
 
     private sealed class ManualClock
     {
@@ -531,5 +605,13 @@ public sealed class Ds4ServiceRadialIntegrationTests
         public void Show(ScreenPoint center) => IsVisible = true;
         public void UpdateKnob(double x, double y) { }
         public void Hide() => IsVisible = false;
+    }
+
+    private sealed class FakeRadialMenuOverlay : IRadialMenuOverlay
+    {
+        public bool IsVisible { get; private set; }
+        public void ShowAt(System.Drawing.Point screenPoint, RadialMenuSettings settings) => IsVisible = true;
+        public void Hide() => IsVisible = false;
+        public void Dispose() => IsVisible = false;
     }
 }

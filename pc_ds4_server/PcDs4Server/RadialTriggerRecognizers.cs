@@ -19,17 +19,24 @@ public sealed class ActionDoubleTapRecognizer
         ConsumingSecondTap
     }
 
-    private readonly TimeSpan _doubleTapWindow;
+    private readonly Func<TimeSpan> _doubleTapWindowProvider;
     private RecognitionState _state;
     private string? _action;
     private TimeSpan _firstUpTimestamp;
 
     public ActionDoubleTapRecognizer(TimeSpan doubleTapWindow)
+        : this(() => doubleTapWindow)
     {
         if (doubleTapWindow <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(doubleTapWindow), "The double-tap window must be positive.");
+    }
 
-        _doubleTapWindow = doubleTapWindow;
+    public ActionDoubleTapRecognizer(Func<TimeSpan> doubleTapWindowProvider)
+    {
+        _doubleTapWindowProvider = doubleTapWindowProvider ??
+            throw new ArgumentNullException(nameof(doubleTapWindowProvider));
+        if (_doubleTapWindowProvider() <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(doubleTapWindowProvider), "The double-tap window must be positive.");
     }
 
     public ActionDoubleTapResult Process(string protocolAction, bool isPressed, TimeSpan timestamp)
@@ -54,7 +61,7 @@ public sealed class ActionDoubleTapRecognizer
         if (_state == RecognitionState.WaitingForSecondDown)
         {
             TimeSpan elapsed = timestamp - _firstUpTimestamp;
-            if (elapsed < TimeSpan.Zero || elapsed > _doubleTapWindow || !ActionsMatch(protocolAction))
+            if (elapsed < TimeSpan.Zero || elapsed > _doubleTapWindowProvider() || !ActionsMatch(protocolAction))
             {
                 Reset();
                 return StartFresh(protocolAction, isPressed);
@@ -112,17 +119,24 @@ public readonly record struct MoveTapResult(bool TriggerAccepted);
 
 public sealed class MoveTapRecognizer
 {
-    private readonly TimeSpan _doubleTapWindow;
+    private readonly Func<TimeSpan> _doubleTapWindowProvider;
     private bool _moveDown;
     private bool _secondTapTimingEligible;
     private TimeSpan? _firstTapUpTimestamp;
 
     public MoveTapRecognizer(TimeSpan doubleTapWindow)
+        : this(() => doubleTapWindow)
     {
         if (doubleTapWindow <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(doubleTapWindow), "The double-tap window must be positive.");
+    }
 
-        _doubleTapWindow = doubleTapWindow;
+    public MoveTapRecognizer(Func<TimeSpan> doubleTapWindowProvider)
+    {
+        _doubleTapWindowProvider = doubleTapWindowProvider ??
+            throw new ArgumentNullException(nameof(doubleTapWindowProvider));
+        if (_doubleTapWindowProvider() <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(doubleTapWindowProvider), "The double-tap window must be positive.");
     }
 
     public MoveTapResult MoveDown(TimeSpan timestamp)
@@ -137,7 +151,7 @@ public sealed class MoveTapRecognizer
         if (_firstTapUpTimestamp is TimeSpan firstUp)
         {
             TimeSpan elapsed = timestamp - firstUp;
-            if (elapsed < TimeSpan.Zero || elapsed > _doubleTapWindow)
+            if (elapsed < TimeSpan.Zero || elapsed > _doubleTapWindowProvider())
                 _firstTapUpTimestamp = null;
             else
                 _secondTapTimingEligible = true;

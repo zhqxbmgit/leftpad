@@ -25,7 +25,7 @@ namespace PcDs4Server
 
             if (!createdNew)
             {
-                MessageBox.Show("接收端程序已在运行中。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("LeftPad DS4 接收器已在运行。", "LeftPad DS4 接收器", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 

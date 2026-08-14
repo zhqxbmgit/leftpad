@@ -42,7 +42,7 @@ namespace PcDs4Server
             this.FlatAppearance.BorderSize = 0;
             this.BackColor = Color.Transparent;
             this.ForeColor = ThemeColors.TextSecondary;
-            this.Font = new Font("Segoe UI", 10, FontStyle.Regular);
+            this.Font = new Font("Microsoft YaHei UI", 10, FontStyle.Regular);
             this.TextAlign = ContentAlignment.MiddleLeft;
             this.Padding = new Padding(20, 0, 0, 0);
             this.Height = 45;
@@ -84,7 +84,7 @@ namespace PcDs4Server
 
             _title = new Label {
                 Text = title.ToUpper(),
-                Font = new Font("Segoe UI", 7, FontStyle.Bold),
+                Font = new Font("Microsoft YaHei UI", 7, FontStyle.Bold),
                 ForeColor = ThemeColors.TextSecondary,
                 AutoSize = true,
                 Location = new Point(12, 12)
@@ -92,7 +92,7 @@ namespace PcDs4Server
 
             _value = new Label {
                 Text = initialValue,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Font = new Font("Microsoft YaHei UI", 11, FontStyle.Bold),
                 ForeColor = ThemeColors.TextMain,
                 AutoSize = true,
                 Location = new Point(12, 35)

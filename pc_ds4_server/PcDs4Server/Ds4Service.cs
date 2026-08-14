@@ -9,8 +9,6 @@ namespace PcDs4Server;
 
 public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
 {
-    private static readonly TimeSpan RadialDoubleTapWindow = TimeSpan.FromMilliseconds(150);
-
     private readonly IDirectDs4Factory _directDs4Factory;
     private readonly KeyboardKeyState _keyboardState;
     private readonly KeyboardMoveOutput _keyboardMoveOutput;
@@ -18,7 +16,6 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     private readonly Ds4ControlState _controlState = new();
     private readonly Stopwatch _inputClock = Stopwatch.StartNew();
     private readonly Func<TimeSpan>? _inputTimestampProvider;
-    private readonly TimeSpan _doubleTapWindow;
     private readonly ActionDoubleTapRecognizer _actionDoubleTapRecognizer;
     private readonly MoveTapRecognizer _moveTapRecognizer;
     private readonly object _lock = new();
@@ -32,6 +29,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     private CursorJoystickSampler? _joystickSampler;
     private OutputMode _outputMode = OutputMode.DirectDs4;
     private KeyboardBindings _keyboardBindings;
+    private int _radialDoubleTapWindowMs;
     private bool _disposed;
 
     public Ds4Service(
@@ -46,10 +44,14 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         _keyboardMoveOutput = new KeyboardMoveOutput(_keyboardState);
         _bindingStore = bindingStore ?? new JsonKeyboardBindingStore();
         _keyboardBindings = _bindingStore.Load();
-        _doubleTapWindow = doubleTapWindow ?? RadialDoubleTapWindow;
+        TimeSpan initialDoubleTapWindow = doubleTapWindow ??
+            TimeSpan.FromMilliseconds(RadialMenuSettings.Default.DoubleTapWindowMs);
+        int initialDoubleTapWindowMs = checked((int)initialDoubleTapWindow.TotalMilliseconds);
+        ValidateRadialDoubleTapWindow(initialDoubleTapWindowMs);
+        _radialDoubleTapWindowMs = initialDoubleTapWindowMs;
         _inputTimestampProvider = inputTimestampProvider;
-        _actionDoubleTapRecognizer = new ActionDoubleTapRecognizer(_doubleTapWindow);
-        _moveTapRecognizer = new MoveTapRecognizer(_doubleTapWindow);
+        _actionDoubleTapRecognizer = new ActionDoubleTapRecognizer(CurrentRadialDoubleTapWindow);
+        _moveTapRecognizer = new MoveTapRecognizer(CurrentRadialDoubleTapWindow);
         LocalIp = GetLocalIp();
     }
 
@@ -66,6 +68,14 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     public KeyboardBindings KeyboardBindings => _keyboardBindings.Clone();
     public string LocalIp { get; private set; }
     public int Port { get; } = 8888;
+    public int RadialDoubleTapWindowMs => Volatile.Read(ref _radialDoubleTapWindowMs);
+
+    public void SetRadialDoubleTapWindow(int milliseconds)
+    {
+        ThrowIfDisposed();
+        ValidateRadialDoubleTapWindow(milliseconds);
+        Volatile.Write(ref _radialDoubleTapWindowMs, milliseconds);
+    }
 
     public bool TrySetOutputMode(OutputMode mode)
     {
@@ -97,7 +107,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         _joystick.CursorPositionReadFailed += error =>
         {
             lock (_lock) ResetRadialRecognizers();
-            Log($"Cursor sampling stopped: GetCursorPos failed with Win32 error {error}.");
+            Log($"光标采样已停止：GetCursorPos 失败，Win32 错误码 {error}。");
         };
         OnJoystickStateChanged?.Invoke(_joystick.Snapshot);
     }
@@ -116,22 +126,22 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         ThrowIfDisposed();
         if (_outputMode == OutputMode.Keyboard)
         {
-            Log("Keyboard output ready; ViGEm and virtual controllers are disabled.");
-            OnStatusChanged?.Invoke("Keyboard output: Ready / Virtual controller: Disabled");
+            Log("键盘输出已就绪；ViGEm 和虚拟控制器已禁用。");
+            OnStatusChanged?.Invoke("键盘输出：就绪 / 虚拟控制器：已禁用");
             return true;
         }
 
         try
         {
             _directDs4 = _directDs4Factory.Create();
-            Log("Virtual DualShock 4 created and connected.");
-            OnStatusChanged?.Invoke("ViGEmBus: Connected / Virtual DS4: Ready");
+            Log("虚拟 DualShock 4 已创建并连接。");
+            OnStatusChanged?.Invoke("ViGEmBus：已连接 / 虚拟 DS4：就绪");
             return true;
         }
         catch (Exception ex)
         {
-            Log($"Unable to initialize ViGEm: {ex.Message}");
-            OnStatusChanged?.Invoke("ViGEmBus: unavailable or initialization failed");
+            Log($"ViGEm 初始化失败：{ex.Message}");
+            OnStatusChanged?.Invoke("ViGEmBus：不可用或初始化失败");
             return false;
         }
     }
@@ -154,13 +164,13 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
             _joystickSampler.SamplingFailed += ex =>
             {
                 ReleaseAllControls(Ds4ControlResetReason.OutputFailure);
-                Log($"Cursor sampling stopped after an unexpected error: {ex.Message}");
+                Log($"光标采样因意外错误而停止：{ex.Message}");
             };
         }
 
-        Log($"TCP server listening on port {Port} in {_outputMode} mode.");
-        Log($"[RADIAL] Double-tap window: {_doubleTapWindow.TotalMilliseconds:0} ms");
-        OnConnectionChanged?.Invoke("Waiting for phone connection...");
+        Log($"TCP 服务器正在端口 {Port} 监听，输出模式：{_outputMode}。");
+        Log($"[环形菜单] 双击窗口：{RadialDoubleTapWindowMs} ms");
+        OnConnectionChanged?.Invoke("等待手机连接...");
         _ = Task.Run(() => AcceptClientsAsync(_cts.Token));
     }
 
@@ -189,15 +199,15 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
             catch (Exception ex)
             {
                 ReleaseAllControls(Ds4ControlResetReason.OutputFailure);
-                Log($"Client accept error: {ex.Message}");
+                Log($"接受客户端连接失败：{ex.Message}");
             }
         }
     }
 
     private async Task HandleClientAsync(TcpClient client, long sessionId, CancellationToken token)
     {
-        string remote = client.Client.RemoteEndPoint?.ToString() ?? "Unknown";
-        OnConnectionChanged?.Invoke($"Connected: {remote}");
+        string remote = client.Client.RemoteEndPoint?.ToString() ?? "未知地址";
+        OnConnectionChanged?.Invoke($"已连接：{remote}");
         try
         {
             using (client)
@@ -212,7 +222,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception ex) { Log($"Connection error ({remote}): {ex.Message}"); }
+        catch (Exception ex) { Log($"连接错误（{remote}）：{ex.Message}"); }
         finally
         {
             bool active;
@@ -223,7 +233,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
             }
             if (active)
             {
-                OnConnectionChanged?.Invoke("Phone disconnected; waiting for reconnection...");
+                OnConnectionChanged?.Invoke("手机已断开，等待重新连接...");
                 ResetVirtualJoystick(JoystickResetReason.Disconnect);
                 ReleaseAllControls(Ds4ControlResetReason.Disconnect);
             }
@@ -247,7 +257,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         catch (Exception ex)
         {
             ReleaseAllControls(Ds4ControlResetReason.OutputFailure);
-            Log($"Input processing failed: {ex.Message}");
+            Log($"输入处理失败：{ex.Message}");
         }
     }
 
@@ -270,7 +280,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
                 CurrentInputTimestamp);
             if (recognition.TriggerAccepted)
             {
-                Log($"[RADIAL] Action double-tap trigger: {mapping.ProtocolKey}");
+                Log($"[环形菜单] Action 双击触发：{mapping.ProtocolKey}");
                 RadialMenuTriggered?.Invoke();
             }
             if (recognition.ConsumeCurrentEvent)
@@ -321,13 +331,13 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         }
         catch (KeyboardOutputException ex)
         {
-            Log($"Keyboard output failure: {ex.InnerException?.Message ?? ex.Message}");
+            Log($"键盘输出失败：{ex.InnerException?.Message ?? ex.Message}");
         }
     }
 
     private void HandleMoveMessage(string action)
     {
-        if (_joystick == null) { Log("MOVE received before virtual joystick configuration."); return; }
+        if (_joystick == null) { Log("虚拟摇杆尚未配置，无法处理 MOVE。"); return; }
         try
         {
             if (action.Equals("down", StringComparison.OrdinalIgnoreCase))
@@ -336,7 +346,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
                 if (!_joystick.TryMoveDown(out int error))
                 {
                     ResetRadialRecognizers();
-                    Log($"MOVE activation failed with Win32 error {error}.");
+                    Log($"MOVE 激活失败，Win32 错误码 {error}。");
                 }
                 else if (!wasPressed && _joystick.Snapshot.MoveButtonPressed)
                 {
@@ -352,7 +362,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
                     directionCapturedDuringHold);
                 if (recognition.TriggerAccepted)
                 {
-                    Log("[RADIAL] MOVE double-tap trigger");
+                    Log("[环形菜单] MOVE 双击触发");
                     RadialMenuTriggered?.Invoke();
                 }
             }
@@ -366,7 +376,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         {
             _joystick.Reset(JoystickResetReason.CursorPositionFailure);
             ReleaseAllControls(Ds4ControlResetReason.OutputFailure);
-            Log($"MOVE failed: {ex.Message}");
+            Log($"MOVE 处理失败：{ex.Message}");
         }
     }
 
@@ -394,7 +404,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         if (_outputMode == OutputMode.Keyboard)
         {
             try { _keyboardMoveOutput.SetLeftStick(x, y); }
-            catch (KeyboardOutputException ex) { Log($"Keyboard MOVE failure: {ex.InnerException?.Message ?? ex.Message}"); }
+            catch (KeyboardOutputException ex) { Log($"键盘 MOVE 输出失败：{ex.InnerException?.Message ?? ex.Message}"); }
             return;
         }
         lock (_outputLock)
@@ -430,7 +440,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         _server = null;
         IsRunning = false;
         OnStopped?.Invoke();
-        Log("Service stopped and all output state released.");
+        Log("服务已停止，所有输出状态均已释放。");
     }
 
     public void Dispose()
@@ -446,12 +456,25 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     {
         if (!command.Equals("task_manager", StringComparison.OrdinalIgnoreCase)) return;
         try { Process.Start(new ProcessStartInfo("taskmgr.exe") { UseShellExecute = true }); }
-        catch (Exception ex) { Log($"Unable to open Task Manager: {ex.Message}"); }
+        catch (Exception ex) { Log($"无法打开任务管理器：{ex.Message}"); }
     }
 
     private void Log(string message) => OnLog?.Invoke($"[{DateTime.Now:HH:mm:ss}] {message}");
 
     private TimeSpan CurrentInputTimestamp => _inputTimestampProvider?.Invoke() ?? _inputClock.Elapsed;
+
+    private TimeSpan CurrentRadialDoubleTapWindow() =>
+        TimeSpan.FromMilliseconds(RadialDoubleTapWindowMs);
+
+    private static void ValidateRadialDoubleTapWindow(int milliseconds)
+    {
+        if (milliseconds is < RadialMenuSettings.MinimumDoubleTapWindowMs or > RadialMenuSettings.MaximumDoubleTapWindowMs)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(milliseconds),
+                $"Radial double-tap window must be between {RadialMenuSettings.MinimumDoubleTapWindowMs} and {RadialMenuSettings.MaximumDoubleTapWindowMs} ms.");
+        }
+    }
 
     private void ResetRadialRecognizers()
     {

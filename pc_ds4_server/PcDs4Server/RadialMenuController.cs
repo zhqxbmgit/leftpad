@@ -13,8 +13,9 @@ public sealed class RadialMenuController : IDisposable
 {
     private readonly IRadialMenuOverlay _overlay;
     private RadialMenuSettings _activeSettings;
-    private Point? _lastAnchor;
-    private bool _previewVisible;
+    private Point? _normalAnchor;
+    private Point? _previewAnchor;
+    private bool _isPreviewActive;
     private bool _disposed;
 
     public RadialMenuController(IRadialMenuOverlay overlay, RadialMenuSettings settings)
@@ -26,6 +27,8 @@ public sealed class RadialMenuController : IDisposable
     }
 
     public bool IsOpen => !_disposed && _overlay.IsVisible;
+    public bool IsPreviewActive => !_disposed && _isPreviewActive;
+    public Point? PreviewAnchor => IsPreviewActive ? _previewAnchor : null;
     public RadialMenuSettings ActiveSettings => _activeSettings with { };
 
     public void ToggleAt(Point screenPoint)
@@ -34,12 +37,12 @@ public sealed class RadialMenuController : IDisposable
         if (_overlay.IsVisible)
         {
             _overlay.Hide();
-            _previewVisible = false;
+            EndPreviewSession();
         }
         else
         {
-            _lastAnchor = screenPoint;
-            _previewVisible = false;
+            _normalAnchor = screenPoint;
+            EndPreviewSession();
             _overlay.ShowAt(screenPoint, _activeSettings);
         }
     }
@@ -51,9 +54,10 @@ public sealed class RadialMenuController : IDisposable
         if (!settings.TryValidate(out string error)) throw new ArgumentException(error, nameof(settings));
 
         _activeSettings = settings with { };
-        _previewVisible = false;
-        if (_overlay.IsVisible && _lastAnchor is Point anchor)
-            _overlay.ShowAt(anchor, _activeSettings);
+        if (_isPreviewActive && _previewAnchor is Point previewAnchor)
+            _overlay.ShowAt(previewAnchor, _activeSettings);
+        else if (_overlay.IsVisible && _normalAnchor is Point normalAnchor)
+            _overlay.ShowAt(normalAnchor, _activeSettings);
     }
 
     public void PreviewAt(Point screenPoint, RadialMenuSettings temporarySettings)
@@ -63,23 +67,34 @@ public sealed class RadialMenuController : IDisposable
         if (!temporarySettings.TryValidate(out string error))
             throw new ArgumentException(error, nameof(temporarySettings));
 
-        _lastAnchor = screenPoint;
-        _previewVisible = true;
+        _previewAnchor = screenPoint;
+        _isPreviewActive = true;
         _overlay.ShowAt(screenPoint, temporarySettings with { });
+    }
+
+    public void UpdatePreview(RadialMenuSettings temporarySettings)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(temporarySettings);
+        if (!temporarySettings.TryValidate(out string error))
+            throw new ArgumentException(error, nameof(temporarySettings));
+        if (!_isPreviewActive || _previewAnchor is not Point anchor) return;
+
+        _overlay.ShowAt(anchor, temporarySettings with { });
     }
 
     public void ClosePreview()
     {
-        if (_disposed || !_previewVisible) return;
+        if (_disposed || !_isPreviewActive) return;
         if (_overlay.IsVisible) _overlay.Hide();
-        _previewVisible = false;
+        EndPreviewSession();
     }
 
     public void Close()
     {
         if (_disposed || !_overlay.IsVisible) return;
         _overlay.Hide();
-        _previewVisible = false;
+        EndPreviewSession();
     }
 
     public void Dispose()
@@ -87,8 +102,14 @@ public sealed class RadialMenuController : IDisposable
         if (_disposed) return;
         if (_overlay.IsVisible) _overlay.Hide();
         _overlay.Dispose();
-        _previewVisible = false;
+        EndPreviewSession();
         _disposed = true;
         GC.SuppressFinalize(this);
+    }
+
+    private void EndPreviewSession()
+    {
+        _isPreviewActive = false;
+        _previewAnchor = null;
     }
 }
