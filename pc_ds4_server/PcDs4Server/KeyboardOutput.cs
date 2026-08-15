@@ -36,9 +36,46 @@ public enum KeyboardKey : ushort
     Enter = 0x0D,
     Escape = 0x1B,
     Tab = 0x09,
+    D0 = 0x30,
+    D1 = 0x31,
+    D2 = 0x32,
+    D3 = 0x33,
+    D4 = 0x34,
+    D5 = 0x35,
+    D6 = 0x36,
+    D7 = 0x37,
+    D8 = 0x38,
+    D9 = 0x39,
+    F1 = 0x70,
+    F2 = 0x71,
+    F3 = 0x72,
+    F4 = 0x73,
+    F5 = 0x74,
+    F6 = 0x75,
+    F7 = 0x76,
+    F8 = 0x77,
+    F9 = 0x78,
+    F10 = 0x79,
+    F11 = 0x7A,
+    F12 = 0x7B,
     LeftShift = 0xA0,
     LeftControl = 0xA2,
     LeftAlt = 0xA4
+}
+
+public static class KeyboardKeyCatalog
+{
+    public static IReadOnlyList<KeyboardKey> MainKeys { get; } =
+        Enum.GetValues<KeyboardKey>()
+            .Where(IsMainKey)
+            .ToArray();
+
+    public static bool IsMainKey(KeyboardKey key) =>
+        Enum.IsDefined(key) && key is not (
+            KeyboardKey.None or
+            KeyboardKey.LeftShift or
+            KeyboardKey.LeftControl or
+            KeyboardKey.LeftAlt);
 }
 
 public interface IKeyboardOutput

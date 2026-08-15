@@ -479,21 +479,25 @@ namespace PcDs4Server
         {
             if (!_radialMenu.TryCompleteFrom(source, out RadialMenuCompletion completion)) return;
 
-            LogRadialMessage(completion.IsCancelled
-                ? "[环形菜单] 已取消"
-                : $"[环形菜单] 已确认：Slot {completion.SelectedSlot}");
+            LogRadialMessage(RadialActionResolver.CreateLogMessage(
+                _radialMenu.ActiveSettings,
+                completion));
         }
 
         private void LogRadialSettingsLoad(RadialMenuSettingsLoadResult result)
         {
             string message = result.Status switch
             {
-                RadialMenuSettingsLoadStatus.Loaded => "[环形菜单] 设置已加载",
+                RadialMenuSettingsLoadStatus.Loaded =>
+                    $"[环形菜单] 设置已加载（动作映射：{result.Settings.SlotMappings.Count(MappingIsConfigured)}/6）",
                 RadialMenuSettingsLoadStatus.Missing => "[环形菜单] 正在使用默认设置",
                 _ => "[环形菜单] 设置加载失败，已恢复默认设置"
             };
             LogRadialMessage(message);
         }
+
+        private static bool MappingIsConfigured(RadialSlotMapping mapping) =>
+            mapping.Kind != RadialActionKind.None;
 
         private void LogRadialMessage(string message) =>
             AppendLog($"[{DateTime.Now:HH:mm:ss}] {message}");

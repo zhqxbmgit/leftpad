@@ -53,6 +53,10 @@ public sealed class RadialMenuSettingsStore
                     RadialMenuSettingsLoadStatus.Invalid,
                     "Settings file was empty.");
             }
+            settings = settings with
+            {
+                SlotMappings = RadialSlotMappings.Sanitize(settings.SlotMappings)
+            };
             if (!settings.TryValidate(out string validationError))
             {
                 return new RadialMenuSettingsLoadResult(
@@ -104,5 +108,24 @@ public sealed class RadialMenuSettingsStore
             catch { /* Best-effort cleanup must not mask the original save failure. */ }
             return false;
         }
+    }
+}
+
+public static class RadialMenuSettingsPersistence
+{
+    public static bool TryApplyAndSave(
+        RadialMenuController controller,
+        RadialMenuSettingsStore store,
+        RadialMenuSettings temporarySettings,
+        Action<RadialMenuSettings> applySettings,
+        out string error)
+    {
+        ArgumentNullException.ThrowIfNull(controller);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(temporarySettings);
+        ArgumentNullException.ThrowIfNull(applySettings);
+
+        applySettings(temporarySettings);
+        return store.TrySave(controller.ActiveSettings, out error);
     }
 }

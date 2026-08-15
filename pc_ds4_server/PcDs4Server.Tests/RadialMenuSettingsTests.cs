@@ -24,6 +24,9 @@ public sealed class RadialMenuSettingsTests
         Assert.Equal(28, settings.SelectionDeadZone);
         Assert.Equal(80, settings.HighlightAlpha);
         Assert.Equal(16, settings.SelectionPollIntervalMs);
+        Assert.Equal(RadialSlotMappings.SlotCount, settings.SlotMappings.Count);
+        Assert.All(settings.SlotMappings,
+            mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
         Assert.True(settings.TryValidate(out _));
     }
 
@@ -42,7 +45,20 @@ public sealed class RadialMenuSettingsTests
             DoubleTapWindowMs = 275,
             SelectionDeadZone = 36,
             HighlightAlpha = 120,
-            SelectionPollIntervalMs = 24
+            SelectionPollIntervalMs = 24,
+            SlotMappings = RadialSlotMappings.Create(new RadialSlotMapping[]
+            {
+                RadialSlotMapping.None,
+                new() { Kind = RadialActionKind.KeyboardKey, Key = KeyboardKey.F1 },
+                new()
+                {
+                    Kind = RadialActionKind.KeyboardShortcut,
+                    Key = KeyboardKey.K,
+                    Ctrl = true,
+                    Shift = true
+                },
+                new() { Kind = RadialActionKind.Ds4Button, Ds4Button = "cross" }
+            })
         };
 
         Assert.True(store.TrySave(expected, out string saveError), saveError);
@@ -50,6 +66,11 @@ public sealed class RadialMenuSettingsTests
 
         Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
         Assert.Equal(expected, result.Settings);
+        string json = File.ReadAllText(temporary.FilePath);
+        Assert.Contains("\"kind\": \"keyboardKey\"", json);
+        Assert.Contains("\"key\": \"F1\"", json);
+        Assert.Contains("\"kind\": \"keyboardShortcut\"", json);
+        Assert.Contains("\"ds4Button\": \"cross\"", json);
     }
 
     [Fact]
@@ -108,6 +129,8 @@ public sealed class RadialMenuSettingsTests
         Assert.Equal(34, result.Settings.HubRadius);
         Assert.Equal(190, result.Settings.FillAlpha);
         Assert.Equal(150, result.Settings.DoubleTapWindowMs);
+        Assert.All(result.Settings.SlotMappings,
+            mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
     }
 
     [Fact]
@@ -142,6 +165,139 @@ public sealed class RadialMenuSettingsTests
         Assert.Equal(28, result.Settings.SelectionDeadZone);
         Assert.Equal(80, result.Settings.HighlightAlpha);
         Assert.Equal(16, result.Settings.SelectionPollIntervalMs);
+        Assert.All(result.Settings.SlotMappings,
+            mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
+    }
+
+    [Fact]
+    public void LegacyJsonWithoutMappings_PreservesEveryExistingSetting()
+    {
+        using var temporary = new TemporarySettingsPath();
+        Directory.CreateDirectory(temporary.DirectoryPath);
+        File.WriteAllText(temporary.FilePath, """
+            {
+              "scalePercent": 90,
+              "baseCanvasSize": 320,
+              "hubRadius": 34,
+              "petalInnerRadius": 45,
+              "petalOuterRadius": 110,
+              "textRadius": 75,
+              "petalGapDegrees": 5.5,
+              "fontSize": 16,
+              "fillAlpha": 190,
+              "borderAlpha": 90,
+              "textAlpha": 230,
+              "doubleTapWindowMs": 275,
+              "selectionDeadZone": 36,
+              "highlightAlpha": 120,
+              "selectionPollIntervalMs": 24
+            }
+            """);
+
+        RadialMenuSettingsLoadResult result = new RadialMenuSettingsStore(temporary.FilePath).Load();
+
+        Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal(90, result.Settings.ScalePercent);
+        Assert.Equal(320, result.Settings.BaseCanvasSize);
+        Assert.Equal(34, result.Settings.HubRadius);
+        Assert.Equal(45, result.Settings.PetalInnerRadius);
+        Assert.Equal(110, result.Settings.PetalOuterRadius);
+        Assert.Equal(75, result.Settings.TextRadius);
+        Assert.Equal(5.5f, result.Settings.PetalGapDegrees);
+        Assert.Equal(16f, result.Settings.FontSize);
+        Assert.Equal(190, result.Settings.FillAlpha);
+        Assert.Equal(90, result.Settings.BorderAlpha);
+        Assert.Equal(230, result.Settings.TextAlpha);
+        Assert.Equal(275, result.Settings.DoubleTapWindowMs);
+        Assert.Equal(36, result.Settings.SelectionDeadZone);
+        Assert.Equal(120, result.Settings.HighlightAlpha);
+        Assert.Equal(24, result.Settings.SelectionPollIntervalMs);
+        Assert.All(result.Settings.SlotMappings,
+            mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
+    }
+
+    [Fact]
+    public void PartialMappings_PreserveSettingsAndFillMissingSlotsWithNone()
+    {
+        using var temporary = new TemporarySettingsPath();
+        Directory.CreateDirectory(temporary.DirectoryPath);
+        File.WriteAllText(temporary.FilePath, """
+            {
+              "scalePercent": 90,
+              "slotMappings": [
+                { "kind": "keyboardKey", "key": "F1" },
+                { "kind": "keyboardShortcut", "key": "K", "ctrl": true },
+                { "kind": "ds4Button", "ds4Button": "cross" }
+              ]
+            }
+            """);
+
+        RadialMenuSettingsLoadResult result = new RadialMenuSettingsStore(temporary.FilePath).Load();
+
+        Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal(90, result.Settings.ScalePercent);
+        Assert.Equal(RadialActionKind.KeyboardKey, result.Settings.SlotMappings[0].Kind);
+        Assert.Equal(RadialActionKind.KeyboardShortcut, result.Settings.SlotMappings[1].Kind);
+        Assert.Equal(RadialActionKind.Ds4Button, result.Settings.SlotMappings[2].Kind);
+        Assert.All(result.Settings.SlotMappings.Skip(3),
+            mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
+    }
+
+    [Fact]
+    public void InvalidOneSlot_OnlySanitizesThatSlotAndPreservesVisualSettings()
+    {
+        using var temporary = new TemporarySettingsPath();
+        Directory.CreateDirectory(temporary.DirectoryPath);
+        File.WriteAllText(temporary.FilePath, """
+            {
+              "fillAlpha": 177,
+              "selectionDeadZone": 44,
+              "slotMappings": [
+                { "kind": "keyboardKey", "key": "F1" },
+                { "kind": "keyboardShortcut", "key": "K", "ctrl": true },
+                { "kind": "none" },
+                { "kind": "ds4Button", "ds4Button": "invalid" },
+                { "kind": "ds4Button", "ds4Button": "CROSS" },
+                { "kind": "keyboardKey", "key": "Escape" }
+              ]
+            }
+            """);
+
+        RadialMenuSettingsLoadResult result = new RadialMenuSettingsStore(temporary.FilePath).Load();
+
+        Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal(177, result.Settings.FillAlpha);
+        Assert.Equal(44, result.Settings.SelectionDeadZone);
+        Assert.Equal(KeyboardKey.F1, result.Settings.SlotMappings[0].Key);
+        Assert.Equal(RadialActionKind.KeyboardShortcut, result.Settings.SlotMappings[1].Kind);
+        Assert.Equal(RadialActionKind.None, result.Settings.SlotMappings[3].Kind);
+        Assert.Equal("cross", result.Settings.SlotMappings[4].Ds4Button);
+        Assert.Equal(KeyboardKey.Escape, result.Settings.SlotMappings[5].Key);
+    }
+
+    [Fact]
+    public void UnknownKindAndExtraMappings_AreSafelyNormalizedToSixSlots()
+    {
+        using var temporary = new TemporarySettingsPath();
+        Directory.CreateDirectory(temporary.DirectoryPath);
+        File.WriteAllText(temporary.FilePath, """
+            {
+              "slotMappings": [
+                { "kind": "futureAction", "key": "F1" },
+                { "kind": "none" }, { "kind": "none" },
+                { "kind": "none" }, { "kind": "none" },
+                { "kind": "none" },
+                { "kind": "keyboardKey", "key": "F2" }
+              ]
+            }
+            """);
+
+        RadialMenuSettingsLoadResult result = new RadialMenuSettingsStore(temporary.FilePath).Load();
+
+        Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal(RadialSlotMappings.SlotCount, result.Settings.SlotMappings.Count);
+        Assert.All(result.Settings.SlotMappings,
+            mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
     }
 
     [Fact]

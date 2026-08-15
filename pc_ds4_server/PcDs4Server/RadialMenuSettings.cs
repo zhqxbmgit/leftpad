@@ -30,6 +30,7 @@ public sealed record RadialMenuSettings
     public int SelectionDeadZone { get; init; } = 28;
     public int HighlightAlpha { get; init; } = 80;
     public int SelectionPollIntervalMs { get; init; } = 16;
+    public RadialSlotMappings SlotMappings { get; init; } = RadialSlotMappings.Default;
 
     public bool TryValidate(out string error)
     {
@@ -61,6 +62,9 @@ public sealed record RadialMenuSettings
             return Invalid("选择高亮强度必须在 0～255 之间。", out error);
         if (SelectionPollIntervalMs is < MinimumSelectionPollIntervalMs or > MaximumSelectionPollIntervalMs)
             return Invalid($"选择检测间隔必须在 {MinimumSelectionPollIntervalMs}～{MaximumSelectionPollIntervalMs} ms 之间。", out error);
+        if (SlotMappings == null)
+            return Invalid("动作映射不能为空。", out error);
+        if (!SlotMappings.TryValidate(out error)) return false;
 
         error = string.Empty;
         return true;
