@@ -14,6 +14,7 @@ public sealed class RadialMenuController : IDisposable
     private readonly IRadialMenuOverlay _overlay;
     private RadialMenuSettings _activeSettings;
     private Point? _normalAnchor;
+    private RadialTriggerSource? _openSource;
     private Point? _previewAnchor;
     private int _selectedSlot;
     private bool _isNormalMenuOpen;
@@ -33,12 +34,13 @@ public sealed class RadialMenuController : IDisposable
     public bool IsOpen => !_disposed && (_isNormalMenuOpen || _isPreviewActive);
     public bool IsNormalMenuOpen => !_disposed && _isNormalMenuOpen;
     public Point? NormalAnchor => IsNormalMenuOpen ? _normalAnchor : null;
+    public RadialTriggerSource? OpenSource => IsNormalMenuOpen ? _openSource : null;
     public int SelectedSlot => IsNormalMenuOpen ? _selectedSlot : 0;
     public bool IsPreviewActive => !_disposed && _isPreviewActive;
     public Point? PreviewAnchor => IsPreviewActive ? _previewAnchor : null;
     public RadialMenuSettings ActiveSettings => _activeSettings with { };
 
-    public void ToggleAt(Point screenPoint)
+    public void OpenAt(Point screenPoint, RadialTriggerSource source)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_isPreviewActive)
@@ -48,16 +50,25 @@ public sealed class RadialMenuController : IDisposable
         }
 
         if (_isNormalMenuOpen)
-        {
-            CloseNormalMenu();
             return;
-        }
 
         _normalAnchor = screenPoint;
+        _openSource = source;
         _selectedSlot = 0;
         _isNormalMenuOpen = true;
         _overlay.ShowAt(screenPoint, _activeSettings, selectedSlot: 0);
         NormalMenuStateChanged?.Invoke();
+    }
+
+    public bool TryCompleteFrom(RadialTriggerSource source, out RadialMenuCompletion completion)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        completion = default;
+        if (_isPreviewActive || !_isNormalMenuOpen || _openSource != source) return false;
+
+        completion = new RadialMenuCompletion(_selectedSlot);
+        CloseNormalMenu();
+        return true;
     }
 
     public void ApplySettings(RadialMenuSettings settings)
@@ -157,6 +168,7 @@ public sealed class RadialMenuController : IDisposable
     {
         _isNormalMenuOpen = false;
         _normalAnchor = null;
+        _openSource = null;
         _selectedSlot = 0;
     }
 

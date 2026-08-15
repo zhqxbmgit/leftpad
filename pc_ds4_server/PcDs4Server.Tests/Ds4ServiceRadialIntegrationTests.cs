@@ -416,6 +416,243 @@ public sealed class Ds4ServiceRadialIntegrationTests
         Assert.Empty(RadialLogs(fixture.Logs));
     }
 
+    [Fact]
+    public void ActionOpenSource_ConfirmsSelectedSlotAndConsumesDownAndPairedUp()
+    {
+        var fixture = DirectFixture();
+        using Ds4Service service = fixture.Service;
+        using RadialControllerFixture radial = AttachRadialController(service);
+
+        SendTap(service, fixture.Clock, "cross", 0, 20);
+        SendTap(service, fixture.Clock, "cross", 100, 120);
+        Assert.Equal(RadialTriggerSource.ForAction("cross"), radial.Controller.OpenSource);
+        Assert.True(radial.Controller.UpdateSelectionForCursor(new System.Drawing.Point(550, 550)));
+        Assert.Equal(3, radial.Controller.SelectedSlot);
+
+        fixture.Clock.SetMilliseconds(200);
+        service.ProcessProtocolAction("cross", "down");
+
+        RadialMenuCompletion completion = Assert.Single(radial.Completions);
+        Assert.Equal(3, completion.SelectedSlot);
+        Assert.False(radial.Controller.IsNormalMenuOpen);
+        Assert.Equal(
+            new[] { (DualShock4Button.Cross, true), (DualShock4Button.Cross, false) },
+            fixture.DirectDs4.ButtonEvents);
+
+        fixture.Clock.SetMilliseconds(220);
+        service.ProcessProtocolAction("cross", "up");
+
+        Assert.Equal(2, fixture.DirectDs4.ButtonEvents.Count);
+        Assert.Equal(2, fixture.DirectDs4.SubmitReportCalls);
+    }
+
+    [Fact]
+    public void ActionOpenSource_WithoutSelectionCancelsAndConsumesCompleteTap()
+    {
+        var fixture = DirectFixture();
+        using Ds4Service service = fixture.Service;
+        using RadialControllerFixture radial = AttachRadialController(service);
+
+        SendTap(service, fixture.Clock, "cross", 0, 20);
+        SendTap(service, fixture.Clock, "cross", 100, 120);
+        SendTap(service, fixture.Clock, "cross", 200, 220);
+
+        RadialMenuCompletion completion = Assert.Single(radial.Completions);
+        Assert.True(completion.IsCancelled);
+        Assert.False(radial.Controller.IsNormalMenuOpen);
+        Assert.Equal(2, fixture.DirectDs4.ButtonEvents.Count);
+        Assert.Equal(2, fixture.DirectDs4.SubmitReportCalls);
+    }
+
+    [Fact]
+    public void KeyboardActionOpenSource_ConsumesConfirmationWithoutSendingBoundKey()
+    {
+        var fixture = KeyboardFixture();
+        using Ds4Service service = fixture.Service;
+        using RadialControllerFixture radial = AttachRadialController(service);
+        ConfigureBinding(service, "cross", KeyboardKey.Space);
+
+        SendTap(service, fixture.Clock, "cross", 0, 20);
+        SendTap(service, fixture.Clock, "cross", 100, 120);
+        SendTap(service, fixture.Clock, "cross", 200, 220);
+
+        Assert.Single(radial.Completions);
+        Assert.Equal(
+            new[] { (KeyboardKey.Space, true), (KeyboardKey.Space, false) },
+            fixture.Keyboard.Events);
+    }
+
+    [Fact]
+    public void DifferentActionWhileMenuOpen_RoutesNormallyAndDoesNotConfirmOrClose()
+    {
+        var fixture = DirectFixture();
+        using Ds4Service service = fixture.Service;
+        using RadialControllerFixture radial = AttachRadialController(service);
+
+        SendTap(service, fixture.Clock, "cross", 0, 20);
+        SendTap(service, fixture.Clock, "cross", 100, 120);
+        SendTap(service, fixture.Clock, "circle", 200, 220);
+
+        Assert.Empty(radial.Completions);
+        Assert.True(radial.Controller.IsNormalMenuOpen);
+        Assert.Equal(RadialTriggerSource.ForAction("cross"), radial.Controller.OpenSource);
+        Assert.Equal(
+            new[]
+            {
+                (DualShock4Button.Cross, true),
+                (DualShock4Button.Cross, false),
+                (DualShock4Button.Circle, true),
+                (DualShock4Button.Circle, false)
+            },
+            fixture.DirectDs4.ButtonEvents);
+        Assert.Single(fixture.RadialTriggers);
+    }
+
+    [Fact]
+    public void MoveOpenSource_ConfirmsBeforeJoystickStateMachineAndConsumesPairedUp()
+    {
+        var fixture = MoveFixture();
+        using Ds4Service service = fixture.Service;
+        using RadialControllerFixture radial = AttachRadialController(service);
+
+        SendMoveTap(service, fixture.Clock, 0, 20);
+        SendMoveTap(service, fixture.Clock, 100, 120);
+        Assert.Equal(RadialTriggerSource.Move, radial.Controller.OpenSource);
+        Assert.True(radial.Controller.UpdateSelectionForCursor(new System.Drawing.Point(500, 550)));
+        Assert.Equal(4, radial.Controller.SelectedSlot);
+        VirtualJoystickSnapshot snapshotBeforeConfirmation = fixture.LastSnapshot;
+        int cursorReadsBeforeConfirmation = fixture.Cursor.ReadCalls;
+        int stickEventsBeforeConfirmation = fixture.DirectDs4.LeftStickEvents.Count;
+
+        fixture.Clock.SetMilliseconds(200);
+        service.ProcessProtocolAction("move", "down");
+        fixture.Clock.SetMilliseconds(220);
+        service.ProcessProtocolAction("move", "up");
+
+        Assert.Equal(4, Assert.Single(radial.Completions).SelectedSlot);
+        Assert.False(radial.Controller.IsNormalMenuOpen);
+        Assert.Equal(snapshotBeforeConfirmation, fixture.LastSnapshot);
+        Assert.Equal(cursorReadsBeforeConfirmation, fixture.Cursor.ReadCalls);
+        Assert.Equal(stickEventsBeforeConfirmation, fixture.DirectDs4.LeftStickEvents.Count);
+    }
+
+    [Fact]
+    public void MoveOpenSource_WithoutSelectionCancelsWithoutChangingMoveState()
+    {
+        var fixture = MoveFixture();
+        using Ds4Service service = fixture.Service;
+        using RadialControllerFixture radial = AttachRadialController(service);
+
+        SendMoveTap(service, fixture.Clock, 0, 20);
+        SendMoveTap(service, fixture.Clock, 100, 120);
+        VirtualJoystickSnapshot snapshotBeforeConfirmation = fixture.LastSnapshot;
+        int cursorReadsBeforeConfirmation = fixture.Cursor.ReadCalls;
+        int stickEventsBeforeConfirmation = fixture.DirectDs4.LeftStickEvents.Count;
+
+        SendMoveTap(service, fixture.Clock, 200, 220);
+
+        Assert.True(Assert.Single(radial.Completions).IsCancelled);
+        Assert.Equal(snapshotBeforeConfirmation, fixture.LastSnapshot);
+        Assert.Equal(cursorReadsBeforeConfirmation, fixture.Cursor.ReadCalls);
+        Assert.Equal(stickEventsBeforeConfirmation, fixture.DirectDs4.LeftStickEvents.Count);
+    }
+
+    [Fact]
+    public void KeyboardMoveOpenSource_ConfirmationDoesNotChangeWasdOutput()
+    {
+        var fixture = KeyboardMoveFixture();
+        using Ds4Service service = fixture.Service;
+        using RadialControllerFixture radial = AttachRadialController(service);
+
+        SendMoveTap(service, fixture.Clock, 0, 20);
+        SendMoveTap(service, fixture.Clock, 100, 120);
+        int keyboardEventsBeforeConfirmation = fixture.Keyboard.Events.Count;
+        int cursorReadsBeforeConfirmation = fixture.Cursor.ReadCalls;
+
+        SendMoveTap(service, fixture.Clock, 200, 220);
+
+        Assert.Single(radial.Completions);
+        Assert.Equal(keyboardEventsBeforeConfirmation, fixture.Keyboard.Events.Count);
+        Assert.Equal(cursorReadsBeforeConfirmation, fixture.Cursor.ReadCalls);
+    }
+
+    [Fact]
+    public void DelayedActionUp_RemainsSuppressedWhileUnrelatedActionRoutesNormally()
+    {
+        var fixture = DirectFixture();
+        using Ds4Service service = fixture.Service;
+        using RadialControllerFixture radial = AttachRadialController(service);
+
+        SendTap(service, fixture.Clock, "cross", 0, 20);
+        SendTap(service, fixture.Clock, "cross", 100, 120);
+        fixture.Clock.SetMilliseconds(200);
+        service.ProcessProtocolAction("cross", "down");
+        SendTap(service, fixture.Clock, "circle", 210, 220);
+        fixture.Clock.SetMilliseconds(300);
+        service.ProcessProtocolAction("cross", "up");
+
+        Assert.Single(radial.Completions);
+        Assert.Equal(
+            new[]
+            {
+                (DualShock4Button.Cross, true),
+                (DualShock4Button.Cross, false),
+                (DualShock4Button.Circle, true),
+                (DualShock4Button.Circle, false)
+            },
+            fixture.DirectDs4.ButtonEvents);
+    }
+
+    [Fact]
+    public void ResetBetweenConfirmationDownAndUp_ClearsSuppressionForNextNormalInput()
+    {
+        var fixture = DirectFixture();
+        using Ds4Service service = fixture.Service;
+        using RadialControllerFixture radial = AttachRadialController(service);
+
+        SendTap(service, fixture.Clock, "cross", 0, 20);
+        SendTap(service, fixture.Clock, "cross", 100, 120);
+        fixture.Clock.SetMilliseconds(200);
+        service.ProcessProtocolAction("cross", "down");
+        service.ReleaseAllControls(Ds4ControlResetReason.Disconnect);
+        fixture.Clock.SetMilliseconds(220);
+        service.ProcessProtocolAction("cross", "up");
+        SendTap(service, fixture.Clock, "cross", 300, 320);
+
+        Assert.Single(radial.Completions);
+        Assert.Equal(
+            new[]
+            {
+                (DualShock4Button.Cross, true),
+                (DualShock4Button.Cross, false),
+                (DualShock4Button.Cross, false),
+                (DualShock4Button.Cross, true),
+                (DualShock4Button.Cross, false)
+            },
+            fixture.DirectDs4.ButtonEvents);
+    }
+
+    [Fact]
+    public void MoveStopAfterConfirmationDown_ClearsSuppressionForNextMoveTap()
+    {
+        var fixture = MoveFixture();
+        using Ds4Service service = fixture.Service;
+        using RadialControllerFixture radial = AttachRadialController(service);
+
+        SendMoveTap(service, fixture.Clock, 0, 20);
+        SendMoveTap(service, fixture.Clock, 100, 120);
+        fixture.Clock.SetMilliseconds(200);
+        service.ProcessProtocolAction("move", "down");
+        fixture.Clock.SetMilliseconds(210);
+        service.ProcessProtocolAction("move", "stop");
+        int cursorReadsAfterStop = fixture.Cursor.ReadCalls;
+
+        SendMoveTap(service, fixture.Clock, 300, 320);
+
+        Assert.Single(radial.Completions);
+        Assert.Equal(cursorReadsAfterStop + 1, fixture.Cursor.ReadCalls);
+    }
+
     private static ServiceFixture DirectFixture()
     {
         var clock = new ManualClock();
@@ -430,7 +667,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
         var logs = new List<string>();
         var radialTriggers = new List<int>();
         service.OnLog += logs.Add;
-        service.RadialMenuTriggered += () => radialTriggers.Add(1);
+        service.RadialMenuTriggered += _ => radialTriggers.Add(1);
         return new ServiceFixture(service, clock, factory.Session, keyboard, logs, radialTriggers);
     }
 
@@ -448,19 +685,48 @@ public sealed class Ds4ServiceRadialIntegrationTests
         var logs = new List<string>();
         var radialTriggers = new List<int>();
         service.OnLog += logs.Add;
-        service.RadialMenuTriggered += () => radialTriggers.Add(1);
+        service.RadialMenuTriggered += _ => radialTriggers.Add(1);
         return new ServiceFixture(service, clock, factory.Session, keyboard, logs, radialTriggers);
     }
 
     private static MoveServiceFixture MoveFixture()
     {
-        ServiceFixture fixture = DirectFixture();
+        return ConfigureMoveFixture(DirectFixture());
+    }
+
+    private static MoveServiceFixture KeyboardMoveFixture()
+    {
+        return ConfigureMoveFixture(KeyboardFixture());
+    }
+
+    private static MoveServiceFixture ConfigureMoveFixture(ServiceFixture fixture)
+    {
         var cursor = new FakeCursor { Position = new ScreenPoint(500, 500) };
         fixture.Service.ConfigureVirtualJoystick(new FakeOverlay(), cursor);
         VirtualJoystickSnapshot lastSnapshot = ConfiguredController(fixture.Service).Snapshot;
         var moveFixture = new MoveServiceFixture(fixture, cursor, lastSnapshot);
         fixture.Service.OnJoystickStateChanged += snapshot => moveFixture.LastSnapshot = snapshot;
         return moveFixture;
+    }
+
+    private static RadialControllerFixture AttachRadialController(Ds4Service service)
+    {
+        var controller = new RadialMenuController(
+            new FakeRadialMenuOverlay(),
+            RadialMenuSettings.Default);
+        var completions = new List<RadialMenuCompletion>();
+        service.RadialMenuTriggered += source =>
+            controller.OpenAt(new System.Drawing.Point(500, 500), source);
+        service.RadialMenuConfirmationRequested += source =>
+        {
+            if (controller.TryCompleteFrom(source, out RadialMenuCompletion completion))
+                completions.Add(completion);
+        };
+        controller.NormalMenuStateChanged += () =>
+        {
+            if (!controller.IsNormalMenuOpen) service.NotifyRadialMenuClosed();
+        };
+        return new RadialControllerFixture(controller, completions);
     }
 
     private static void ConfigureBinding(Ds4Service service, string action, KeyboardKey key)
@@ -530,6 +796,13 @@ public sealed class Ds4ServiceRadialIntegrationTests
         List<string> Logs,
         List<int> RadialTriggers);
 
+    private sealed record RadialControllerFixture(
+        RadialMenuController Controller,
+        List<RadialMenuCompletion> Completions) : IDisposable
+    {
+        public void Dispose() => Controller.Dispose();
+    }
+
     private sealed class MoveServiceFixture
     {
         private readonly ServiceFixture _fixture;
@@ -547,6 +820,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
         public Ds4Service Service => _fixture.Service;
         public ManualClock Clock => _fixture.Clock;
         public FakeDirectDs4Session DirectDs4 => _fixture.DirectDs4;
+        public FakeKeyboardOutput Keyboard => _fixture.Keyboard;
         public List<string> Logs => _fixture.Logs;
         public List<int> RadialTriggers => _fixture.RadialTriggers;
         public FakeCursor Cursor { get; }
@@ -590,9 +864,11 @@ public sealed class Ds4ServiceRadialIntegrationTests
     {
         public ScreenPoint Position { get; set; }
         public bool Success { get; set; } = true;
+        public int ReadCalls { get; private set; }
 
         public bool TryGetPosition(out ScreenPoint position, out int win32Error)
         {
+            ReadCalls++;
             position = Position;
             win32Error = Success ? 0 : 123;
             return Success;

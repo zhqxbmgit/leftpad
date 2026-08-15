@@ -30,6 +30,18 @@ namespace PcDs4Server
         private readonly RadialMenuController _radialMenu;
         private readonly RadialMenuSettingsStore _radialSettingsStore;
         private readonly System.Windows.Forms.Timer _radialSelectionTimer;
+        private readonly Dictionary<ReceiverPage, SidebarButton> _pageNavigation = new();
+        private Label _pageTitle = null!;
+        private FlowLayoutPanel _overviewCards = null!, _overviewOutput = null!;
+        private Panel _gamepadMonitor = null!, _joystickDebugSection = null!, _logSection = null!;
+        private ReceiverPage _currentPage = ReceiverPage.Overview;
+
+        private enum ReceiverPage
+        {
+            Overview,
+            Gamepad,
+            Log
+        }
 
         // 状态卡片
         private ModernStatusCard _cardVigem = null!, _cardDs4 = null!, _cardPhone = null!, _cardPort = null!;
@@ -62,7 +74,7 @@ namespace PcDs4Server
                 Interval = radialSettings.Settings.SelectionPollIntervalMs
             };
             _radialSelectionTimer.Tick += RadialSelectionTimer_Tick;
-            _radialMenu.NormalMenuStateChanged += SyncRadialSelectionTimer;
+            _radialMenu.NormalMenuStateChanged += HandleRadialMenuStateChanged;
             _service.SetRadialDoubleTapWindow(radialSettings.Settings.DoubleTapWindowMs);
             _service.ConfigureVirtualJoystick(_joystickOverlay, new WindowsCursorPositionProvider());
             SetupServiceEvents();
@@ -119,7 +131,9 @@ namespace PcDs4Server
             var btnLog = new SidebarButton { Text = "📋 日志", Location = new Point(0, 235), Width = 200 };
 
             _sidebar.Controls.AddRange(new Control[] { btnOverview, btnGamepad, btnSettings, btnLog });
-            btnSettings.Click += (_, _) => OpenRadialMenuSettings();
+            _pageNavigation.Add(ReceiverPage.Overview, btnOverview);
+            _pageNavigation.Add(ReceiverPage.Gamepad, btnGamepad);
+            _pageNavigation.Add(ReceiverPage.Log, btnLog);
 
             // 3. 右侧主内容区
             _mainContent = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 0, 20, 20) };
@@ -133,7 +147,7 @@ namespace PcDs4Server
 
             // 4. 内容区头部
             var header = new Panel { Dock = DockStyle.Top, Height = 60 };
-            var lblPageTitle = new Label {
+            _pageTitle = new Label {
                 Text = "控制中心", Font = new Font("Microsoft YaHei UI", 16, FontStyle.Bold),
                 ForeColor = ThemeColors.TextMain, Location = new Point(0, 5), AutoSize = true
             };
@@ -143,12 +157,12 @@ namespace PcDs4Server
                 Font = new Font("Microsoft YaHei UI", 8, FontStyle.Bold),
                 BackColor = Color.FromArgb(40, 40, 0), ForeColor = ThemeColors.Warning
             };
-            header.Controls.Add(lblPageTitle);
+            header.Controls.Add(_pageTitle);
             header.Controls.Add(_lblStatusBadge);
             _contentPanel.Controls.Add(header);
 
             // 5. 状态卡片布局
-            var cardFlow = new FlowLayoutPanel {
+            _overviewCards = new FlowLayoutPanel {
                 Dock = DockStyle.Top, Height = 100,
                 FlowDirection = FlowDirection.LeftToRight
             };
@@ -157,14 +171,14 @@ namespace PcDs4Server
             _cardPhone = new ModernStatusCard("手机", "等待连接");
             _cardPort = new ModernStatusCard("端口", "8888");
             _cardPort.SetStatusColor(ThemeColors.Success);
-            cardFlow.Controls.AddRange(new Control[] { _cardVigem, _cardDs4, _cardPhone, _cardPort });
-            _contentPanel.Controls.Add(cardFlow);
+            _overviewCards.Controls.AddRange(new Control[] { _cardVigem, _cardDs4, _cardPhone, _cardPort });
+            _contentPanel.Controls.Add(_overviewCards);
 
-            var outputSection = new FlowLayoutPanel {
+            _overviewOutput = new FlowLayoutPanel {
                 Dock = DockStyle.Top, Height = 82, FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false, Padding = new Padding(0, 8, 0, 4)
             };
-            outputSection.Controls.Add(new Label {
+            _overviewOutput.Controls.Add(new Label {
                 Text = "输出模式", AutoSize = false, Width = 90, Height = 28,
                 TextAlign = ContentAlignment.MiddleLeft, ForeColor = ThemeColors.TextSecondary
             });
@@ -175,7 +189,7 @@ namespace PcDs4Server
             _outputMode.Format += (_, e) => e.Value = (OutputMode)e.ListItem! == OutputMode.DirectDs4
                 ? "Direct DS4" : "键盘";
             _outputMode.SelectedValueChanged += (_, _) => ApplySelectedOutputMode();
-            outputSection.Controls.Add(_outputMode);
+            _overviewOutput.Controls.Add(_outputMode);
             _startStop = new Button {
                 Text = "启动", Width = 80, Height = 28,
                 FlatStyle = FlatStyle.Flat,
@@ -185,7 +199,7 @@ namespace PcDs4Server
             };
             _startStop.FlatAppearance.BorderColor = ThemeColors.BorderPurple;
             _startStop.Click += (_, _) => ToggleServer();
-            outputSection.Controls.Add(_startStop);
+            _overviewOutput.Controls.Add(_startStop);
             _keyboardMapping = new FlowLayoutPanel {
                 Width = 385, Height = 66, AutoScroll = true, WrapContents = true,
                 FlowDirection = FlowDirection.LeftToRight
@@ -206,22 +220,22 @@ namespace PcDs4Server
                 _keyboardMapping.Controls.Add(editor);
             }
             _initializingBindingEditors = false;
-            outputSection.Controls.Add(_keyboardMapping);
-            _contentPanel.Controls.Add(outputSection);
+            _overviewOutput.Controls.Add(_keyboardMapping);
+            _contentPanel.Controls.Add(_overviewOutput);
 
             // 6. 手柄监控区 (绘制在 Panel 上)
-            var monitorSection = new Panel { Dock = DockStyle.Top, Height = 130, Padding = new Padding(0, 10, 0, 0) };
+            _gamepadMonitor = new Panel { Dock = DockStyle.Top, Height = 130, Padding = new Padding(0, 10, 0, 0) };
             var lblMonitorTitle = new Label {
                 Text = "手柄输入监视", Font = new Font("Microsoft YaHei UI", 9, FontStyle.Bold),
                 ForeColor = ThemeColors.TextSecondary, Dock = DockStyle.Top
             };
             var monitorCanvas = new Panel { Dock = DockStyle.Fill };
             monitorCanvas.Paint += (s, e) => DrawGamepadMonitor(e.Graphics, monitorCanvas.Width, monitorCanvas.Height);
-            monitorSection.Controls.Add(monitorCanvas);
-            monitorSection.Controls.Add(lblMonitorTitle);
-            _contentPanel.Controls.Add(monitorSection);
+            _gamepadMonitor.Controls.Add(monitorCanvas);
+            _gamepadMonitor.Controls.Add(lblMonitorTitle);
+            _contentPanel.Controls.Add(_gamepadMonitor);
 
-            var joystickDebugSection = new Panel { Dock = DockStyle.Top, Height = 148, Padding = new Padding(0, 8, 0, 4) };
+            _joystickDebugSection = new Panel { Dock = DockStyle.Top, Height = 148, Padding = new Padding(0, 8, 0, 4) };
             var lblJoystickTitle = new Label {
                 Text = "可视虚拟摇杆", Font = new Font("Microsoft YaHei UI", 9, FontStyle.Bold),
                 ForeColor = ThemeColors.TextSecondary, Dock = DockStyle.Top, Height = 20
@@ -232,12 +246,12 @@ namespace PcDs4Server
                 ForeColor = ThemeColors.TextSecondary,
                 Text = "MOVE：已释放    模式：已停止    光标采样：未启用\n本次按住已捕获方向：否    移动锁定：否\n当前方向：0.000 / 0.000    锁定方向：0.000 / 0.000\n摇杆：0.000 / 0.000    DS4：128 / 128\n中心：- / -    当前光标：- / -\n光标偏移：0.0 / 0.0    光标距离：0.0"
             };
-            joystickDebugSection.Controls.Add(_joystickDebug);
-            joystickDebugSection.Controls.Add(lblJoystickTitle);
-            _contentPanel.Controls.Add(joystickDebugSection);
+            _joystickDebugSection.Controls.Add(_joystickDebug);
+            _joystickDebugSection.Controls.Add(lblJoystickTitle);
+            _contentPanel.Controls.Add(_joystickDebugSection);
 
             // 7. 日志区
-            var logSection = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 15, 0, 0) };
+            _logSection = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 15, 0, 0) };
             var lblLogTitle = new Label {
                 Text = "实时日志", Font = new Font("Microsoft YaHei UI", 9, FontStyle.Bold),
                 ForeColor = ThemeColors.TextSecondary, Dock = DockStyle.Top
@@ -247,9 +261,20 @@ namespace PcDs4Server
                 ForeColor = ThemeColors.TextSecondary, BorderStyle = BorderStyle.None,
                 Font = new Font("Microsoft YaHei UI", 8), ReadOnly = true
             };
-            logSection.Controls.Add(_logBox);
-            logSection.Controls.Add(lblLogTitle);
-            _contentPanel.Controls.Add(logSection);
+            _logSection.Controls.Add(_logBox);
+            _logSection.Controls.Add(lblLogTitle);
+            _contentPanel.Controls.Add(_logSection);
+
+            btnOverview.Click += (_, _) => NavigateTo(ReceiverPage.Overview);
+            btnGamepad.Click += (_, _) => NavigateTo(ReceiverPage.Gamepad);
+            btnLog.Click += (_, _) => NavigateTo(ReceiverPage.Log);
+            btnSettings.Click += (_, _) =>
+            {
+                SetSelectedNavigation(btnSettings);
+                OpenRadialMenuSettings();
+                SetSelectedNavigation(_pageNavigation[_currentPage]);
+            };
+            NavigateTo(ReceiverPage.Overview);
 
             _mainContent.Controls.Add(_contentPanel);
             this.Controls.Add(_mainContent);
@@ -359,8 +384,13 @@ namespace PcDs4Server
                     $"中心：{center}    当前光标：{currentCursor}\n" +
                     $"光标偏移：{state.CursorDeltaX:F1} / {state.CursorDeltaY:F1}    光标距离：{state.CursorDistance:F1}";
             });
-            _service.RadialMenuTriggered += () =>
-                PostToUi(() => _radialMenu.ToggleAt(Cursor.Position));
+            _service.RadialMenuTriggered += source => PostToUi(() =>
+            {
+                _radialMenu.OpenAt(Cursor.Position, source);
+                if (!_radialMenu.IsNormalMenuOpen) _service.NotifyRadialMenuClosed();
+            });
+            _service.RadialMenuConfirmationRequested += source =>
+                PostToUi(() => CompleteRadialMenuSelection(source));
             _service.OnStopped += () => PostToUi(_radialMenu.Close);
         }
 
@@ -407,6 +437,51 @@ namespace PcDs4Server
             {
                 _radialSelectionTimer.Stop();
             }
+        }
+
+        private void NavigateTo(ReceiverPage page)
+        {
+            _currentPage = page;
+            _pageTitle.Text = page switch
+            {
+                ReceiverPage.Overview => "控制中心",
+                ReceiverPage.Gamepad => "手柄状态",
+                ReceiverPage.Log => "日志",
+                _ => throw new ArgumentOutOfRangeException(nameof(page))
+            };
+
+            bool showOverview = page == ReceiverPage.Overview;
+            bool showGamepad = page == ReceiverPage.Gamepad;
+            _overviewCards.Visible = showOverview;
+            _overviewOutput.Visible = showOverview;
+            _gamepadMonitor.Visible = showGamepad;
+            _joystickDebugSection.Visible = showGamepad;
+            _logSection.Visible = page == ReceiverPage.Log;
+            SetSelectedNavigation(_pageNavigation[page]);
+        }
+
+        private void SetSelectedNavigation(SidebarButton selected)
+        {
+            foreach (SidebarButton button in _sidebar.Controls.OfType<SidebarButton>())
+            {
+                button.IsSelected = ReferenceEquals(button, selected);
+                button.Invalidate();
+            }
+        }
+
+        private void HandleRadialMenuStateChanged()
+        {
+            SyncRadialSelectionTimer();
+            if (!_radialMenu.IsNormalMenuOpen) _service.NotifyRadialMenuClosed();
+        }
+
+        private void CompleteRadialMenuSelection(RadialTriggerSource source)
+        {
+            if (!_radialMenu.TryCompleteFrom(source, out RadialMenuCompletion completion)) return;
+
+            LogRadialMessage(completion.IsCancelled
+                ? "[环形菜单] 已取消"
+                : $"[环形菜单] 已确认：Slot {completion.SelectedSlot}");
         }
 
         private void LogRadialSettingsLoad(RadialMenuSettingsLoadResult result)
@@ -594,7 +669,7 @@ namespace PcDs4Server
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             _service.ResetVirtualJoystick(JoystickResetReason.NormalExit);
-            _radialMenu.NormalMenuStateChanged -= SyncRadialSelectionTimer;
+            _radialMenu.NormalMenuStateChanged -= HandleRadialMenuStateChanged;
             _radialSelectionTimer.Stop();
             _radialSelectionTimer.Dispose();
             _radialMenu.Dispose();

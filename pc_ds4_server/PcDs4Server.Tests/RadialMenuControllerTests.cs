@@ -5,35 +5,42 @@ namespace PcDs4Server.Tests;
 
 public sealed class RadialMenuControllerTests
 {
+    private static readonly RadialTriggerSource CrossSource = RadialTriggerSource.ForAction("cross");
+    private static readonly RadialTriggerSource CircleSource = RadialTriggerSource.ForAction("circle");
+
     [Fact]
-    public void ToggleAt_OpensAtCurrentPointClosesAndCanReopenAtNewPoint()
+    public void OpenAt_OpensAtCurrentPointAndIgnoresAnotherOpenUntilClosed()
     {
         var overlay = new FakeRadialMenuOverlay();
         using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
         var pointA = new Point(100, 200);
         var pointB = new Point(700, 500);
 
-        controller.ToggleAt(pointA);
+        controller.OpenAt(pointA, CrossSource);
 
         Assert.True(controller.IsOpen);
         Assert.True(controller.IsNormalMenuOpen);
         Assert.Equal(pointA, controller.NormalAnchor);
+        Assert.Equal(CrossSource, controller.OpenSource);
         Assert.Equal(0, controller.SelectedSlot);
         Assert.Equal(1, overlay.ShowCalls);
         Assert.Equal(0, overlay.HideCalls);
         Assert.Equal(pointA, overlay.AnchorPoints.Single());
 
-        controller.ToggleAt(pointB);
+        controller.OpenAt(pointB, CircleSource);
 
-        Assert.False(controller.IsOpen);
+        Assert.True(controller.IsOpen);
         Assert.Equal(1, overlay.ShowCalls);
-        Assert.Equal(1, overlay.HideCalls);
+        Assert.Equal(0, overlay.HideCalls);
+        Assert.Equal(CrossSource, controller.OpenSource);
 
-        controller.ToggleAt(pointB);
+        controller.Close();
+        controller.OpenAt(pointB, CircleSource);
 
         Assert.True(controller.IsOpen);
         Assert.Equal(2, overlay.ShowCalls);
         Assert.Equal(new[] { pointA, pointB }, overlay.AnchorPoints);
+        Assert.Equal(CircleSource, controller.OpenSource);
     }
 
     [Fact]
@@ -43,7 +50,7 @@ public sealed class RadialMenuControllerTests
         using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
 
         controller.Close();
-        controller.ToggleAt(new Point(100, 200));
+        controller.OpenAt(new Point(100, 200), CrossSource);
         controller.Close();
         controller.Close();
 
@@ -57,7 +64,7 @@ public sealed class RadialMenuControllerTests
     {
         var overlay = new FakeRadialMenuOverlay();
         var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
-        controller.ToggleAt(new Point(100, 200));
+        controller.OpenAt(new Point(100, 200), CrossSource);
 
         controller.Dispose();
         controller.Dispose();
@@ -75,7 +82,7 @@ public sealed class RadialMenuControllerTests
         RadialMenuSettings applied = RadialMenuSettings.Default with { ScalePercent = 90 };
 
         controller.ApplySettings(applied);
-        controller.ToggleAt(new Point(300, 400));
+        controller.OpenAt(new Point(300, 400), CrossSource);
 
         Assert.Equal(applied, controller.ActiveSettings);
         Assert.Equal(applied, overlay.Settings.Single());
@@ -91,7 +98,7 @@ public sealed class RadialMenuControllerTests
 
         controller.PreviewAt(new Point(100, 200), preview);
         controller.ClosePreview();
-        controller.ToggleAt(new Point(700, 500));
+        controller.OpenAt(new Point(700, 500), CrossSource);
 
         Assert.Equal(active, controller.ActiveSettings);
         Assert.Equal(new[] { preview, active }, overlay.Settings);
@@ -132,7 +139,7 @@ public sealed class RadialMenuControllerTests
     {
         var overlay = new FakeRadialMenuOverlay();
         using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
-        controller.ToggleAt(new Point(300, 400));
+        controller.OpenAt(new Point(300, 400), CrossSource);
 
         controller.ClosePreview();
 
@@ -179,7 +186,7 @@ public sealed class RadialMenuControllerTests
         var anchor = new Point(500, 500);
         using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
 
-        controller.ToggleAt(anchor);
+        controller.OpenAt(anchor, CrossSource);
         Assert.Equal(0, controller.SelectedSlot);
         Assert.Equal(new[] { 0 }, overlay.SelectedSlots);
 
@@ -201,10 +208,11 @@ public sealed class RadialMenuControllerTests
         controller.Close();
         Assert.False(controller.IsNormalMenuOpen);
         Assert.Null(controller.NormalAnchor);
+        Assert.Null(controller.OpenSource);
         Assert.Equal(0, controller.SelectedSlot);
 
         var newAnchor = new Point(700, 300);
-        controller.ToggleAt(newAnchor);
+        controller.OpenAt(newAnchor, CrossSource);
         Assert.True(controller.IsNormalMenuOpen);
         Assert.Equal(newAnchor, controller.NormalAnchor);
         Assert.Equal(0, controller.SelectedSlot);
@@ -237,7 +245,7 @@ public sealed class RadialMenuControllerTests
     {
         var overlay = new FakeRadialMenuOverlay();
         using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
-        controller.ToggleAt(new Point(500, 500));
+        controller.OpenAt(new Point(500, 500), CrossSource);
         controller.UpdateSelectionForCursor(new Point(500, 450));
 
         controller.PreviewAt(new Point(1000, 500), RadialMenuSettings.Default);
@@ -247,6 +255,91 @@ public sealed class RadialMenuControllerTests
         Assert.Null(controller.NormalAnchor);
         Assert.Equal(0, controller.SelectedSlot);
         Assert.Equal(0, overlay.SelectedSlots.Last());
+    }
+
+    [Fact]
+    public void CompleteFromMatchingAction_ReturnsSelectedSlotAndClearsSession()
+    {
+        var overlay = new FakeRadialMenuOverlay();
+        using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
+        controller.OpenAt(new Point(500, 500), CrossSource);
+        controller.UpdateSelectionForCursor(new Point(550, 450));
+
+        bool completed = controller.TryCompleteFrom(CrossSource, out RadialMenuCompletion completion);
+
+        Assert.True(completed);
+        Assert.Equal(2, completion.SelectedSlot);
+        Assert.False(completion.IsCancelled);
+        Assert.False(controller.IsNormalMenuOpen);
+        Assert.Equal(0, controller.SelectedSlot);
+        Assert.Null(controller.NormalAnchor);
+        Assert.Null(controller.OpenSource);
+        Assert.Equal(1, overlay.HideCalls);
+    }
+
+    [Fact]
+    public void CompleteFromDifferentAction_IsIgnoredAndMenuStaysOpen()
+    {
+        var overlay = new FakeRadialMenuOverlay();
+        using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
+        controller.OpenAt(new Point(500, 500), CrossSource);
+
+        bool completed = controller.TryCompleteFrom(CircleSource, out RadialMenuCompletion completion);
+
+        Assert.False(completed);
+        Assert.Equal(default, completion);
+        Assert.True(controller.IsNormalMenuOpen);
+        Assert.Equal(CrossSource, controller.OpenSource);
+        Assert.Equal(0, overlay.HideCalls);
+    }
+
+    [Fact]
+    public void CompleteFromMatchingSourceWithoutSelection_CancelsAndCloses()
+    {
+        var overlay = new FakeRadialMenuOverlay();
+        using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
+        controller.OpenAt(new Point(500, 500), CrossSource);
+
+        bool completed = controller.TryCompleteFrom(CrossSource, out RadialMenuCompletion completion);
+
+        Assert.True(completed);
+        Assert.True(completion.IsCancelled);
+        Assert.Equal(0, completion.SelectedSlot);
+        Assert.False(controller.IsNormalMenuOpen);
+        Assert.Null(controller.OpenSource);
+    }
+
+    [Fact]
+    public void PreviewHasNoOpenSourceAndCannotComplete()
+    {
+        var overlay = new FakeRadialMenuOverlay();
+        using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
+        controller.PreviewAt(new Point(1000, 500), RadialMenuSettings.Default);
+
+        bool completed = controller.TryCompleteFrom(CrossSource, out RadialMenuCompletion completion);
+
+        Assert.False(completed);
+        Assert.Equal(default, completion);
+        Assert.True(controller.IsPreviewActive);
+        Assert.Null(controller.OpenSource);
+        Assert.Equal(0, overlay.HideCalls);
+    }
+
+    [Fact]
+    public void OpenDuringPreview_ClosesPreviewWithoutStartingNormalSession()
+    {
+        var overlay = new FakeRadialMenuOverlay();
+        using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default);
+        controller.PreviewAt(new Point(1000, 500), RadialMenuSettings.Default);
+
+        controller.OpenAt(new Point(500, 500), CrossSource);
+
+        Assert.False(controller.IsOpen);
+        Assert.False(controller.IsPreviewActive);
+        Assert.False(controller.IsNormalMenuOpen);
+        Assert.Null(controller.OpenSource);
+        Assert.Equal(1, overlay.ShowCalls);
+        Assert.Equal(1, overlay.HideCalls);
     }
 
     private sealed class FakeRadialMenuOverlay : IRadialMenuOverlay

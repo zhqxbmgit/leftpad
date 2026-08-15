@@ -30,6 +30,8 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     private OutputMode _outputMode = OutputMode.DirectDs4;
     private KeyboardBindings _keyboardBindings;
     private int _radialDoubleTapWindowMs;
+    private RadialTriggerSource? _radialOpenSource;
+    private RadialTriggerSource? _radialSuppressedUpSource;
     private bool _disposed;
 
     public Ds4Service(
@@ -60,7 +62,8 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     public event Action<string>? OnConnectionChanged;
     public event Action<string>? OnButtonEvent;
     public event Action<VirtualJoystickSnapshot>? OnJoystickStateChanged;
-    public event Action? RadialMenuTriggered;
+    public event Action<RadialTriggerSource>? RadialMenuTriggered;
+    public event Action<RadialTriggerSource>? RadialMenuConfirmationRequested;
     public event Action? OnStopped;
 
     public bool IsRunning { get; private set; }
@@ -69,6 +72,11 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     public string LocalIp { get; private set; }
     public int Port { get; } = 8888;
     public int RadialDoubleTapWindowMs => Volatile.Read(ref _radialDoubleTapWindowMs);
+
+    public void NotifyRadialMenuClosed()
+    {
+        lock (_lock) _radialOpenSource = null;
+    }
 
     public void SetRadialDoubleTapWindow(int milliseconds)
     {
@@ -274,6 +282,34 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         bool isGameAction = Ds4ActionMapper.TryGet(protocolAction, out Ds4ActionMapping mapping);
         if (isGameAction)
         {
+            RadialTriggerSource source = RadialTriggerSource.ForAction(mapping.ProtocolKey);
+            if (TryConsumeRadialMenuInput(source, pressed, out bool requestConfirmation))
+            {
+                if (requestConfirmation) RadialMenuConfirmationRequested?.Invoke(source);
+                OnButtonEvent?.Invoke($"{protocolAction} -> {action}");
+                return;
+            }
+
+            if (!pressed && IsRadialMenuOpenFrom(source))
+            {
+                ActionDoubleTapResult triggerUp = _actionDoubleTapRecognizer.Process(
+                    mapping.ProtocolKey,
+                    isPressed: false,
+                    CurrentInputTimestamp);
+                if (triggerUp.ConsumeCurrentEvent)
+                {
+                    OnButtonEvent?.Invoke($"{protocolAction} -> {action}");
+                    return;
+                }
+            }
+
+            if (HasOpenRadialMenu())
+            {
+                RouteGameAction(protocolAction, pressed, mapping);
+                OnButtonEvent?.Invoke($"{protocolAction} -> {action}");
+                return;
+            }
+
             ActionDoubleTapResult recognition = _actionDoubleTapRecognizer.Process(
                 mapping.ProtocolKey,
                 pressed,
@@ -281,7 +317,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
             if (recognition.TriggerAccepted)
             {
                 Log($"[环形菜单] Action 双击触发：{mapping.ProtocolKey}");
-                RadialMenuTriggered?.Invoke();
+                OpenRadialMenu(source);
             }
             if (recognition.ConsumeCurrentEvent)
             {
@@ -290,30 +326,35 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
             }
         }
 
+        if (isGameAction) RouteGameAction(protocolAction, pressed, mapping);
+        else if (_outputMode == OutputMode.Keyboard) HandleKeyboardAction(protocolAction, pressed);
+        OnButtonEvent?.Invoke($"{protocolAction} -> {action}");
+    }
+
+    private void RouteGameAction(string protocolAction, bool pressed, Ds4ActionMapping mapping)
+    {
         if (_outputMode == OutputMode.Keyboard)
         {
             HandleKeyboardAction(protocolAction, pressed);
+            return;
         }
-        else if (isGameAction)
+
+        lock (_outputLock)
         {
-            lock (_outputLock)
+            if (_directDs4 == null) return;
+            if (mapping.Kind == Ds4ActionKind.DigitalButton)
             {
-                if (_directDs4 == null) return;
-                if (mapping.Kind == Ds4ActionKind.DigitalButton)
-                {
-                    _directDs4.SetButton(mapping.DigitalButton!, pressed);
-                    _controlState.SetDigitalButton(mapping.DigitalButton!, pressed);
-                }
-                else
-                {
-                    byte value = Ds4ActionMapper.GetTriggerValue(pressed);
-                    _directDs4.SetTrigger(mapping.Trigger!, value);
-                    _controlState.SetTrigger(mapping.Trigger!, value);
-                }
-                _directDs4.SubmitReport();
+                _directDs4.SetButton(mapping.DigitalButton!, pressed);
+                _controlState.SetDigitalButton(mapping.DigitalButton!, pressed);
             }
+            else
+            {
+                byte value = Ds4ActionMapper.GetTriggerValue(pressed);
+                _directDs4.SetTrigger(mapping.Trigger!, value);
+                _controlState.SetTrigger(mapping.Trigger!, value);
+            }
+            _directDs4.SubmitReport();
         }
-        OnButtonEvent?.Invoke($"{protocolAction} -> {action}");
     }
 
     private void HandleKeyboardAction(string protocolAction, bool pressed)
@@ -340,6 +381,21 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         if (_joystick == null) { Log("虚拟摇杆尚未配置，无法处理 MOVE。"); return; }
         try
         {
+            bool? pressed = action.Equals("down", StringComparison.OrdinalIgnoreCase)
+                ? true
+                : action.Equals("up", StringComparison.OrdinalIgnoreCase)
+                    ? false
+                    : null;
+            if (pressed is bool movePressed &&
+                TryConsumeRadialMenuInput(RadialTriggerSource.Move, movePressed, out bool requestConfirmation))
+            {
+                if (requestConfirmation)
+                    RadialMenuConfirmationRequested?.Invoke(RadialTriggerSource.Move);
+                return;
+            }
+
+            bool radialMenuAlreadyOpen = HasOpenRadialMenu();
+
             if (action.Equals("down", StringComparison.OrdinalIgnoreCase))
             {
                 bool wasPressed = _joystick.Snapshot.MoveButtonPressed;
@@ -348,7 +404,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
                     ResetRadialRecognizers();
                     Log($"MOVE 激活失败，Win32 错误码 {error}。");
                 }
-                else if (!wasPressed && _joystick.Snapshot.MoveButtonPressed)
+                else if (!radialMenuAlreadyOpen && !wasPressed && _joystick.Snapshot.MoveButtonPressed)
                 {
                     _moveTapRecognizer.MoveDown(CurrentInputTimestamp);
                 }
@@ -357,17 +413,25 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
             {
                 bool directionCapturedDuringHold = _joystick.Snapshot.DirectionCapturedDuringHold;
                 _joystick.ReleaseMove();
-                MoveTapResult recognition = _moveTapRecognizer.MoveUp(
-                    CurrentInputTimestamp,
-                    directionCapturedDuringHold);
-                if (recognition.TriggerAccepted)
+                if (radialMenuAlreadyOpen)
                 {
-                    Log("[环形菜单] MOVE 双击触发");
-                    RadialMenuTriggered?.Invoke();
+                    _moveTapRecognizer.Reset();
+                }
+                else
+                {
+                    MoveTapResult recognition = _moveTapRecognizer.MoveUp(
+                        CurrentInputTimestamp,
+                        directionCapturedDuringHold);
+                    if (recognition.TriggerAccepted)
+                    {
+                        Log("[环形菜单] MOVE 双击触发");
+                        OpenRadialMenu(RadialTriggerSource.Move);
+                    }
                 }
             }
             else if (action.Equals("stop", StringComparison.OrdinalIgnoreCase))
             {
+                ClearRadialUpSuppression(RadialTriggerSource.Move);
                 _joystick.StopMovement();
                 _moveTapRecognizer.Reset();
             }
@@ -466,6 +530,55 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     private TimeSpan CurrentRadialDoubleTapWindow() =>
         TimeSpan.FromMilliseconds(RadialDoubleTapWindowMs);
 
+    private bool HasOpenRadialMenu()
+    {
+        lock (_lock) return _radialOpenSource.HasValue;
+    }
+
+    private bool IsRadialMenuOpenFrom(RadialTriggerSource source)
+    {
+        lock (_lock) return _radialOpenSource == source;
+    }
+
+    private void OpenRadialMenu(RadialTriggerSource source)
+    {
+        lock (_lock) _radialOpenSource = source;
+        RadialMenuTriggered?.Invoke(source);
+    }
+
+    private bool TryConsumeRadialMenuInput(
+        RadialTriggerSource source,
+        bool pressed,
+        out bool requestConfirmation)
+    {
+        lock (_lock)
+        {
+            requestConfirmation = false;
+            if (_radialSuppressedUpSource == source)
+            {
+                if (!pressed) _radialSuppressedUpSource = null;
+                return true;
+            }
+
+            if (!pressed || _radialOpenSource != source) return false;
+
+            _radialOpenSource = null;
+            _radialSuppressedUpSource = source;
+            _actionDoubleTapRecognizer.Reset();
+            _moveTapRecognizer.Reset();
+            requestConfirmation = true;
+            return true;
+        }
+    }
+
+    private void ClearRadialUpSuppression(RadialTriggerSource source)
+    {
+        lock (_lock)
+        {
+            if (_radialSuppressedUpSource == source) _radialSuppressedUpSource = null;
+        }
+    }
+
     private static void ValidateRadialDoubleTapWindow(int milliseconds)
     {
         if (milliseconds is < RadialMenuSettings.MinimumDoubleTapWindowMs or > RadialMenuSettings.MaximumDoubleTapWindowMs)
@@ -480,6 +593,8 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     {
         _actionDoubleTapRecognizer.Reset();
         _moveTapRecognizer.Reset();
+        _radialOpenSource = null;
+        _radialSuppressedUpSource = null;
     }
 
     private static string GetLocalIp()
