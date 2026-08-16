@@ -12,6 +12,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     private readonly IDirectDs4Factory _directDs4Factory;
     private readonly KeyboardKeyState _keyboardState;
     private readonly KeyboardMoveOutput _keyboardMoveOutput;
+    private readonly RadialKeyboardActionExecutor _radialKeyboardActionExecutor;
     private readonly IKeyboardBindingStore _bindingStore;
     private readonly Ds4ControlState _controlState = new();
     private readonly Stopwatch _inputClock = Stopwatch.StartNew();
@@ -44,6 +45,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         _directDs4Factory = directDs4Factory ?? new VigemDirectDs4Factory();
         _keyboardState = new KeyboardKeyState(keyboardOutput ?? new SendInputKeyboardOutput());
         _keyboardMoveOutput = new KeyboardMoveOutput(_keyboardState);
+        _radialKeyboardActionExecutor = new RadialKeyboardActionExecutor(_keyboardState);
         _bindingStore = bindingStore ?? new JsonKeyboardBindingStore();
         _keyboardBindings = _bindingStore.Load();
         TimeSpan initialDoubleTapWindow = doubleTapWindow ??
@@ -72,6 +74,9 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     public string LocalIp { get; private set; }
     public int Port { get; } = 8888;
     public int RadialDoubleTapWindowMs => Volatile.Read(ref _radialDoubleTapWindowMs);
+
+    public bool TryExecuteRadialKeyboardAction(RadialSlotMapping mapping, out string error) =>
+        _radialKeyboardActionExecutor.TryExecute(mapping, out error);
 
     public void NotifyRadialMenuClosed()
     {

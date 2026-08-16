@@ -58,6 +58,7 @@ public enum KeyboardKey : ushort
     F10 = 0x79,
     F11 = 0x7A,
     F12 = 0x7B,
+    LeftWin = 0x5B,
     LeftShift = 0xA0,
     LeftControl = 0xA2,
     LeftAlt = 0xA4
@@ -73,6 +74,7 @@ public static class KeyboardKeyCatalog
     public static bool IsMainKey(KeyboardKey key) =>
         Enum.IsDefined(key) && key is not (
             KeyboardKey.None or
+            KeyboardKey.LeftWin or
             KeyboardKey.LeftShift or
             KeyboardKey.LeftControl or
             KeyboardKey.LeftAlt);

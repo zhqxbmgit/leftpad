@@ -479,7 +479,8 @@ namespace PcDs4Server
         {
             if (!_radialMenu.TryCompleteFrom(source, out RadialMenuCompletion completion)) return;
 
-            LogRadialMessage(RadialActionResolver.CreateLogMessage(
+            LogRadialMessage(RadialActionCompletionHandler.Handle(
+                _service,
                 _radialMenu.ActiveSettings,
                 completion));
         }

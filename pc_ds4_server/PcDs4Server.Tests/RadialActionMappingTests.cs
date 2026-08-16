@@ -140,8 +140,6 @@ public sealed class RadialActionMappingTests
             afterApply);
         Assert.Equal(RadialActionKind.KeyboardKey, applied.Kind);
         Assert.Equal(KeyboardKey.F1, applied.Key);
-        Assert.Contains("键盘 F1；本阶段未执行",
-            RadialActionResolver.CreateLogMessage(controller.ActiveSettings, afterApply));
     }
 
     [Fact]
@@ -173,7 +171,7 @@ public sealed class RadialActionMappingTests
     }
 
     [Fact]
-    public void CompletionResolution_FormatsEachMappingWithoutExecutingOutputs()
+    public void CompletionHandling_ExecutesKeyboardMappingsAfterMenuCloseButNotDs4()
     {
         var directFactory = new CountingDirectDs4Factory();
         var keyboardOutput = new CountingKeyboardOutput();
@@ -185,37 +183,50 @@ public sealed class RadialActionMappingTests
             SlotMappings = RadialSlotMappings.Create(new RadialSlotMapping[]
             {
                 RadialSlotMapping.None,
-                RadialSlotMapping.None,
                 new() { Kind = RadialActionKind.KeyboardKey, Key = KeyboardKey.F1 },
-                new() { Kind = RadialActionKind.Ds4Button, Ds4Button = "cross" },
                 new()
                 {
                     Kind = RadialActionKind.KeyboardShortcut,
                     Key = KeyboardKey.K,
                     Ctrl = true,
                     Shift = true
-                }
+                },
+                new() { Kind = RadialActionKind.Ds4Button, Ds4Button = "cross" }
             })
         };
         using var controller = new RadialMenuController(new FakeOverlay(), settings);
 
-        RadialMenuCompletion keyboardCompletion = CompleteSlot(controller, 3);
-        string keyboardLog = RadialActionResolver.CreateLogMessage(
+        RadialMenuCompletion keyboardCompletion = CompleteSlot(controller, 2);
+        Assert.False(controller.IsNormalMenuOpen);
+        string keyboardLog = RadialActionCompletionHandler.Handle(
+            service,
             controller.ActiveSettings,
             keyboardCompletion);
-        RadialMenuCompletion ds4Completion = CompleteSlot(controller, 4);
-        string ds4Log = RadialActionResolver.CreateLogMessage(
-            controller.ActiveSettings,
-            ds4Completion);
-        RadialMenuCompletion shortcutCompletion = CompleteSlot(controller, 5);
-        string shortcutLog = RadialActionResolver.CreateLogMessage(
+        RadialMenuCompletion shortcutCompletion = CompleteSlot(controller, 3);
+        string shortcutLog = RadialActionCompletionHandler.Handle(
+            service,
             controller.ActiveSettings,
             shortcutCompletion);
+        RadialMenuCompletion ds4Completion = CompleteSlot(controller, 4);
+        string ds4Log = RadialActionCompletionHandler.Handle(
+            service,
+            controller.ActiveSettings,
+            ds4Completion);
 
-        Assert.Equal("[环形菜单] 已确认：Slot 3（配置：键盘 F1；本阶段未执行）", keyboardLog);
-        Assert.Equal("[环形菜单] 已确认：Slot 4（配置：DS4 CROSS；本阶段未执行）", ds4Log);
-        Assert.Equal("[环形菜单] 已确认：Slot 5（配置：Ctrl+Shift+K；本阶段未执行）", shortcutLog);
-        Assert.Equal(0, keyboardOutput.EventCount);
+        Assert.Equal("[环形菜单] 已执行：Slot 2（键盘 F1）", keyboardLog);
+        Assert.Equal("[环形菜单] 已执行：Slot 3（Ctrl+Shift+K）", shortcutLog);
+        Assert.Equal("[环形菜单] 已确认：Slot 4（配置：DS4 CROSS；尚未执行）", ds4Log);
+        Assert.Equal(new[]
+        {
+            "F1 down",
+            "F1 up",
+            "LeftControl down",
+            "LeftShift down",
+            "K down",
+            "K up",
+            "LeftShift up",
+            "LeftControl up"
+        }, keyboardOutput.Events);
         Assert.Equal(0, directFactory.Session.SetButtonCalls);
         Assert.Equal(0, directFactory.Session.SetTriggerCalls);
         Assert.Equal(0, directFactory.Session.SubmitCalls);
@@ -224,12 +235,54 @@ public sealed class RadialActionMappingTests
     [Fact]
     public void NoneAndCancelledCompletions_UseExistingSafeMessages()
     {
+        var keyboardOutput = new CountingKeyboardOutput();
+        using var service = new Ds4Service(
+            keyboardOutput: keyboardOutput,
+            bindingStore: new MemoryBindingStore());
         RadialMenuSettings settings = RadialMenuSettings.Default;
+        using var controller = new RadialMenuController(new FakeOverlay(), settings);
+
+        RadialMenuCompletion noneCompletion = CompleteSlot(controller, 1);
+        RadialTriggerSource source = RadialTriggerSource.ForAction("cross");
+        controller.OpenAt(new Point(500, 500), source);
+        Assert.True(controller.TryCompleteFrom(source, out RadialMenuCompletion cancelledCompletion));
 
         Assert.Equal("[环形菜单] 已确认：Slot 1（未配置动作）",
-            RadialActionResolver.CreateLogMessage(settings, new RadialMenuCompletion(1)));
+            RadialActionCompletionHandler.Handle(
+                service,
+                controller.ActiveSettings,
+                noneCompletion));
         Assert.Equal("[环形菜单] 已取消",
-            RadialActionResolver.CreateLogMessage(settings, new RadialMenuCompletion(0)));
+            RadialActionCompletionHandler.Handle(
+                service,
+                controller.ActiveSettings,
+                cancelledCompletion));
+        Assert.Empty(keyboardOutput.Events);
+    }
+
+    [Fact]
+    public void CompletionHandling_KeyboardFailureReturnsFailureLogWithoutThrowing()
+    {
+        var keyboardOutput = new CountingKeyboardOutput { ThrowOnCall = 1 };
+        using var service = new Ds4Service(
+            keyboardOutput: keyboardOutput,
+            bindingStore: new MemoryBindingStore());
+        RadialMenuSettings settings = RadialMenuSettings.Default with
+        {
+            SlotMappings = RadialMenuSettings.Default.SlotMappings.WithSlot(2,
+                new RadialSlotMapping
+                {
+                    Kind = RadialActionKind.KeyboardKey,
+                    Key = KeyboardKey.F1
+                })
+        };
+
+        string log = RadialActionCompletionHandler.Handle(
+            service,
+            settings,
+            new RadialMenuCompletion(2));
+
+        Assert.Equal("[环形菜单] Slot 2 键盘动作执行失败：failure on call 1", log);
     }
 
     [Fact]
@@ -292,18 +345,8 @@ public sealed class RadialActionMappingTests
         Assert.True(secondController.ActiveSettings.SlotMappings[2].Shift);
         Assert.Equal(KeyboardKey.K, secondController.ActiveSettings.SlotMappings[2].Key);
         Assert.Equal("cross", secondController.ActiveSettings.SlotMappings[3].Ds4Button);
-        Assert.Contains("键盘 F1；本阶段未执行",
-            RadialActionResolver.CreateLogMessage(
-                secondController.ActiveSettings,
-                new RadialMenuCompletion(2)));
-        Assert.Contains("Ctrl+Shift+K；本阶段未执行",
-            RadialActionResolver.CreateLogMessage(
-                secondController.ActiveSettings,
-                new RadialMenuCompletion(3)));
-        Assert.Contains("DS4 CROSS；本阶段未执行",
-            RadialActionResolver.CreateLogMessage(
-                secondController.ActiveSettings,
-                new RadialMenuCompletion(4)));
+        Assert.Equal("Ctrl+Shift+K", RadialActionResolver.FormatShortcut(
+            secondController.ActiveSettings.SlotMappings[2]));
     }
 
     [Fact]
@@ -402,9 +445,17 @@ public sealed class RadialActionMappingTests
 
     private sealed class CountingKeyboardOutput : IKeyboardOutput
     {
-        public int EventCount { get; private set; }
+        private int _callCount;
 
-        public void SetKeyState(KeyboardKey key, bool isPressed) => EventCount++;
+        public List<string> Events { get; } = new();
+        public int? ThrowOnCall { get; init; }
+
+        public void SetKeyState(KeyboardKey key, bool isPressed)
+        {
+            int call = ++_callCount;
+            Events.Add($"{key} {(isPressed ? "down" : "up")}");
+            if (call == ThrowOnCall) throw new InvalidOperationException($"failure on call {call}");
+        }
     }
 
     private sealed class CountingDirectDs4Factory : IDirectDs4Factory
