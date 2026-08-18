@@ -88,6 +88,7 @@ public enum Ds4ControlResetReason
 
 public sealed record Ds4ControlRelease(
     IReadOnlyList<DualShock4Button> DigitalButtons,
+    bool ResetDPad,
     bool ResetLeftTrigger,
     bool ResetRightTrigger,
     Ds4ControlResetReason Reason);
@@ -97,6 +98,7 @@ public sealed class Ds4ControlState
     private readonly HashSet<DualShock4Button> _activeButtons = new();
 
     public IReadOnlyCollection<DualShock4Button> ActiveButtons => _activeButtons;
+    public DualShock4DPadDirection DPadDirection { get; private set; } = DualShock4DPadDirection.None;
     public byte LeftTrigger { get; private set; }
     public byte RightTrigger { get; private set; }
     public Ds4ControlResetReason? LastResetReason { get; private set; }
@@ -134,15 +136,24 @@ public sealed class Ds4ControlState
         return true;
     }
 
+    public void SetDPadDirection(DualShock4DPadDirection direction)
+    {
+        ArgumentNullException.ThrowIfNull(direction);
+        DPadDirection = direction;
+        LastResetReason = null;
+    }
+
     public Ds4ControlRelease ReleaseAll(Ds4ControlResetReason reason)
     {
         var release = new Ds4ControlRelease(
             _activeButtons.ToArray(),
+            !Equals(DPadDirection, DualShock4DPadDirection.None),
             LeftTrigger != 0,
             RightTrigger != 0,
             reason);
 
         _activeButtons.Clear();
+        DPadDirection = DualShock4DPadDirection.None;
         LeftTrigger = 0;
         RightTrigger = 0;
         LastResetReason = reason;

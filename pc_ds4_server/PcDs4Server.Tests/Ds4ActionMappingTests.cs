@@ -124,6 +124,18 @@ public sealed class Ds4ActionMappingTests
         Assert.Equal(byte.MinValue, state.RightTrigger);
     }
 
+    [Fact]
+    public void ReleaseAllControls_ResetsDPadToNeutral()
+    {
+        var state = new Ds4ControlState();
+        state.SetDPadDirection(DualShock4DPadDirection.South);
+
+        Ds4ControlRelease release = state.ReleaseAll(Ds4ControlResetReason.OutputFailure);
+
+        Assert.True(release.ResetDPad);
+        Assert.Equal(DualShock4DPadDirection.None, state.DPadDirection);
+    }
+
     [Theory]
     [InlineData(Ds4ControlResetReason.Disconnect)]
     [InlineData(Ds4ControlResetReason.SessionReplacement)]

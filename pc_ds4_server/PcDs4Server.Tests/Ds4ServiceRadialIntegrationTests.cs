@@ -841,6 +841,7 @@ public sealed class Ds4ServiceRadialIntegrationTests
         public int SubmitReportCalls { get; private set; }
 
         public void SetButton(DualShock4Button button, bool pressed) => ButtonEvents.Add((button, pressed));
+        public void SetDPadDirection(DualShock4DPadDirection direction) { }
         public void SetTrigger(DualShock4Slider trigger, byte value) => TriggerEvents.Add((trigger, value));
         public void SetLeftStick(byte x, byte y) => LeftStickEvents.Add((x, y));
         public void SubmitReport() => SubmitReportCalls++;

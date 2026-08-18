@@ -84,12 +84,10 @@ public sealed class RadialActionMappingTests
     [InlineData("square")]
     [InlineData("triangle")]
     [InlineData("l1")]
-    [InlineData("r1")]
-    [InlineData("l2")]
-    [InlineData("r2")]
     [InlineData("l3")]
     [InlineData("r3")]
-    public void Ds4Button_SupportedProtocolButton_IsValid(string button)
+    [InlineData("dpad_down")]
+    public void Ds4Button_SupportedRadialAction_IsValid(string button)
     {
         var mapping = new RadialSlotMapping
         {
@@ -98,6 +96,23 @@ public sealed class RadialActionMappingTests
         };
 
         Assert.True(mapping.TryValidate(out _));
+    }
+
+    [Theory]
+    [InlineData("r1")]
+    [InlineData("l2")]
+    [InlineData("r2")]
+    [InlineData("anything_else")]
+    public void Ds4Button_NonRadialAction_IsInvalidAndSanitizesToNone(string button)
+    {
+        var mapping = new RadialSlotMapping
+        {
+            Kind = RadialActionKind.Ds4Button,
+            Ds4Button = button
+        };
+
+        Assert.False(mapping.TryValidate(out _));
+        Assert.Equal(RadialSlotMapping.None, mapping.Sanitize());
     }
 
     [Fact]
@@ -171,11 +186,15 @@ public sealed class RadialActionMappingTests
     }
 
     [Fact]
-    public void CompletionHandling_ExecutesKeyboardMappingsAfterMenuCloseButNotDs4()
+    public void CompletionHandling_ExecutesKeyboardAndDs4MappingsAfterMenuClose()
     {
         var directFactory = new CountingDirectDs4Factory();
         var keyboardOutput = new CountingKeyboardOutput();
-        using var service = new Ds4Service(directFactory, keyboardOutput, new MemoryBindingStore());
+        using var service = new Ds4Service(
+            directFactory,
+            keyboardOutput,
+            new MemoryBindingStore(),
+            radialDs4Delay: _ => { });
         Assert.True(service.Initialize());
 
         RadialMenuSettings settings = RadialMenuSettings.Default with
@@ -191,7 +210,8 @@ public sealed class RadialActionMappingTests
                     Ctrl = true,
                     Shift = true
                 },
-                new() { Kind = RadialActionKind.Ds4Button, Ds4Button = "cross" }
+                new() { Kind = RadialActionKind.Ds4Button, Ds4Button = "cross" },
+                new() { Kind = RadialActionKind.Ds4Button, Ds4Button = "dpad_down" }
             })
         };
         using var controller = new RadialMenuController(new FakeOverlay(), settings);
@@ -212,10 +232,16 @@ public sealed class RadialActionMappingTests
             service,
             controller.ActiveSettings,
             ds4Completion);
+        RadialMenuCompletion dpadCompletion = CompleteSlot(controller, 5);
+        string dpadLog = RadialActionCompletionHandler.Handle(
+            service,
+            controller.ActiveSettings,
+            dpadCompletion);
 
         Assert.Equal("[环形菜单] 已执行：Slot 2（键盘 F1）", keyboardLog);
         Assert.Equal("[环形菜单] 已执行：Slot 3（Ctrl+Shift+K）", shortcutLog);
-        Assert.Equal("[环形菜单] 已确认：Slot 4（配置：DS4 CROSS；尚未执行）", ds4Log);
+        Assert.Equal("[环形菜单] 已执行：Slot 4（DS4 CROSS）", ds4Log);
+        Assert.Equal("[环形菜单] 已执行：Slot 5（DS4 十字键下）", dpadLog);
         Assert.Equal(new[]
         {
             "F1 down",
@@ -227,9 +253,10 @@ public sealed class RadialActionMappingTests
             "LeftShift up",
             "LeftControl up"
         }, keyboardOutput.Events);
-        Assert.Equal(0, directFactory.Session.SetButtonCalls);
+        Assert.Equal(2, directFactory.Session.SetButtonCalls);
+        Assert.Equal(2, directFactory.Session.SetDPadCalls);
         Assert.Equal(0, directFactory.Session.SetTriggerCalls);
-        Assert.Equal(0, directFactory.Session.SubmitCalls);
+        Assert.Equal(4, directFactory.Session.SubmitCalls);
     }
 
     [Fact]
@@ -283,6 +310,39 @@ public sealed class RadialActionMappingTests
             new RadialMenuCompletion(2));
 
         Assert.Equal("[环形菜单] Slot 2 键盘动作执行失败：failure on call 1", log);
+    }
+
+    [Fact]
+    public void CompletionHandling_KeyboardModeReturnsDs4FailureLogWithoutOutput()
+    {
+        var directFactory = new CountingDirectDs4Factory();
+        using var service = new Ds4Service(
+            directFactory,
+            new CountingKeyboardOutput(),
+            new MemoryBindingStore());
+        Assert.True(service.TrySetOutputMode(OutputMode.Keyboard));
+        Assert.True(service.Initialize());
+        RadialMenuSettings settings = RadialMenuSettings.Default with
+        {
+            SlotMappings = RadialMenuSettings.Default.SlotMappings.WithSlot(4,
+                new RadialSlotMapping
+                {
+                    Kind = RadialActionKind.Ds4Button,
+                    Ds4Button = "cross"
+                })
+        };
+
+        string log = RadialActionCompletionHandler.Handle(
+            service,
+            settings,
+            new RadialMenuCompletion(4));
+
+        Assert.Equal(
+            "[环形菜单] Slot 4 DS4 动作执行失败：当前输出模式不是 Direct DS4。",
+            log);
+        Assert.Equal(0, directFactory.Session.SetButtonCalls);
+        Assert.Equal(0, directFactory.Session.SetDPadCalls);
+        Assert.Equal(0, directFactory.Session.SubmitCalls);
     }
 
     [Fact]
@@ -401,7 +461,13 @@ public sealed class RadialActionMappingTests
         Assert.Equal(RadialActionKind.Ds4Button,
             FindComboBox(settingsForm, "slot4ActionKind").SelectedItem);
         Assert.Equal("cross",
-            FindComboBox(settingsForm, "slot4Ds4Button").SelectedItem);
+            Assert.IsType<RadialDs4ActionMapping>(
+                FindComboBox(settingsForm, "slot4Ds4Button").SelectedItem).Id);
+        Assert.Equal(
+            new[] { "CROSS", "CIRCLE", "SQUARE", "TRIANGLE", "L1", "L3", "R3", "十字键下" },
+            FindComboBox(settingsForm, "slot4Ds4Button").Items
+                .Cast<RadialDs4ActionMapping>()
+                .Select(action => action.DisplayName));
         Assert.Equal(savedSettings, startupController.ActiveSettings);
     }
 
@@ -468,10 +534,12 @@ public sealed class RadialActionMappingTests
     private sealed class CountingDirectDs4Session : IDirectDs4Session
     {
         public int SetButtonCalls { get; private set; }
+        public int SetDPadCalls { get; private set; }
         public int SetTriggerCalls { get; private set; }
         public int SubmitCalls { get; private set; }
 
         public void SetButton(DualShock4Button button, bool pressed) => SetButtonCalls++;
+        public void SetDPadDirection(DualShock4DPadDirection direction) => SetDPadCalls++;
         public void SetTrigger(DualShock4Slider trigger, byte value) => SetTriggerCalls++;
         public void SetLeftStick(byte x, byte y) { }
         public void SubmitReport() => SubmitCalls++;

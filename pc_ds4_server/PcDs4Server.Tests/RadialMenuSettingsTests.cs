@@ -74,6 +74,28 @@ public sealed class RadialMenuSettingsTests
     }
 
     [Fact]
+    public void JsonStore_RoundTripsDPadDownMapping()
+    {
+        using var temporary = new TemporarySettingsPath();
+        var store = new RadialMenuSettingsStore(temporary.FilePath);
+        RadialMenuSettings expected = RadialMenuSettings.Default with
+        {
+            SlotMappings = RadialMenuSettings.Default.SlotMappings.WithSlot(4, new RadialSlotMapping
+            {
+                Kind = RadialActionKind.Ds4Button,
+                Ds4Button = "dpad_down"
+            })
+        };
+
+        Assert.True(store.TrySave(expected, out string saveError), saveError);
+        RadialMenuSettingsLoadResult result = store.Load();
+
+        Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal(expected, result.Settings);
+        Assert.Contains("\"ds4Button\": \"dpad_down\"", File.ReadAllText(temporary.FilePath));
+    }
+
+    [Fact]
     public void MissingFile_LoadsDefaults()
     {
         using var temporary = new TemporarySettingsPath();
@@ -273,6 +295,39 @@ public sealed class RadialMenuSettingsTests
         Assert.Equal(RadialActionKind.None, result.Settings.SlotMappings[3].Kind);
         Assert.Equal("cross", result.Settings.SlotMappings[4].Ds4Button);
         Assert.Equal(KeyboardKey.Escape, result.Settings.SlotMappings[5].Key);
+    }
+
+    [Fact]
+    public void LegacyExcludedRadialButtons_ClearOnlyTheirSlots()
+    {
+        using var temporary = new TemporarySettingsPath();
+        Directory.CreateDirectory(temporary.DirectoryPath);
+        File.WriteAllText(temporary.FilePath, """
+            {
+              "fillAlpha": 177,
+              "selectionDeadZone": 44,
+              "slotMappings": [
+                { "kind": "ds4Button", "ds4Button": "r1" },
+                { "kind": "ds4Button", "ds4Button": "cross" },
+                { "kind": "ds4Button", "ds4Button": "l2" },
+                { "kind": "ds4Button", "ds4Button": "dpad_down" },
+                { "kind": "ds4Button", "ds4Button": "r2" },
+                { "kind": "keyboardKey", "key": "F1" }
+              ]
+            }
+            """);
+
+        RadialMenuSettingsLoadResult result = new RadialMenuSettingsStore(temporary.FilePath).Load();
+
+        Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal(177, result.Settings.FillAlpha);
+        Assert.Equal(44, result.Settings.SelectionDeadZone);
+        Assert.Equal(RadialActionKind.None, result.Settings.SlotMappings[0].Kind);
+        Assert.Equal("cross", result.Settings.SlotMappings[1].Ds4Button);
+        Assert.Equal(RadialActionKind.None, result.Settings.SlotMappings[2].Kind);
+        Assert.Equal("dpad_down", result.Settings.SlotMappings[3].Ds4Button);
+        Assert.Equal(RadialActionKind.None, result.Settings.SlotMappings[4].Kind);
+        Assert.Equal(KeyboardKey.F1, result.Settings.SlotMappings[5].Key);
     }
 
     [Fact]

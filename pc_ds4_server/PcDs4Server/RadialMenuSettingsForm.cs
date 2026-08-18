@@ -360,7 +360,7 @@ public sealed class RadialMenuSettingsForm : Form
         private readonly CheckBox _alt = Modifier("Alt");
         private readonly CheckBox _shift = Modifier("Shift");
         private readonly CheckBox _win = Modifier("Win");
-        private readonly ComboBox _ds4Editor = DropDown(KeyboardBindings.ProtocolActions.ToArray(), 105);
+        private readonly ComboBox _ds4Editor = DropDown(RadialDs4ActionCatalog.Actions, 105);
 
         public MappingEditor(int slot)
         {
@@ -376,7 +376,7 @@ public sealed class RadialMenuSettingsForm : Form
             _ds4Editor.Name = $"slot{slot}Ds4Button";
             _ds4Editor.Format += (_, e) =>
             {
-                if (e.ListItem is string id) e.Value = id.ToUpperInvariant();
+                if (e.ListItem is RadialDs4ActionMapping action) e.Value = action.DisplayName;
             };
 
             DetailPanel = new FlowLayoutPanel
@@ -426,7 +426,7 @@ public sealed class RadialMenuSettingsForm : Form
                 RadialActionKind.Ds4Button => new RadialSlotMapping
                 {
                     Kind = kind,
-                    Ds4Button = _ds4Editor.SelectedItem as string
+                    Ds4Button = (_ds4Editor.SelectedItem as RadialDs4ActionMapping)?.Id
                 },
                 _ => RadialSlotMapping.None
             };
@@ -442,11 +442,11 @@ public sealed class RadialMenuSettingsForm : Form
             _alt.Checked = mapping.Alt;
             _shift.Checked = mapping.Shift;
             _win.Checked = mapping.Win;
-            _ds4Editor.SelectedItem = Ds4ActionMapper.TryGet(
+            _ds4Editor.SelectedItem = RadialDs4ActionCatalog.TryGet(
                 mapping.Ds4Button,
-                out Ds4ActionMapping ds4Mapping)
-                ? ds4Mapping.ProtocolKey
-                : KeyboardBindings.ProtocolActions[0];
+                out RadialDs4ActionMapping ds4Mapping)
+                ? ds4Mapping
+                : RadialDs4ActionCatalog.Actions[0];
             KindEditor.SelectedItem = mapping.Kind;
             UpdateVisibility();
         }

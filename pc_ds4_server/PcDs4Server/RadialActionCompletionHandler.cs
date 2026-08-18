@@ -18,7 +18,7 @@ public static class RadialActionCompletionHandler
             RadialActionKind.KeyboardKey or RadialActionKind.KeyboardShortcut =>
                 ExecuteKeyboardAction(service, mapping, completion.SelectedSlot),
             RadialActionKind.Ds4Button =>
-                $"[环形菜单] 已确认：Slot {completion.SelectedSlot}（配置：DS4 {mapping.Ds4Button!.ToUpperInvariant()}；尚未执行）",
+                ExecuteDs4Action(service, mapping, completion.SelectedSlot),
             _ => $"[环形菜单] 已确认：Slot {completion.SelectedSlot}（未配置动作）"
         };
     }
@@ -35,5 +35,17 @@ public static class RadialActionCompletionHandler
             ? $"键盘 {mapping.Key}"
             : RadialActionResolver.FormatShortcut(mapping);
         return $"[环形菜单] 已执行：Slot {slot}（{action}）";
+    }
+
+    private static string ExecuteDs4Action(
+        Ds4Service service,
+        RadialSlotMapping mapping,
+        int slot)
+    {
+        if (!service.TryExecuteRadialDs4Action(mapping, out string error))
+            return $"[环形菜单] Slot {slot} DS4 动作执行失败：{error}";
+
+        RadialDs4ActionCatalog.TryGet(mapping.Ds4Button, out RadialDs4ActionMapping action);
+        return $"[环形菜单] 已执行：Slot {slot}（DS4 {action.DisplayName}）";
     }
 }

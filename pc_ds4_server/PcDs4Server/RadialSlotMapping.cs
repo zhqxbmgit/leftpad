@@ -51,7 +51,7 @@ public sealed record RadialSlotMapping
                     return Invalid("键盘组合键不能包含 DS4 按键。", out error);
                 break;
             case RadialActionKind.Ds4Button:
-                if (!Ds4ActionMapper.TryGet(Ds4Button, out _))
+                if (!RadialDs4ActionCatalog.TryGet(Ds4Button, out _))
                     return Invalid("请选择一个受支持的 DS4 按键。", out error);
                 if (Key != null || hasModifier)
                     return Invalid("DS4 按键不能包含键盘配置。", out error);
@@ -68,9 +68,9 @@ public sealed record RadialSlotMapping
     {
         if (!TryValidate(out _)) return None;
         if (Kind == RadialActionKind.Ds4Button &&
-            Ds4ActionMapper.TryGet(Ds4Button, out Ds4ActionMapping mapping))
+            RadialDs4ActionCatalog.TryGet(Ds4Button, out RadialDs4ActionMapping mapping))
         {
-            return this with { Ds4Button = mapping.ProtocolKey };
+            return this with { Ds4Button = mapping.Id };
         }
 
         return this;

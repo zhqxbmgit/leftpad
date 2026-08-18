@@ -7,6 +7,7 @@ namespace PcDs4Server;
 public interface IDirectDs4Session : IDisposable
 {
     void SetButton(DualShock4Button button, bool pressed);
+    void SetDPadDirection(DualShock4DPadDirection direction);
     void SetTrigger(DualShock4Slider trigger, byte value);
     void SetLeftStick(byte x, byte y);
     void SubmitReport();
@@ -44,6 +45,7 @@ internal sealed class VigemDirectDs4Session : IDirectDs4Session
     }
 
     public void SetButton(DualShock4Button button, bool pressed) => _controller.SetButtonState(button, pressed);
+    public void SetDPadDirection(DualShock4DPadDirection direction) => _controller.SetDPadDirection(direction);
     public void SetTrigger(DualShock4Slider trigger, byte value) => _controller.SetSliderValue(trigger, value);
     public void SetLeftStick(byte x, byte y)
     {

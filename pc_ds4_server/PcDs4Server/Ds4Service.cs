@@ -9,10 +9,13 @@ namespace PcDs4Server;
 
 public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
 {
+    public const int RadialDs4TapDurationMs = 40;
+
     private readonly IDirectDs4Factory _directDs4Factory;
     private readonly KeyboardKeyState _keyboardState;
     private readonly KeyboardMoveOutput _keyboardMoveOutput;
     private readonly RadialKeyboardActionExecutor _radialKeyboardActionExecutor;
+    private readonly Action<int> _radialDs4Delay;
     private readonly IKeyboardBindingStore _bindingStore;
     private readonly Ds4ControlState _controlState = new();
     private readonly Stopwatch _inputClock = Stopwatch.StartNew();
@@ -40,12 +43,14 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         IKeyboardOutput? keyboardOutput = null,
         IKeyboardBindingStore? bindingStore = null,
         TimeSpan? doubleTapWindow = null,
-        Func<TimeSpan>? inputTimestampProvider = null)
+        Func<TimeSpan>? inputTimestampProvider = null,
+        Action<int>? radialDs4Delay = null)
     {
         _directDs4Factory = directDs4Factory ?? new VigemDirectDs4Factory();
         _keyboardState = new KeyboardKeyState(keyboardOutput ?? new SendInputKeyboardOutput());
         _keyboardMoveOutput = new KeyboardMoveOutput(_keyboardState);
         _radialKeyboardActionExecutor = new RadialKeyboardActionExecutor(_keyboardState);
+        _radialDs4Delay = radialDs4Delay ?? Thread.Sleep;
         _bindingStore = bindingStore ?? new JsonKeyboardBindingStore();
         _keyboardBindings = _bindingStore.Load();
         TimeSpan initialDoubleTapWindow = doubleTapWindow ??
@@ -77,6 +82,108 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
 
     public bool TryExecuteRadialKeyboardAction(RadialSlotMapping mapping, out string error) =>
         _radialKeyboardActionExecutor.TryExecute(mapping, out error);
+
+    public bool TryExecuteRadialDs4Action(RadialSlotMapping mapping, out string error)
+    {
+        ArgumentNullException.ThrowIfNull(mapping);
+        if (mapping.Kind != RadialActionKind.Ds4Button ||
+            !RadialDs4ActionCatalog.TryGet(mapping.Ds4Button, out RadialDs4ActionMapping action))
+        {
+            error = "该 Slot 没有有效的 Radial DS4 动作。";
+            return false;
+        }
+
+        if (_outputMode != OutputMode.DirectDs4)
+        {
+            error = "当前输出模式不是 Direct DS4。";
+            return false;
+        }
+
+        Exception? outputFailure = null;
+        lock (_outputLock)
+        {
+            if (_directDs4 == null)
+            {
+                error = "虚拟 DS4 当前不可用。";
+                return false;
+            }
+
+            if (action.Kind == RadialDs4ActionKind.DigitalButton &&
+                _controlState.ActiveButtons.Contains(action.DigitalButton!))
+            {
+                error = "目标 DS4 按键当前已按下，为避免干扰现有输入，本次未执行。";
+                return false;
+            }
+
+            if (action.Kind == RadialDs4ActionKind.DPad &&
+                !Equals(_controlState.DPadDirection, DualShock4DPadDirection.None))
+            {
+                error = "目标 DS4 十字键当前非空闲，为避免干扰现有输入，本次未执行。";
+                return false;
+            }
+
+            try
+            {
+                if (action.Kind == RadialDs4ActionKind.DigitalButton)
+                    PulseRadialDigitalButton(action.DigitalButton!);
+                else
+                    PulseRadialDPad(action.DPadDirection!);
+            }
+            catch (Exception ex)
+            {
+                MarkRadialTargetForFailureCleanup(action);
+                outputFailure = ex;
+            }
+        }
+
+        if (outputFailure == null)
+        {
+            error = string.Empty;
+            return true;
+        }
+
+        try
+        {
+            ReleaseAllControls(Ds4ControlResetReason.OutputFailure);
+        }
+        catch
+        {
+            // Best-effort cleanup must not let an output failure escape into the UI.
+        }
+
+        error = $"DS4 输出失败：{outputFailure.Message}";
+        return false;
+    }
+
+    private void PulseRadialDigitalButton(DualShock4Button button)
+    {
+        _directDs4!.SetButton(button, true);
+        _controlState.SetDigitalButton(button, true);
+        _directDs4.SubmitReport();
+        _radialDs4Delay(RadialDs4TapDurationMs);
+        _directDs4.SetButton(button, false);
+        _controlState.SetDigitalButton(button, false);
+        _directDs4.SubmitReport();
+    }
+
+    private void PulseRadialDPad(DualShock4DPadDirection direction)
+    {
+        _directDs4!.SetDPadDirection(direction);
+        _controlState.SetDPadDirection(direction);
+        _directDs4.SubmitReport();
+        _radialDs4Delay(RadialDs4TapDurationMs);
+        _directDs4.SetDPadDirection(DualShock4DPadDirection.None);
+        _controlState.SetDPadDirection(DualShock4DPadDirection.None);
+        _directDs4.SubmitReport();
+    }
+
+    private void MarkRadialTargetForFailureCleanup(RadialDs4ActionMapping action)
+    {
+        if (action.Kind == RadialDs4ActionKind.DigitalButton)
+            _controlState.SetDigitalButton(action.DigitalButton!, true);
+        else
+            _controlState.SetDPadDirection(action.DPadDirection!);
+    }
 
     public void NotifyRadialMenuClosed()
     {
@@ -460,9 +567,11 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
                 Ds4ControlRelease release = _controlState.ReleaseAll(reason);
                 if (_directDs4 == null) return;
                 foreach (DualShock4Button button in release.DigitalButtons) _directDs4.SetButton(button, false);
+                if (release.ResetDPad) _directDs4.SetDPadDirection(DualShock4DPadDirection.None);
                 if (release.ResetLeftTrigger) _directDs4.SetTrigger(DualShock4Slider.LeftTrigger, 0);
                 if (release.ResetRightTrigger) _directDs4.SetTrigger(DualShock4Slider.RightTrigger, 0);
-                if (release.DigitalButtons.Count > 0 || release.ResetLeftTrigger || release.ResetRightTrigger)
+                if (release.DigitalButtons.Count > 0 || release.ResetDPad ||
+                    release.ResetLeftTrigger || release.ResetRightTrigger)
                     _directDs4.SubmitReport();
             }
         }

@@ -426,6 +426,7 @@ public sealed class KeyboardOutputTests
     {
         public List<(DualShock4Slider, byte)> TriggerEvents { get; } = new();
         public void SetButton(DualShock4Button button, bool pressed) { }
+        public void SetDPadDirection(DualShock4DPadDirection direction) { }
         public void SetTrigger(DualShock4Slider trigger, byte value) => TriggerEvents.Add((trigger, value));
         public void SetLeftStick(byte x, byte y) { }
         public void SubmitReport() { }
