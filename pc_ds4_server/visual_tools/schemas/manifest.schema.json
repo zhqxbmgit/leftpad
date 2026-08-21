@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leftpad.local/schemas/visual-pack-manifest-v1.schema.json",
+  "title": "LeftPad Visual Pack Manifest v1",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "version",
+    "layoutProfile",
+    "slotCount",
+    "base",
+    "selected",
+    "layout",
+    "selectionAssetMode"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "const": 1 },
+    "layoutProfile": { "enum": ["radial-6", "radial-8"] },
+    "slotCount": { "enum": [6, 8] },
+    "base": { "$ref": "#/$defs/localFileName" },
+    "selected": { "$ref": "#/$defs/localFileName" },
+    "layout": { "$ref": "#/$defs/localFileName" },
+    "selectionAssetMode": { "const": "canonical-transform" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "layoutProfile": { "const": "radial-6" } },
+        "required": ["layoutProfile"]
+      },
+      "then": { "properties": { "slotCount": { "const": 6 } } }
+    },
+    {
+      "if": {
+        "properties": { "layoutProfile": { "const": "radial-8" } },
+        "required": ["layoutProfile"]
+      },
+      "then": { "properties": { "slotCount": { "const": 8 } } }
+    }
+  ],
+  "$defs": {
+    "localFileName": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^/\\\\]+$"
+    }
+  },
+  "additionalProperties": true
+}

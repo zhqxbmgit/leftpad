@@ -1,0 +1,16 @@
+{
+  "id": "radial-test-theme",
+  "name": "Radial Test Theme",
+  "version": 1,
+  "layoutProfile": "radial-6",
+  "slotCount": 6,
+  "selectionAssetMode": "canonical-transform",
+  "source": {
+    "reference": "reference.png"
+  },
+  "assets": {
+    "base": "radial-base.png",
+    "selected": "radial-selected-card.png",
+    "layout": "radial-layout.json"
+  }
+}

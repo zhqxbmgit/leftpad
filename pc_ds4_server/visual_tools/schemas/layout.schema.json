@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leftpad.local/schemas/radial-layout.schema.json",
+  "title": "LeftPad Radial Layout",
+  "type": "object",
+  "required": [
+    "canvas",
+    "geometry",
+    "slotAnglesDegrees",
+    "slotCount",
+    "slots",
+    "wheelCenter"
+  ],
+  "properties": {
+    "canvas": {
+      "type": "object",
+      "required": ["width", "height", "mode"],
+      "properties": {
+        "width": { "const": 1254 },
+        "height": { "const": 1254 },
+        "mode": { "const": "RGBA" }
+      },
+      "additionalProperties": true
+    },
+    "geometry": {
+      "type": "object",
+      "required": ["outerRadius", "innerRadius", "gapPx", "cornerRadius"],
+      "properties": {
+        "outerRadius": { "type": "number", "exclusiveMinimum": 0 },
+        "innerRadius": { "type": "number", "exclusiveMinimum": 0 },
+        "gapPx": { "type": "number", "minimum": 0 },
+        "cornerRadius": { "type": "number", "minimum": 0 },
+        "centerRadius": { "type": "number", "exclusiveMinimum": 0 },
+        "centerInnerRadius": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "slotAnglesDegrees": { "type": "array" },
+    "slotCount": { "enum": [6, 8] },
+    "slots": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/slot" }
+    },
+    "wheelCenter": {
+      "allOf": [
+        { "$ref": "#/$defs/point" },
+        {
+          "properties": {
+            "x": { "const": 627 },
+            "y": { "const": 627 }
+          }
+        }
+      ]
+    },
+    "centerTextAnchor": { "$ref": "#/$defs/point" }
+  },
+  "oneOf": [
+    {
+      "title": "radial-6",
+      "properties": {
+        "slotCount": { "const": 6 },
+        "slotAnglesDegrees": {
+          "type": "array",
+          "prefixItems": [
+            { "const": 0 },
+            { "const": 60 },
+            { "const": 120 },
+            { "const": 180 },
+            { "const": 240 },
+            { "const": 300 }
+          ],
+          "items": false,
+          "minItems": 6,
+          "maxItems": 6
+        },
+        "slots": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": { "$ref": "#/$defs/slot" }
+        }
+      }
+    },
+    {
+      "title": "radial-8",
+      "properties": {
+        "slotCount": { "const": 8 },
+        "geometry": {
+          "type": "object",
+          "required": [
+            "outerRadius",
+            "innerRadius",
+            "gapPx",
+            "cornerRadius",
+            "centerRadius",
+            "centerInnerRadius"
+          ]
+        },
+        "slotAnglesDegrees": {
+          "type": "array",
+          "prefixItems": [
+            { "const": 0 },
+            { "const": 45 },
+            { "const": 90 },
+            { "const": 135 },
+            { "const": 180 },
+            { "const": 225 },
+            { "const": 270 },
+            { "const": 315 }
+          ],
+          "items": false,
+          "minItems": 8,
+          "maxItems": 8
+        },
+        "slots": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/slot" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1254 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1254 }
+      },
+      "additionalProperties": true
+    },
+    "slot": {
+      "type": "object",
+      "required": [
+        "slot",
+        "angleDegreesClockwiseFromTop",
+        "glyphAnchor",
+        "labelAnchor"
+      ],
+      "properties": {
+        "slot": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "angleDegreesClockwiseFromTop": { "type": "number" },
+        "glyphAnchor": { "$ref": "#/$defs/point" },
+        "labelAnchor": { "$ref": "#/$defs/point" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
