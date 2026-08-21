@@ -1,0 +1,287 @@
+{
+  "alpha": {
+    "radial-all-slots-selected-review-v5.png": {
+      "alphaMax": 255,
+      "alphaMin": 255,
+      "alphaZeroRgbResidueComponents": 0,
+      "file": "radial-all-slots-selected-review-v5.png",
+      "mode": "RGBA",
+      "nonzeroAlphaRange": [
+        255,
+        255
+      ],
+      "sha256": "8F02005361EA4983052DDBEB91F7B356AF47DF34D5E48C8A5FFE4BB86FE5CD9A",
+      "size": [
+        1242,
+        834
+      ],
+      "transparentPixelCount": 0
+    },
+    "radial-base-v5.png": {
+      "alphaMax": 255,
+      "alphaMin": 0,
+      "alphaZeroRgbResidueComponents": 0,
+      "file": "radial-base-v5.png",
+      "mode": "RGBA",
+      "nonzeroAlphaRange": [
+        1,
+        255
+      ],
+      "sha256": "FBB0B269DF351FC11357F154281E1F9D9D5ECFC637CF3068DAB3D059E1BD6A84",
+      "size": [
+        1254,
+        1254
+      ],
+      "transparentPixelCount": 965104
+    },
+    "radial-normal-preview-v5.png": {
+      "alphaMax": 255,
+      "alphaMin": 0,
+      "alphaZeroRgbResidueComponents": 0,
+      "file": "radial-normal-preview-v5.png",
+      "mode": "RGBA",
+      "nonzeroAlphaRange": [
+        1,
+        255
+      ],
+      "sha256": "FBB0B269DF351FC11357F154281E1F9D9D5ECFC637CF3068DAB3D059E1BD6A84",
+      "size": [
+        1254,
+        1254
+      ],
+      "transparentPixelCount": 965104
+    },
+    "radial-selected-card-v5.png": {
+      "alphaMax": 255,
+      "alphaMin": 0,
+      "alphaZeroRgbResidueComponents": 0,
+      "file": "radial-selected-card-v5.png",
+      "mode": "RGBA",
+      "nonzeroAlphaRange": [
+        1,
+        255
+      ],
+      "sha256": "34A73FB156369E7A4F0A8AE6B95B9114ACF4114BB057083596FAECCBDF0CCB62",
+      "size": [
+        1254,
+        1254
+      ],
+      "transparentPixelCount": 1476581
+    },
+    "radial-selected-slot-2-preview-v5.png": {
+      "alphaMax": 255,
+      "alphaMin": 0,
+      "alphaZeroRgbResidueComponents": 0,
+      "file": "radial-selected-slot-2-preview-v5.png",
+      "mode": "RGBA",
+      "nonzeroAlphaRange": [
+        1,
+        255
+      ],
+      "sha256": "C5457A42AFC54BE2940EFBD67DFC54F78D226B8A392097E0F1C9D2A3AD098F78",
+      "size": [
+        1254,
+        1254
+      ],
+      "transparentPixelCount": 952638
+    },
+    "radial-v5-comparison.png": {
+      "alphaMax": 255,
+      "alphaMin": 255,
+      "alphaZeroRgbResidueComponents": 0,
+      "file": "radial-v5-comparison.png",
+      "mode": "RGBA",
+      "nonzeroAlphaRange": [
+        255,
+        255
+      ],
+      "sha256": "25F7E12094C9C3F93550BFB63004B90BA1F1A28F1130C2D6FE3228284AB061D4",
+      "size": [
+        1880,
+        640
+      ],
+      "transparentPixelCount": 0
+    }
+  },
+  "bodyGeometry": {
+    "centerInnerRadius": 154,
+    "centerRadius": 182,
+    "cornerRadius": 10,
+    "dottedRingRadius": 132,
+    "gapConstruction": "logical 60-degree boundary plus parallel offset gapPx/2",
+    "gapPx": 16,
+    "innerRadius": 198,
+    "markerRadius": 190,
+    "markerSize": 12,
+    "outerRadius": 450
+  },
+  "canvas": {
+    "height": 1254,
+    "mode": "RGBA",
+    "width": 1254
+  },
+  "checks": {
+    "allSlotsFromCanonicalRotation": true,
+    "baseLogicalGapSamplesTransparent": true,
+    "canvas1254Rgba": true,
+    "centerGeometryIdenticalToV4": true,
+    "centerUnchangedInEverySelectedPreview": true,
+    "fourTimesSupersampling": true,
+    "normalPreviewMatchesBase": true,
+    "otherSlotsUnchangedInEverySelectedPreview": true,
+    "parallelGapTarget16": true,
+    "selectedHaloNotCanvasClipped": true,
+    "slotMaskIdenticalToV4": true,
+    "zeroAlphaRgbClean": true
+  },
+  "dependencies": [
+    "Python standard library",
+    "Pillow 12.3.0",
+    "NumPy 2.3.5"
+  ],
+  "generator": "build_radial_raster_v5.py",
+  "geometryFreeze": {
+    "centerMaskSha256": "79002A3052A786D2BC28AF31EF8B205D4619CE458E0C6C8B97EE70720121A472",
+    "expectedV4CenterMaskSha256": "79002A3052A786D2BC28AF31EF8B205D4619CE458E0C6C8B97EE70720121A472",
+    "expectedV4Slot1MaskSha256": "09D5A6A3B4BFC0CD4A48244364205C50C39EED8FB50AC8DD125B148125959C1E",
+    "slot1MaskSha256": "09D5A6A3B4BFC0CD4A48244364205C50C39EED8FB50AC8DD125B148125959C1E"
+  },
+  "internalRender": {
+    "downsample": "LANCZOS",
+    "height": 5016,
+    "scale": 4,
+    "width": 5016
+  },
+  "logicalGapSamples": {
+    "count": 1320,
+    "maxAlpha": 0,
+    "minAlpha": 0
+  },
+  "previewIsolation": {
+    "1": {
+      "centerChangedPixels": 0,
+      "otherSlotsChangedPixels": {
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      }
+    },
+    "2": {
+      "centerChangedPixels": 0,
+      "otherSlotsChangedPixels": {
+        "1": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      }
+    },
+    "3": {
+      "centerChangedPixels": 0,
+      "otherSlotsChangedPixels": {
+        "1": 0,
+        "2": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      }
+    },
+    "4": {
+      "centerChangedPixels": 0,
+      "otherSlotsChangedPixels": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "5": 0,
+        "6": 0
+      }
+    },
+    "5": {
+      "centerChangedPixels": 0,
+      "otherSlotsChangedPixels": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "6": 0
+      }
+    },
+    "6": {
+      "centerChangedPixels": 0,
+      "otherSlotsChangedPixels": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0
+      }
+    }
+  },
+  "rotationAlignment": {
+    "1": {
+      "aligned": true,
+      "angleDegreesClockwise": 0,
+      "maskPixelsDifferingByMoreThan1": 0
+    },
+    "2": {
+      "aligned": true,
+      "angleDegreesClockwise": 60,
+      "maskPixelsDifferingByMoreThan1": 0
+    },
+    "3": {
+      "aligned": true,
+      "angleDegreesClockwise": 120,
+      "maskPixelsDifferingByMoreThan1": 0
+    },
+    "4": {
+      "aligned": true,
+      "angleDegreesClockwise": 180,
+      "maskPixelsDifferingByMoreThan1": 0
+    },
+    "5": {
+      "aligned": true,
+      "angleDegreesClockwise": 240,
+      "maskPixelsDifferingByMoreThan1": 0
+    },
+    "6": {
+      "aligned": true,
+      "angleDegreesClockwise": 300,
+      "maskPixelsDifferingByMoreThan1": 0
+    }
+  },
+  "selectedAssetBBox": [
+    396,
+    149,
+    858,
+    452
+  ],
+  "selectedBodyBBox": [
+    410,
+    174,
+    845,
+    452
+  ],
+  "selectedHalo": {
+    "gapPolicy": "side and inner halo inward; outer arc may bloom outward",
+    "tightOuterSideInnerStrength": {
+      "inner": 0.6,
+      "outer": 1.0,
+      "side": 0.82
+    },
+    "tightRadiusPx": 4.0,
+    "wideOuterSideInnerStrength": {
+      "inner": 0.55,
+      "outer": 1.0,
+      "side": 0.8
+    },
+    "wideRadiusPx": 11.0
+  },
+  "selectedHaloBBox": [
+    396,
+    149,
+    858,
+    237
+  ]
+}
