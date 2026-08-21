@@ -9,6 +9,7 @@ public sealed class RadialMenuSettingsTests
     {
         RadialMenuSettings settings = RadialMenuSettings.Default;
 
+        Assert.Equal(RadialVisualPackContract.DefaultVisualPackId, settings.VisualPackId);
         Assert.Equal(100, settings.ScalePercent);
         Assert.Equal(280, settings.BaseCanvasSize);
         Assert.Equal(35, settings.HubRadius);
@@ -28,6 +29,55 @@ public sealed class RadialMenuSettingsTests
         Assert.All(settings.SlotMappings,
             mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
         Assert.True(settings.TryValidate(out _));
+    }
+
+    [Fact]
+    public void LegacyJsonWithoutVisualPackId_UsesRadialV5AndPreservesOtherFields()
+    {
+        using var temporary = new TemporarySettingsPath();
+        Directory.CreateDirectory(temporary.DirectoryPath);
+        File.WriteAllText(temporary.FilePath, """
+            {
+              "scalePercent": 90,
+              "doubleTapWindowMs": 275,
+              "selectionDeadZone": 36,
+              "slotMappings": [
+                { "kind": "keyboardKey", "key": "F1" }
+              ]
+            }
+            """);
+
+        RadialMenuSettingsLoadResult result =
+            new RadialMenuSettingsStore(temporary.FilePath).Load();
+
+        Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal(RadialVisualPackContract.DefaultVisualPackId, result.Settings.VisualPackId);
+        Assert.Equal(90, result.Settings.ScalePercent);
+        Assert.Equal(275, result.Settings.DoubleTapWindowMs);
+        Assert.Equal(36, result.Settings.SelectionDeadZone);
+        Assert.Equal(KeyboardKey.F1, result.Settings.SlotMappings[0].Key);
+    }
+
+    [Fact]
+    public void JsonStore_RoundTripsUnknownVisualPackIdWithoutChangingOtherSettings()
+    {
+        using var temporary = new TemporarySettingsPath();
+        var store = new RadialMenuSettingsStore(temporary.FilePath);
+        RadialMenuSettings expected = RadialMenuSettings.Default with
+        {
+            VisualPackId = "future-theme",
+            ScalePercent = 120,
+            SelectionDeadZone = 40
+        };
+
+        Assert.True(store.TrySave(expected, out string saveError), saveError);
+        RadialMenuSettingsLoadResult result = store.Load();
+
+        Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal("future-theme", result.Settings.VisualPackId);
+        Assert.Equal(120, result.Settings.ScalePercent);
+        Assert.Equal(40, result.Settings.SelectionDeadZone);
+        Assert.Contains("\"visualPackId\": \"future-theme\"", File.ReadAllText(temporary.FilePath));
     }
 
     [Fact]

@@ -29,6 +29,8 @@ namespace PcDs4Server
         private readonly VirtualJoystickOverlay _joystickOverlay;
         private readonly RadialMenuController _radialMenu;
         private readonly RadialMenuSettingsStore _radialSettingsStore;
+        private readonly RadialVisualPackCatalog _radialVisualPackCatalog;
+        private readonly RadialMenuOverlay _radialOverlay;
         private readonly System.Windows.Forms.Timer _radialSelectionTimer;
         private readonly Dictionary<ReceiverPage, SidebarButton> _pageNavigation = new();
         private Label _pageTitle = null!;
@@ -66,9 +68,13 @@ namespace PcDs4Server
             RadialMenuSettingsLoadResult radialSettings = _radialSettingsStore.Load();
             _joystickOverlay = new VirtualJoystickOverlay();
             _ = _joystickOverlay.Handle;
-            var radialOverlay = new RadialMenuOverlay();
-            _ = radialOverlay.Handle;
-            _radialMenu = new RadialMenuController(radialOverlay, radialSettings.Settings);
+            _radialVisualPackCatalog = new RadialVisualPackCatalog();
+            _radialOverlay = new RadialMenuOverlay(
+                _radialVisualPackCatalog,
+                LogRadialMessage);
+            _radialOverlay.PrepareVisualPack(radialSettings.Settings);
+            _ = _radialOverlay.Handle;
+            _radialMenu = new RadialMenuController(_radialOverlay, radialSettings.Settings);
             _radialSelectionTimer = new System.Windows.Forms.Timer
             {
                 Interval = radialSettings.Settings.SelectionPollIntervalMs
@@ -410,12 +416,14 @@ namespace PcDs4Server
                 _radialMenu,
                 _radialSettingsStore,
                 ApplyRadialMenuSettings,
-                LogRadialMessage);
+                LogRadialMessage,
+                _radialVisualPackCatalog);
             settingsForm.ShowDialog(this);
         }
 
         private void ApplyRadialMenuSettings(RadialMenuSettings settings)
         {
+            _radialOverlay.PrepareVisualPack(settings);
             _radialMenu.ApplySettings(settings);
             _service.SetRadialDoubleTapWindow(settings.DoubleTapWindowMs);
             SyncRadialSelectionTimer();

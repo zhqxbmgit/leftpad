@@ -4,6 +4,20 @@ using System.Text.Json;
 
 namespace PcDs4Server;
 
+public static class RadialVisualPackContract
+{
+    public const string DefaultVisualPackId = "radial-v5";
+    public const int SupportedManifestVersion = 1;
+    public const string SupportedLayoutProfile = "radial-6";
+    public const int SupportedSlotCount = 6;
+    public const string SupportedSelectionAssetMode = "canonical-transform";
+
+    public static string DiscoveryRoot => Path.Combine(
+        AppContext.BaseDirectory,
+        "Assets",
+        "UIVisualPacks");
+}
+
 public sealed record UiVisualPackManifest
 {
     public string Id { get; init; } = string.Empty;
@@ -51,11 +65,8 @@ public sealed record RadialLayoutSlot
 
 public sealed class RadialVisualPackDefinition
 {
-    public const string SupportedPackId = "radial-v5";
-    public const string SupportedLayoutProfile = "radial-6";
-    public const string SupportedSelectionAssetMode = "canonical-transform";
     public const int ExpectedMasterSize = 1254;
-    public const int ExpectedSlotCount = 6;
+    public const int ExpectedSlotCount = RadialVisualPackContract.SupportedSlotCount;
     public const double ExpectedCenter = 627d;
 
     private static readonly double[] ExpectedSlotAngles = { 0d, 60d, 120d, 180d, 240d, 300d };
@@ -88,20 +99,14 @@ public sealed class RadialVisualPackDefinition
     public string LayoutPath { get; }
 
     public static string DefaultDirectory => Path.Combine(
-        AppContext.BaseDirectory,
-        "Assets",
-        "UIVisualPacks",
-        SupportedPackId);
+        RadialVisualPackContract.DiscoveryRoot,
+        RadialVisualPackContract.DefaultVisualPackId);
 
     public static RadialVisualPackDefinition Load(string directoryPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
         string fullDirectory = Path.GetFullPath(directoryPath);
-        string manifestPath = Path.Combine(fullDirectory, "manifest.json");
-        if (!File.Exists(manifestPath))
-            throw new FileNotFoundException("UI visual pack manifest was not found.", manifestPath);
-
-        UiVisualPackManifest manifest = Deserialize<UiVisualPackManifest>(manifestPath);
+        UiVisualPackManifest manifest = ReadManifest(fullDirectory);
         ValidateManifest(manifest);
 
         string basePath = ResolveAssetPath(fullDirectory, manifest.Base);
@@ -121,6 +126,15 @@ public sealed class RadialVisualPackDefinition
             basePath,
             selectedPath,
             layoutPath);
+    }
+
+    internal static UiVisualPackManifest ReadManifest(string directoryPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
+        string manifestPath = Path.Combine(Path.GetFullPath(directoryPath), "manifest.json");
+        if (!File.Exists(manifestPath))
+            throw new FileNotFoundException("UI visual pack manifest was not found.", manifestPath);
+        return Deserialize<UiVisualPackManifest>(manifestPath);
     }
 
     public double GetRotationDegrees(int slot)
@@ -153,17 +167,24 @@ public sealed class RadialVisualPackDefinition
 
     private static void ValidateManifest(UiVisualPackManifest manifest)
     {
-        if (!string.Equals(manifest.Id, SupportedPackId, StringComparison.Ordinal))
-            throw new InvalidDataException($"Unsupported visual pack id: {manifest.Id}");
-        if (string.IsNullOrWhiteSpace(manifest.Name) || manifest.Version <= 0)
-            throw new InvalidDataException("Visual pack name and version are required.");
-        if (!string.Equals(manifest.LayoutProfile, SupportedLayoutProfile, StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(manifest.Id))
+            throw new InvalidDataException("Visual pack id is required.");
+        if (string.IsNullOrWhiteSpace(manifest.Name))
+            throw new InvalidDataException("Visual pack name is required.");
+        if (manifest.Version != RadialVisualPackContract.SupportedManifestVersion)
+            throw new InvalidDataException($"Unsupported visual pack version: {manifest.Version}");
+        if (!string.Equals(
+                manifest.LayoutProfile,
+                RadialVisualPackContract.SupportedLayoutProfile,
+                StringComparison.Ordinal))
+        {
             throw new InvalidDataException($"Unsupported layout profile: {manifest.LayoutProfile}");
-        if (manifest.SlotCount != ExpectedSlotCount)
+        }
+        if (manifest.SlotCount != RadialVisualPackContract.SupportedSlotCount)
             throw new InvalidDataException($"Visual pack must contain {ExpectedSlotCount} slots.");
         if (!string.Equals(
                 manifest.SelectionAssetMode,
-                SupportedSelectionAssetMode,
+                RadialVisualPackContract.SupportedSelectionAssetMode,
                 StringComparison.Ordinal))
         {
             throw new InvalidDataException(

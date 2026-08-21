@@ -13,28 +13,18 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
     private const int UlwAlpha = 0x00000002;
 
     private readonly object _stateLock = new();
-    private readonly RadialVisualPackDefinition? _visualPack;
-    private readonly string? _visualPackLoadError;
-    private readonly RadialDynamicContentCache? _dynamicContentCache;
-    private RadialVisualPackCache? _assetCache;
+    private readonly RadialVisualPackRuntime _visualPacks;
     private int _selectedSlot;
     private bool _overlayVisible;
     private bool _assetErrorLogged;
 
-    public RadialMenuOverlay()
+    public RadialMenuOverlay(
+        RadialVisualPackCatalog? catalog = null,
+        Action<string>? log = null)
     {
-        try
-        {
-            _visualPack = RadialVisualPackDefinition.Load(
-                RadialVisualPackDefinition.DefaultDirectory);
-            _dynamicContentCache = new RadialDynamicContentCache(
-                _visualPack,
-                WindowsUiFontResolver.ResolveUiFontFamily());
-        }
-        catch (Exception exception) when (IsAssetException(exception))
-        {
-            _visualPackLoadError = exception.Message;
-        }
+        _visualPacks = new RadialVisualPackRuntime(
+            catalog ?? new RadialVisualPackCatalog(),
+            log);
 
         AutoScaleMode = AutoScaleMode.None;
         BackColor = Color.Black;
@@ -107,29 +97,42 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
         RunOnUiThread(base.Hide);
     }
 
+    public void PrepareVisualPack(RadialMenuSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        RadialMenuRenderMetrics metrics = settings.CreateRenderMetrics();
+        RunOnUiThread(() =>
+        {
+            RadialVisualPackSession? session = _visualPacks.Ensure(
+                settings,
+                metrics.CanvasSize);
+            if (session == null && _visualPacks.Active == null)
+                FailSafely(_visualPacks.LastError ?? "Radial visual pack is unavailable.");
+        });
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        RadialVisualPackCache? cache = _assetCache;
-        RadialDynamicContentCache? dynamicContent = _dynamicContentCache;
-        if (cache == null || dynamicContent == null) return;
+        RadialVisualPackSession? session = _visualPacks.Active;
+        if (session == null) return;
 
         int selectedSlot;
         lock (_stateLock)
         {
             selectedSlot = _selectedSlot;
         }
-        DrawComposition(e.Graphics, cache, dynamicContent, selectedSlot);
+        DrawComposition(
+            e.Graphics,
+            session.AssetCache,
+            session.DynamicContent,
+            selectedSlot);
     }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
-        {
-            _assetCache?.Dispose();
-            _assetCache = null;
-            _dynamicContentCache?.Dispose();
-        }
+            _visualPacks.Dispose();
         base.Dispose(disposing);
     }
 
@@ -141,13 +144,12 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
     {
         try
         {
-            RadialVisualPackCache? cache = EnsureAssetCache(metrics.CanvasSize);
-            RadialDynamicContentCache? dynamicContent = EnsureDynamicContentCache(
+            RadialVisualPackSession? session = _visualPacks.Ensure(
                 settings,
                 metrics.CanvasSize);
-            if (cache == null || dynamicContent == null)
+            if (session == null)
             {
-                FailSafely(_visualPackLoadError ?? "V5 visual pack is unavailable.");
+                FailSafely(_visualPacks.LastError ?? "Radial visual pack is unavailable.");
                 return;
             }
 
@@ -156,33 +158,16 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
                 screenPoint.X - (metrics.CanvasSize / 2),
                 screenPoint.Y - (metrics.CanvasSize / 2));
             _ = Handle;
-            RenderLayeredWindow(cache, dynamicContent, selectedSlot);
+            RenderLayeredWindow(
+                session.AssetCache,
+                session.DynamicContent,
+                selectedSlot);
             if (!Visible) base.Show();
         }
         catch (Exception exception) when (IsAssetOrRenderingException(exception))
         {
             FailSafely(exception.Message);
         }
-    }
-
-    private RadialVisualPackCache? EnsureAssetCache(int targetSize)
-    {
-        if (_visualPack == null) return null;
-        if (_assetCache?.TargetSize == targetSize) return _assetCache;
-
-        if (_assetCache == null)
-            _assetCache = new RadialVisualPackCache(_visualPack, targetSize);
-        else
-            _assetCache.Rebuild(targetSize);
-        return _assetCache;
-    }
-
-    private RadialDynamicContentCache? EnsureDynamicContentCache(
-        RadialMenuSettings settings,
-        int targetSize)
-    {
-        _dynamicContentCache?.Ensure(settings, targetSize);
-        return _dynamicContentCache;
     }
 
     private void FailSafely(string message)

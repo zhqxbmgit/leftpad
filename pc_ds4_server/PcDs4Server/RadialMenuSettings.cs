@@ -15,6 +15,7 @@ public sealed record RadialMenuSettings
 
     public static RadialMenuSettings Default => new();
 
+    public string VisualPackId { get; init; } = RadialVisualPackContract.DefaultVisualPackId;
     public int ScalePercent { get; init; } = 100;
     public int BaseCanvasSize { get; init; } = 280;
     public int HubRadius { get; init; } = 35;
@@ -34,6 +35,8 @@ public sealed record RadialMenuSettings
 
     public bool TryValidate(out string error)
     {
+        if (string.IsNullOrWhiteSpace(VisualPackId))
+            return Invalid("视觉主题 ID 不能为空。", out error);
         if (ScalePercent is < MinimumScalePercent or > MaximumScalePercent)
             return Invalid($"整体大小必须在 {MinimumScalePercent}%～{MaximumScalePercent}% 之间。", out error);
         if (BaseCanvasSize < 160 || BaseCanvasSize > 800)

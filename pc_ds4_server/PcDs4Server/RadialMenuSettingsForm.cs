@@ -6,7 +6,9 @@ public sealed class RadialMenuSettingsForm : Form
     private readonly RadialMenuSettingsStore _store;
     private readonly Action<RadialMenuSettings> _applySettings;
     private readonly Action<string> _log;
+    private readonly RadialVisualPackCatalogSnapshot _visualPackCatalog;
 
+    private readonly ComboBox _visualPack = VisualPackDropDown();
     private readonly NumericUpDown _scale = Editor(60, 140);
     private readonly NumericUpDown _doubleTapWindow = Editor(
         RadialMenuSettings.MinimumDoubleTapWindowMs,
@@ -41,17 +43,27 @@ public sealed class RadialMenuSettingsForm : Form
         TextAlign = ContentAlignment.MiddleLeft
     };
     private bool _populating;
+    private string _populatedVisualPackId = RadialVisualPackContract.DefaultVisualPackId;
 
     public RadialMenuSettingsForm(
         RadialMenuController controller,
         RadialMenuSettingsStore store,
         Action<RadialMenuSettings> applySettings,
-        Action<string> log)
+        Action<string> log,
+        RadialVisualPackCatalog? visualPackCatalog = null)
     {
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _applySettings = applySettings ?? throw new ArgumentNullException(nameof(applySettings));
         _log = log ?? throw new ArgumentNullException(nameof(log));
+        _visualPackCatalog = (visualPackCatalog ?? new RadialVisualPackCatalog()).Discover();
+        _visualPack.Items.AddRange(_visualPackCatalog.Packs.Cast<object>().ToArray());
+        foreach (RadialVisualPackCatalogIssue issue in _visualPackCatalog.Issues)
+        {
+            _log(
+                $"[视觉主题] 忽略 '{issue.PackId ?? issue.DirectoryPath}'：" +
+                issue.Message);
+        }
 
         Text = "环形菜单设置";
         ClientSize = new Size(720, 540);
@@ -100,6 +112,7 @@ public sealed class RadialMenuSettingsForm : Form
     {
         var page = Page("基础");
         page.Controls.Add(EditorTable(
+            ("视觉主题", _visualPack),
             ("整体大小 (%)", _scale),
             ("环形菜单双击窗口 (ms)", _doubleTapWindow),
             ("选择死区 (px)", _selectionDeadZone),
@@ -192,6 +205,9 @@ public sealed class RadialMenuSettingsForm : Form
     {
         settings = new RadialMenuSettings
         {
+            VisualPackId = _visualPack.SelectedItem is RadialVisualPackCatalogEntry pack
+                ? pack.Id
+                : _populatedVisualPackId,
             ScalePercent = Decimal.ToInt32(_scale.Value),
             BaseCanvasSize = Decimal.ToInt32(_canvas.Value),
             HubRadius = Decimal.ToInt32(_hubRadius.Value),
@@ -230,6 +246,9 @@ public sealed class RadialMenuSettingsForm : Form
         _populating = true;
         try
         {
+            _populatedVisualPackId = settings.VisualPackId;
+            _visualPack.SelectedItem = _visualPackCatalog.ResolveSelection(
+                settings.VisualPackId);
             _scale.Value = settings.ScalePercent;
             _doubleTapWindow.Value = settings.DoubleTapWindowMs;
             _selectionDeadZone.Value = settings.SelectionDeadZone;
@@ -266,6 +285,7 @@ public sealed class RadialMenuSettingsForm : Form
         {
             editor.ValueChanged += (_, _) => RefreshLivePreview();
         }
+        _visualPack.SelectedValueChanged += (_, _) => RefreshLivePreview();
     }
 
     private void RefreshLivePreview()
@@ -334,6 +354,17 @@ public sealed class RadialMenuSettingsForm : Form
         BackColor = ThemeColors.ControlDark,
         ForeColor = ThemeColors.TextMain,
         BorderStyle = BorderStyle.FixedSingle
+    };
+
+    private static ComboBox VisualPackDropDown() => new()
+    {
+        Name = "visualPack",
+        DropDownStyle = ComboBoxStyle.DropDownList,
+        DisplayMember = nameof(RadialVisualPackCatalogEntry.Name),
+        ValueMember = nameof(RadialVisualPackCatalogEntry.Id),
+        BackColor = ThemeColors.ControlDark,
+        ForeColor = ThemeColors.TextMain,
+        FormattingEnabled = true
     };
 
     private static Button ActionButton(string text, Action action)

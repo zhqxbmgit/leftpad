@@ -443,6 +443,12 @@ public sealed class RadialActionMappingTests
             startupController.ApplySettings,
             _ => { });
 
+        ComboBox visualPack = FindComboBox(settingsForm, "visualPack");
+        RadialVisualPackCatalogEntry selectedPack =
+            Assert.IsType<RadialVisualPackCatalogEntry>(visualPack.SelectedItem);
+        Assert.Equal("radial-v5", selectedPack.Id);
+        Assert.Equal("Tactical HUD V5", selectedPack.Name);
+        Assert.Equal("Tactical HUD V5", visualPack.GetItemText(selectedPack));
         Assert.Equal(RadialActionKind.KeyboardKey,
             FindComboBox(settingsForm, "slot2ActionKind").SelectedItem);
         Assert.Equal(KeyboardKey.F1,
