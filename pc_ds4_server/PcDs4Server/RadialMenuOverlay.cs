@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
@@ -10,17 +12,30 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
     private const byte AcSrcOver = 0x00;
     private const int UlwAlpha = 0x00000002;
 
-    private const int PetalCount = 6;
-    private const int DirectionAngle = 360 / PetalCount;
-    private const float InnerSweepInset = 12f;
-
     private readonly object _stateLock = new();
-    private RadialMenuSettings _currentSettings = RadialMenuSettings.Default;
+    private readonly RadialVisualPackDefinition? _visualPack;
+    private readonly string? _visualPackLoadError;
+    private readonly RadialDynamicContentCache? _dynamicContentCache;
+    private RadialVisualPackCache? _assetCache;
     private int _selectedSlot;
     private bool _overlayVisible;
+    private bool _assetErrorLogged;
 
     public RadialMenuOverlay()
     {
+        try
+        {
+            _visualPack = RadialVisualPackDefinition.Load(
+                RadialVisualPackDefinition.DefaultDirectory);
+            _dynamicContentCache = new RadialDynamicContentCache(
+                _visualPack,
+                WindowsUiFontResolver.ResolveUiFontFamily());
+        }
+        catch (Exception exception) when (IsAssetException(exception))
+        {
+            _visualPackLoadError = exception.Message;
+        }
+
         AutoScaleMode = AutoScaleMode.None;
         BackColor = Color.Black;
         ClientSize = new Size(
@@ -69,26 +84,17 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
     public void ShowAt(Point screenPoint, RadialMenuSettings settings, int selectedSlot)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        if (selectedSlot is < 0 or > PetalCount)
+        if (selectedSlot is < 0 or > RadialVisualPackDefinition.ExpectedSlotCount)
             throw new ArgumentOutOfRangeException(nameof(selectedSlot));
+
         RadialMenuRenderMetrics metrics = settings.CreateRenderMetrics();
         lock (_stateLock)
         {
-            _currentSettings = settings with { };
             _selectedSlot = selectedSlot;
             _overlayVisible = true;
         }
 
-        RunOnUiThread(() =>
-        {
-            ClientSize = new Size(metrics.CanvasSize, metrics.CanvasSize);
-            Location = new Point(
-                screenPoint.X - (metrics.CanvasSize / 2),
-                screenPoint.Y - (metrics.CanvasSize / 2));
-            _ = Handle;
-            RenderLayeredWindow(settings, metrics, selectedSlot);
-            if (!Visible) base.Show();
-        });
+        RunOnUiThread(() => ShowCore(screenPoint, settings, metrics, selectedSlot));
     }
 
     public new void Hide()
@@ -104,237 +110,151 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        RadialMenuSettings settings;
+        RadialVisualPackCache? cache = _assetCache;
+        RadialDynamicContentCache? dynamicContent = _dynamicContentCache;
+        if (cache == null || dynamicContent == null) return;
+
         int selectedSlot;
         lock (_stateLock)
         {
-            settings = _currentSettings;
             selectedSlot = _selectedSlot;
         }
-        DrawOverlay(e.Graphics, settings, settings.CreateRenderMetrics(), selectedSlot);
+        DrawComposition(e.Graphics, cache, dynamicContent, selectedSlot);
     }
 
-    private static void DrawOverlay(
-        Graphics graphics,
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _assetCache?.Dispose();
+            _assetCache = null;
+            _dynamicContentCache?.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+
+    private void ShowCore(
+        Point screenPoint,
         RadialMenuSettings settings,
         RadialMenuRenderMetrics metrics,
         int selectedSlot)
     {
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-
-        float center = metrics.CanvasSize / 2f;
-        var centerPoint = new PointF(center, center);
-
-        Color normalFill = Color.FromArgb(settings.FillAlpha, 27, 27, 36);
-        Color normalBorder = Color.FromArgb(settings.BorderAlpha, 128, 105, 148);
-        Color normalText = Color.FromArgb(settings.TextAlpha, 242, 243, 247);
-        Color selectedFill = BlendColor(
-            normalFill,
-            Color.FromArgb(byte.MaxValue, 118, 80, 150),
-            settings.HighlightAlpha);
-        Color selectedBorder = BlendColor(
-            normalBorder,
-            Color.FromArgb(byte.MaxValue, 218, 180, 242),
-            settings.HighlightAlpha);
-        Color selectedText = BlendColor(
-            normalText,
-            Color.White,
-            settings.HighlightAlpha);
-
-        using var petalBrush = new SolidBrush(normalFill);
-        using var selectedPetalBrush = new SolidBrush(selectedFill);
-        float normalBorderWidth = Math.Max(0.5f, 1.2f * metrics.ScaleFactor);
-        float selectedBorderWidth = normalBorderWidth +
-            ((Math.Max(0.5f, 1.8f * metrics.ScaleFactor) - normalBorderWidth) *
-             (settings.HighlightAlpha / (float)byte.MaxValue));
-        using var petalPen = new Pen(normalBorder, normalBorderWidth)
+        try
         {
-            LineJoin = LineJoin.Round
-        };
-        using var selectedPetalPen = new Pen(
-            selectedBorder,
-            selectedBorderWidth)
-        {
-            LineJoin = LineJoin.Round
-        };
-        using var textBrush = new SolidBrush(normalText);
-        using var selectedTextBrush = new SolidBrush(selectedText);
-        using var font = new Font("Segoe UI", metrics.FontSize, FontStyle.Bold, GraphicsUnit.Pixel);
-        using var format = new StringFormat
-        {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center
-        };
+            RadialVisualPackCache? cache = EnsureAssetCache(metrics.CanvasSize);
+            RadialDynamicContentCache? dynamicContent = EnsureDynamicContentCache(
+                settings,
+                metrics.CanvasSize);
+            if (cache == null || dynamicContent == null)
+            {
+                FailSafely(_visualPackLoadError ?? "V5 visual pack is unavailable.");
+                return;
+            }
 
-        for (int index = 0; index < PetalCount; index++)
-        {
-            float centerAngle = -90 + (index * DirectionAngle);
-            using GraphicsPath petal = CreatePetalPath(centerPoint, centerAngle, metrics);
-            bool selected = selectedSlot == index + 1;
-            graphics.FillPath(selected ? selectedPetalBrush : petalBrush, petal);
-            graphics.DrawPath(selected ? selectedPetalPen : petalPen, petal);
-
-            PointF textCenter = PointOnCircle(centerPoint, metrics.TextRadius, centerAngle);
-            float textWidth = 32f * metrics.ScaleFactor;
-            float textHeight = 26f * metrics.ScaleFactor;
-            var textBounds = new RectangleF(
-                textCenter.X - (textWidth / 2f),
-                textCenter.Y - (textHeight / 2f),
-                textWidth,
-                textHeight);
-            graphics.DrawString(
-                (index + 1).ToString(),
-                font,
-                selected ? selectedTextBrush : textBrush,
-                textBounds,
-                format);
+            ClientSize = new Size(metrics.CanvasSize, metrics.CanvasSize);
+            Location = new Point(
+                screenPoint.X - (metrics.CanvasSize / 2),
+                screenPoint.Y - (metrics.CanvasSize / 2));
+            _ = Handle;
+            RenderLayeredWindow(cache, dynamicContent, selectedSlot);
+            if (!Visible) base.Show();
         }
-
-        var hubBounds = CenteredCircle(centerPoint, metrics.HubRadius * 2f);
-        using (var hubBrush = new SolidBrush(Color.FromArgb(228, 24, 24, 33)))
-        using (var hubPen = new Pen(
-            Color.FromArgb(126, 128, 105, 148),
-            Math.Max(0.5f, 1.6f * metrics.ScaleFactor)))
+        catch (Exception exception) when (IsAssetOrRenderingException(exception))
         {
-            graphics.FillEllipse(hubBrush, hubBounds);
-            graphics.DrawEllipse(hubPen, hubBounds);
+            FailSafely(exception.Message);
         }
-
-        var centerDotBounds = CenteredCircle(centerPoint, 7f * metrics.ScaleFactor);
-        using var centerDotBrush = new SolidBrush(Color.FromArgb(170, 224, 226, 232));
-        graphics.FillEllipse(centerDotBrush, centerDotBounds);
     }
 
-    private static GraphicsPath CreatePetalPath(
-        PointF center,
-        float centerAngle,
-        RadialMenuRenderMetrics metrics)
+    private RadialVisualPackCache? EnsureAssetCache(int targetSize)
     {
-        float innerSweepAngle = Math.Max(1f, metrics.PetalSweepAngle - InnerSweepInset);
-        float outerStartAngle = centerAngle - (metrics.PetalSweepAngle / 2f);
-        float outerEndAngle = centerAngle + (metrics.PetalSweepAngle / 2f);
-        float innerStartAngle = centerAngle - (innerSweepAngle / 2f);
-        float innerEndAngle = centerAngle + (innerSweepAngle / 2f);
+        if (_visualPack == null) return null;
+        if (_assetCache?.TargetSize == targetSize) return _assetCache;
 
-        RectangleF outerBounds = CenteredCircle(center, metrics.PetalOuterRadius * 2f);
-        RectangleF innerBounds = CenteredCircle(center, metrics.PetalInnerRadius * 2f);
-        PointF outerStart = PointOnCircle(center, metrics.PetalOuterRadius, outerStartAngle);
-        PointF outerEnd = PointOnCircle(center, metrics.PetalOuterRadius, outerEndAngle);
-        PointF innerStart = PointOnCircle(center, metrics.PetalInnerRadius, innerStartAngle);
-        PointF innerEnd = PointOnCircle(center, metrics.PetalInnerRadius, innerEndAngle);
-
-        PointF outerEndTangent = ClockwiseTangent(outerEndAngle);
-        PointF innerEndTangent = CounterClockwiseTangent(innerEndAngle);
-        PointF innerStartTangent = CounterClockwiseTangent(innerStartAngle);
-        PointF outerStartTangent = ClockwiseTangent(outerStartAngle);
-
-        var path = new GraphicsPath();
-        path.AddArc(outerBounds, outerStartAngle, metrics.PetalSweepAngle);
-        path.AddBezier(
-            outerEnd,
-            Offset(outerEnd, outerEndTangent, 3f * metrics.ScaleFactor),
-            Offset(innerEnd, innerEndTangent, -4.4f * metrics.ScaleFactor),
-            innerEnd);
-        path.AddArc(innerBounds, innerEndAngle, -innerSweepAngle);
-        path.AddBezier(
-            innerStart,
-            Offset(innerStart, innerStartTangent, 4.4f * metrics.ScaleFactor),
-            Offset(outerStart, outerStartTangent, -3f * metrics.ScaleFactor),
-            outerStart);
-        path.CloseFigure();
-        return path;
-    }
-
-    private static PointF PointOnCircle(PointF center, float radius, float angleDegrees)
-    {
-        double angle = angleDegrees * (Math.PI / 180.0);
-        return new PointF(
-            center.X + (float)(Math.Cos(angle) * radius),
-            center.Y + (float)(Math.Sin(angle) * radius));
-    }
-
-    private static PointF ClockwiseTangent(float angleDegrees)
-    {
-        double angle = angleDegrees * (Math.PI / 180.0);
-        return new PointF(-(float)Math.Sin(angle), (float)Math.Cos(angle));
-    }
-
-    private static PointF CounterClockwiseTangent(float angleDegrees)
-    {
-        PointF clockwise = ClockwiseTangent(angleDegrees);
-        return new PointF(-clockwise.X, -clockwise.Y);
-    }
-
-    private static PointF Offset(PointF point, PointF direction, float distance)
-    {
-        return new PointF(
-            point.X + (direction.X * distance),
-            point.Y + (direction.Y * distance));
-    }
-
-    private static RectangleF CenteredCircle(PointF center, float diameter)
-    {
-        float radius = diameter / 2f;
-        return new RectangleF(center.X - radius, center.Y - radius, diameter, diameter);
-    }
-
-    private static Color BlendColor(Color from, Color to, int strength)
-    {
-        if (strength <= 0) return from;
-        if (strength >= byte.MaxValue) return to;
-
-        double amount = strength / (double)byte.MaxValue;
-        return Color.FromArgb(
-            BlendChannel(from.A, to.A, amount),
-            BlendChannel(from.R, to.R, amount),
-            BlendChannel(from.G, to.G, amount),
-            BlendChannel(from.B, to.B, amount));
-    }
-
-    private static int BlendChannel(int from, int to, double amount) =>
-        (int)Math.Round(from + ((to - from) * amount), MidpointRounding.AwayFromZero);
-
-    private void RunOnUiThread(Action action)
-    {
-        if (IsDisposed || Disposing) return;
-        if (InvokeRequired)
-        {
-            BeginInvoke(action);
-        }
+        if (_assetCache == null)
+            _assetCache = new RadialVisualPackCache(_visualPack, targetSize);
         else
+            _assetCache.Rebuild(targetSize);
+        return _assetCache;
+    }
+
+    private RadialDynamicContentCache? EnsureDynamicContentCache(
+        RadialMenuSettings settings,
+        int targetSize)
+    {
+        _dynamicContentCache?.Ensure(settings, targetSize);
+        return _dynamicContentCache;
+    }
+
+    private void FailSafely(string message)
+    {
+        if (!_assetErrorLogged)
         {
-            action();
+            _assetErrorLogged = true;
+            Trace.TraceError($"[Radial visual pack] {message}");
         }
+
+        lock (_stateLock)
+        {
+            _overlayVisible = false;
+        }
+        if (Visible) base.Hide();
+    }
+
+    private static void DrawComposition(
+        Graphics graphics,
+        RadialVisualPackCache cache,
+        RadialDynamicContentCache dynamicContent,
+        int selectedSlot)
+    {
+        graphics.CompositingMode = CompositingMode.SourceCopy;
+        graphics.DrawImageUnscaled(cache.ScaledBase, 0, 0);
+
+        graphics.CompositingMode = CompositingMode.SourceOver;
+        if (selectedSlot > 0)
+            graphics.DrawImageUnscaled(cache.GetSelectedSlot(selectedSlot), 0, 0);
+
+        graphics.DrawImageUnscaled(dynamicContent.Content, 0, 0);
     }
 
     private void RenderLayeredWindow(
-        RadialMenuSettings settings,
-        RadialMenuRenderMetrics metrics,
+        RadialVisualPackCache cache,
+        RadialDynamicContentCache dynamicContent,
         int selectedSlot)
     {
         if (!IsHandleCreated || IsDisposed) return;
 
         using var bitmap = new Bitmap(
-            metrics.CanvasSize,
-            metrics.CanvasSize,
+            cache.TargetSize,
+            cache.TargetSize,
             PixelFormat.Format32bppPArgb);
         using (Graphics graphics = Graphics.FromImage(bitmap))
         {
             graphics.Clear(Color.Transparent);
-            DrawOverlay(graphics, settings, metrics, selectedSlot);
+            DrawComposition(graphics, cache, dynamicContent, selectedSlot);
         }
 
         IntPtr screenDc = GetDC(IntPtr.Zero);
-        IntPtr memoryDc = CreateCompatibleDC(screenDc);
-        IntPtr bitmapHandle = bitmap.GetHbitmap(Color.FromArgb(0));
-        IntPtr previousBitmap = SelectObject(memoryDc, bitmapHandle);
+        if (screenDc == IntPtr.Zero)
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to acquire the screen DC.");
+
+        IntPtr memoryDc = IntPtr.Zero;
+        IntPtr bitmapHandle = IntPtr.Zero;
+        IntPtr previousBitmap = IntPtr.Zero;
 
         try
         {
+            memoryDc = CreateCompatibleDC(screenDc);
+            if (memoryDc == IntPtr.Zero)
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to create a memory DC.");
+
+            bitmapHandle = bitmap.GetHbitmap(Color.FromArgb(0));
+            previousBitmap = SelectObject(memoryDc, bitmapHandle);
+            if (previousBitmap == IntPtr.Zero || previousBitmap == new IntPtr(-1))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to select the overlay bitmap.");
+
             var destination = new NativePoint(Left, Top);
             var source = new NativePoint(0, 0);
-            var size = new NativeSize(metrics.CanvasSize, metrics.CanvasSize);
+            var size = new NativeSize(cache.TargetSize, cache.TargetSize);
             var blend = new BlendFunction
             {
                 BlendOp = AcSrcOver,
@@ -359,12 +279,37 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
         }
         finally
         {
-            SelectObject(memoryDc, previousBitmap);
-            DeleteObject(bitmapHandle);
-            DeleteDC(memoryDc);
+            if (memoryDc != IntPtr.Zero &&
+                previousBitmap != IntPtr.Zero &&
+                previousBitmap != new IntPtr(-1))
+            {
+                SelectObject(memoryDc, previousBitmap);
+            }
+            if (bitmapHandle != IntPtr.Zero) DeleteObject(bitmapHandle);
+            if (memoryDc != IntPtr.Zero) DeleteDC(memoryDc);
             ReleaseDC(IntPtr.Zero, screenDc);
         }
     }
+
+    private void RunOnUiThread(Action action)
+    {
+        if (IsDisposed || Disposing) return;
+        if (InvokeRequired)
+        {
+            BeginInvoke(action);
+        }
+        else
+        {
+            action();
+        }
+    }
+
+    private static bool IsAssetException(Exception exception) =>
+        exception is IOException or UnauthorizedAccessException or InvalidDataException or
+        ArgumentException or ExternalException or OutOfMemoryException or NotSupportedException;
+
+    private static bool IsAssetOrRenderingException(Exception exception) =>
+        IsAssetException(exception) || exception is InvalidOperationException;
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

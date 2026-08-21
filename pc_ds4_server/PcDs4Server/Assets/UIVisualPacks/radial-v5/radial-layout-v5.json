@@ -1,0 +1,186 @@
+{
+  "canvas": {
+    "height": 1254,
+    "mode": "RGBA",
+    "width": 1254
+  },
+  "centerMaterial": {
+    "border": "#505B67",
+    "dotted": "#8695A5",
+    "fineHighlight": "#7E8B98",
+    "inner": "#070E17",
+    "innerRing": "#697687",
+    "marker": "#8995A2",
+    "middle": "#0B131E",
+    "outer": "#101923",
+    "selectedMarker": "#67D5FF"
+  },
+  "geometry": {
+    "centerInnerRadius": 154,
+    "centerRadius": 182,
+    "cornerRadius": 10,
+    "dottedRingRadius": 132,
+    "gapConstruction": "logical 60-degree boundary plus parallel offset gapPx/2",
+    "gapPx": 16,
+    "innerRadius": 198,
+    "markerRadius": 190,
+    "markerSize": 12,
+    "outerRadius": 450
+  },
+  "internalRender": {
+    "downsample": "Pillow LANCZOS",
+    "height": 5016,
+    "scale": 4,
+    "width": 5016
+  },
+  "normalMaterial": {
+    "darkBacking": "#05070A",
+    "darkBackingAlpha": 107,
+    "darkBackingWidth": 4.5,
+    "fineHighlight": "#8996A3",
+    "fineHighlightAlpha": 46,
+    "fineHighlightWidth": 0.6,
+    "inner": "#0C0F13",
+    "mainBorder": "#59636E",
+    "mainBorderAlpha": 217,
+    "mainBorderWidth": 1.8,
+    "middle": "#14181D",
+    "middleStop": 0.56,
+    "outer": "#1A1E24"
+  },
+  "reference": "../ChatGPT Image 2026年8月19日 12_55_27.png",
+  "selectedAssetCanonicalSlot": 1,
+  "selectedAssetRotationDegreesClockwise": [
+    0,
+    60,
+    120,
+    180,
+    240,
+    300
+  ],
+  "selectedMaterial": {
+    "iceCore": "#E7FAFF",
+    "iceCoreAlpha": 245,
+    "iceCoreWidth": 0.9,
+    "illuminationWeight": {
+      "directional": 0.25,
+      "radial": 0.75
+    },
+    "inner": "#0D1824",
+    "mainCyan": "#58CCFF",
+    "mainCyanAlpha": 235,
+    "mainCyanWidth": 2.8,
+    "middle": "#163B5A",
+    "middleStop": 0.62,
+    "outer": "#245A7E",
+    "tightEdgeStrength": {
+      "inner": 0.6,
+      "outer": 1.0,
+      "side": 0.82
+    },
+    "tightHalo": "#66D8FF",
+    "tightHaloAlpha": 120,
+    "tightHaloRadius": 4.0,
+    "wideEdgeStrength": {
+      "inner": 0.55,
+      "outer": 1.0,
+      "side": 0.8
+    },
+    "wideHalo": "#59D2FF",
+    "wideHaloAlpha": 70,
+    "wideHaloRadius": 11.0
+  },
+  "slotAnglesDegrees": [
+    0.0,
+    60.0,
+    120.0,
+    180.0,
+    240.0,
+    300.0
+  ],
+  "slotCount": 6,
+  "slots": [
+    {
+      "angleDegreesClockwiseFromTop": 0.0,
+      "glyphAnchor": {
+        "x": 627.0,
+        "y": 307.0
+      },
+      "labelAnchor": {
+        "x": 627.0,
+        "y": 262.0
+      },
+      "name": "Top",
+      "slot": 1
+    },
+    {
+      "angleDegreesClockwiseFromTop": 60.0,
+      "glyphAnchor": {
+        "x": 904.128,
+        "y": 467.0
+      },
+      "labelAnchor": {
+        "x": 943.099,
+        "y": 444.5
+      },
+      "name": "Upper Right",
+      "slot": 2
+    },
+    {
+      "angleDegreesClockwiseFromTop": 120.0,
+      "glyphAnchor": {
+        "x": 904.128,
+        "y": 787.0
+      },
+      "labelAnchor": {
+        "x": 943.099,
+        "y": 809.5
+      },
+      "name": "Lower Right",
+      "slot": 3
+    },
+    {
+      "angleDegreesClockwiseFromTop": 180.0,
+      "glyphAnchor": {
+        "x": 627.0,
+        "y": 947.0
+      },
+      "labelAnchor": {
+        "x": 627.0,
+        "y": 992.0
+      },
+      "name": "Bottom",
+      "slot": 4
+    },
+    {
+      "angleDegreesClockwiseFromTop": 240.0,
+      "glyphAnchor": {
+        "x": 349.872,
+        "y": 787.0
+      },
+      "labelAnchor": {
+        "x": 310.901,
+        "y": 809.5
+      },
+      "name": "Lower Left",
+      "slot": 5
+    },
+    {
+      "angleDegreesClockwiseFromTop": 300.0,
+      "glyphAnchor": {
+        "x": 349.872,
+        "y": 467.0
+      },
+      "labelAnchor": {
+        "x": 310.901,
+        "y": 444.5
+      },
+      "name": "Upper Left",
+      "slot": 6
+    }
+  ],
+  "wheelCenter": {
+    "x": 627,
+    "y": 627
+  }
+}

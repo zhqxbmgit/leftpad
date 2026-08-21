@@ -1,0 +1,11 @@
+{
+  "id": "radial-v5",
+  "name": "Tactical HUD V5",
+  "version": 1,
+  "layoutProfile": "radial-6",
+  "slotCount": 6,
+  "base": "radial-base-v5.png",
+  "selected": "radial-selected-card-v5.png",
+  "layout": "radial-layout-v5.json",
+  "selectionAssetMode": "canonical-transform"
+}
