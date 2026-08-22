@@ -145,14 +145,18 @@ public sealed class RadialActionMappingTests
 
         RadialMenuCompletion beforeApply = CompleteSlot(controller, 2);
         Assert.Equal(RadialActionKind.None,
-            RadialActionResolver.GetMapping(controller.ActiveSettings, beforeApply).Kind);
+            RadialActionResolver.GetMapping(
+                controller.ActiveSettings,
+                LayoutProfileRegistry.Radial6ProfileId,
+                beforeApply.SelectedSlot).Kind);
 
         controller.ApplySettings(temporary);
         RadialMenuCompletion afterApply = CompleteSlot(controller, 2);
 
         RadialSlotMapping applied = RadialActionResolver.GetMapping(
             controller.ActiveSettings,
-            afterApply);
+            LayoutProfileRegistry.Radial6ProfileId,
+            afterApply.SelectedSlot);
         Assert.Equal(RadialActionKind.KeyboardKey, applied.Kind);
         Assert.Equal(KeyboardKey.F1, applied.Key);
     }
@@ -382,7 +386,9 @@ public sealed class RadialActionMappingTests
                 out string saveError), saveError);
             Assert.Equal(settingsA, firstController.ActiveSettings);
             jsonAfterApply = File.ReadAllText(temporary.FilePath);
-            Assert.Contains("\"slotMappings\"", jsonAfterApply);
+            Assert.Contains("\"mappingsByProfile\"", jsonAfterApply);
+            Assert.Contains("\"radial-6\"", jsonAfterApply);
+            Assert.DoesNotContain("\"slotMappings\"", jsonAfterApply);
             Assert.Contains("\"key\": \"F1\"", jsonAfterApply);
             Assert.Contains("\"ds4Button\": \"cross\"", jsonAfterApply);
         }

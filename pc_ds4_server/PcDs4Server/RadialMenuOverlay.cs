@@ -14,6 +14,7 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
 
     private readonly object _stateLock = new();
     private readonly RadialVisualPackRuntime _visualPacks;
+    private LayoutDefinition? _layoutDefinition;
     private int _selectedSlot;
     private bool _overlayVisible;
     private bool _assetErrorLogged;
@@ -74,8 +75,15 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
     public void ShowAt(Point screenPoint, RadialMenuSettings settings, int selectedSlot)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        if (selectedSlot is < 0 or > RadialVisualPackDefinition.ExpectedSlotCount)
-            throw new ArgumentOutOfRangeException(nameof(selectedSlot));
+        if (selectedSlot < 0) throw new ArgumentOutOfRangeException(nameof(selectedSlot));
+
+        LayoutDefinition? boundLayout;
+        lock (_stateLock)
+        {
+            boundLayout = _layoutDefinition;
+        }
+        LayoutDefinition? activeLayout = _visualPacks.Active?.LayoutDefinition ?? boundLayout;
+        if (activeLayout != null) ValidateSelectedSlot(selectedSlot, activeLayout);
 
         RadialMenuRenderMetrics metrics = settings.CreateRenderMetrics();
         lock (_stateLock)
@@ -108,6 +116,13 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
                 metrics.CanvasSize);
             if (session == null && _visualPacks.Active == null)
                 FailSafely(_visualPacks.LastError ?? "Radial visual pack is unavailable.");
+            else if (session != null)
+            {
+                lock (_stateLock)
+                {
+                    _layoutDefinition = session.LayoutDefinition;
+                }
+            }
         });
     }
 
@@ -151,6 +166,13 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
             {
                 FailSafely(_visualPacks.LastError ?? "Radial visual pack is unavailable.");
                 return;
+            }
+
+            LayoutDefinition layout = session.LayoutDefinition;
+            ValidateSelectedSlot(selectedSlot, layout);
+            lock (_stateLock)
+            {
+                _layoutDefinition = layout;
             }
 
             ClientSize = new Size(metrics.CanvasSize, metrics.CanvasSize);
@@ -295,6 +317,12 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay
 
     private static bool IsAssetOrRenderingException(Exception exception) =>
         IsAssetException(exception) || exception is InvalidOperationException;
+
+    internal static void ValidateSelectedSlot(int selectedSlot, LayoutDefinition layout)
+    {
+        if (selectedSlot < 0 || selectedSlot > layout.SlotCount)
+            throw new ArgumentOutOfRangeException(nameof(selectedSlot));
+    }
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

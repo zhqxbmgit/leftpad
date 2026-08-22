@@ -6,6 +6,9 @@ namespace PcDs4Server.Tests;
 
 internal sealed class RadialVisualPackTestDirectory : IDisposable
 {
+    private static readonly double[] Radial8Angles =
+        { 0d, 45d, 90d, 135d, 180d, 225d, 270d, 315d };
+
     public RadialVisualPackTestDirectory()
     {
         Root = Path.Combine(
@@ -48,6 +51,46 @@ internal sealed class RadialVisualPackTestDirectory : IDisposable
         return destination;
     }
 
+    public string AddRadial8Pack(
+        Action<JsonObject>? editManifest = null,
+        Action<JsonObject>? editLayout = null) =>
+        AddPack(
+            "radial-8",
+            "radial-8-test",
+            "Radial 8 Test",
+            manifest =>
+            {
+                manifest["layoutProfile"] = "radial-8";
+                manifest["slotCount"] = 8;
+                editManifest?.Invoke(manifest);
+            },
+            layout =>
+            {
+                layout["slotCount"] = 8;
+                layout["slotAnglesDegrees"] = new JsonArray(
+                    Radial8Angles
+                        .Select(angle => (JsonNode?)JsonValue.Create(angle))
+                        .ToArray());
+
+                var slots = new JsonArray();
+                for (int index = 0; index < Radial8Angles.Length; index++)
+                {
+                    double angle = Radial8Angles[index];
+                    double radians = angle * (Math.PI / 180d);
+                    slots.Add(new JsonObject
+                    {
+                        ["slot"] = index + 1,
+                        ["name"] = $"Slot {index + 1}",
+                        ["angleDegreesClockwiseFromTop"] = angle,
+                        ["glyphAnchor"] = PointAt(radians, radius: 350d),
+                        ["labelAnchor"] = PointAt(radians, radius: 397d)
+                    });
+                }
+
+                layout["slots"] = slots;
+                editLayout?.Invoke(layout);
+            });
+
     public string AddMalformedManifest(string directoryName)
     {
         string destination = Path.Combine(Root, directoryName);
@@ -63,6 +106,12 @@ internal sealed class RadialVisualPackTestDirectory : IDisposable
 
     private static JsonObject ParseObject(string path) =>
         JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+
+    private static JsonObject PointAt(double radians, double radius) => new()
+    {
+        ["x"] = 627d + (Math.Sin(radians) * radius),
+        ["y"] = 627d - (Math.Cos(radians) * radius)
+    };
 
     private static void WriteObject(string path, JsonObject value) =>
         File.WriteAllText(path, value.ToJsonString(new JsonSerializerOptions

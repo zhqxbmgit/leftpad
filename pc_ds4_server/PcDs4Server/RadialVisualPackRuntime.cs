@@ -13,6 +13,7 @@ internal sealed class RadialVisualPackSession : IDisposable
         int targetSize)
     {
         Definition = definition ?? throw new ArgumentNullException(nameof(definition));
+        Definition.EnsureRuntimeSessionSupported();
         AssetCache = new RadialVisualPackCache(definition, targetSize);
         RadialDynamicContentCache? dynamicContent = null;
         try
@@ -32,6 +33,7 @@ internal sealed class RadialVisualPackSession : IDisposable
     }
 
     public RadialVisualPackDefinition Definition { get; }
+    public LayoutDefinition LayoutDefinition => Definition.LayoutDefinition;
     public RadialVisualPackCache AssetCache { get; }
     public RadialDynamicContentCache DynamicContent { get; }
     public string PackId => Definition.Manifest.Id;

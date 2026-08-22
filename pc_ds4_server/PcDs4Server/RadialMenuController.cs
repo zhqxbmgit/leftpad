@@ -11,7 +11,13 @@ public interface IRadialMenuOverlay : IDisposable
 
 public sealed class RadialMenuController : IDisposable
 {
+    private static readonly Lazy<LayoutDefinition> DefaultLayout = new(
+        () => RadialVisualPackDefinition.Load(
+            RadialVisualPackDefinition.DefaultDirectory).LayoutDefinition,
+        LazyThreadSafetyMode.ExecutionAndPublication);
+
     private readonly IRadialMenuOverlay _overlay;
+    private readonly Lazy<LayoutDefinition> _layout;
     private RadialMenuSettings _activeSettings;
     private Point? _normalAnchor;
     private RadialTriggerSource? _openSource;
@@ -22,9 +28,26 @@ public sealed class RadialMenuController : IDisposable
     private bool _disposed;
 
     public RadialMenuController(IRadialMenuOverlay overlay, RadialMenuSettings settings)
+        : this(overlay, settings, DefaultLayout)
+    {
+    }
+
+    public RadialMenuController(
+        IRadialMenuOverlay overlay,
+        RadialMenuSettings settings,
+        LayoutDefinition layout)
+        : this(overlay, settings, LayoutReference(layout))
+    {
+    }
+
+    private RadialMenuController(
+        IRadialMenuOverlay overlay,
+        RadialMenuSettings settings,
+        Lazy<LayoutDefinition> layout)
     {
         _overlay = overlay ?? throw new ArgumentNullException(nameof(overlay));
         ArgumentNullException.ThrowIfNull(settings);
+        _layout = layout ?? throw new ArgumentNullException(nameof(layout));
         if (!settings.TryValidate(out string error)) throw new ArgumentException(error, nameof(settings));
         _activeSettings = settings with { };
     }
@@ -116,6 +139,7 @@ public sealed class RadialMenuController : IDisposable
         if (!_isNormalMenuOpen || _isPreviewActive || _normalAnchor is not Point anchor) return false;
 
         int selectedSlot = RadialSelectionEngine.GetSelectedSlot(
+            _layout.Value,
             anchor,
             cursor,
             _activeSettings.SelectionDeadZone);
@@ -124,6 +148,14 @@ public sealed class RadialMenuController : IDisposable
         _selectedSlot = selectedSlot;
         _overlay.ShowAt(anchor, _activeSettings, _selectedSlot);
         return true;
+    }
+
+    private static Lazy<LayoutDefinition> LayoutReference(LayoutDefinition layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        return new Lazy<LayoutDefinition>(
+            () => layout,
+            LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     public void ClosePreview()

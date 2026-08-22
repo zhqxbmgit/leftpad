@@ -1,7 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace PcDs4Server;
 
 public sealed record RadialMenuSettings
 {
+    private RadialMappingsByProfile _mappingsByProfile = RadialMappingsByProfile.Empty;
+
     public const int MinimumScalePercent = 60;
     public const int MaximumScalePercent = 140;
     public const float MinimumGapDegrees = 0f;
@@ -31,7 +35,79 @@ public sealed record RadialMenuSettings
     public int SelectionDeadZone { get; init; } = 28;
     public int HighlightAlpha { get; init; } = 80;
     public int SelectionPollIntervalMs { get; init; } = 16;
-    public RadialSlotMappings SlotMappings { get; init; } = RadialSlotMappings.Default;
+    public string MappingProfileId { get; init; } = LayoutProfileRegistry.Radial6ProfileId;
+
+    public RadialMappingsByProfile MappingsByProfile
+    {
+        get => _mappingsByProfile;
+        init => _mappingsByProfile = value ?? RadialMappingsByProfile.Empty;
+    }
+
+    // Source compatibility for radial-v5 callers. New code should use the profile APIs.
+    [JsonIgnore]
+    public RadialSlotMappings SlotMappings
+    {
+        get => GetProfileMappings(LayoutProfileRegistry.Radial6ProfileId);
+        init => _mappingsByProfile = _mappingsByProfile.Set(
+            LayoutProfileRegistry.Radial6ProfileId,
+            NormalizeForProfile(LayoutProfileRegistry.Radial6ProfileId, value));
+    }
+
+    // Read-only migration input for the pre-profile JSON schema. Normalized settings never write it.
+    [JsonPropertyName("slotMappings")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public RadialSlotMappings? LegacySlotMappings
+    {
+        get => null;
+        init
+        {
+            if (value != null)
+            {
+                _mappingsByProfile = _mappingsByProfile.Set(
+                    LayoutProfileRegistry.Radial6ProfileId,
+                    NormalizeForProfile(LayoutProfileRegistry.Radial6ProfileId, value));
+            }
+        }
+    }
+
+    public RadialSlotMappings GetProfileMappings(string profileId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(profileId);
+        if (MappingsByProfile.TryGetValue(profileId, out RadialSlotMappings mappings))
+            return mappings;
+
+        return TryGetProfileSlotCount(profileId, out int slotCount)
+            ? RadialSlotMappings.Create(slotCount)
+            : RadialSlotMappings.Empty;
+    }
+
+    public RadialMenuSettings SetProfileMappings(
+        string profileId,
+        RadialSlotMappings mappings)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(profileId);
+        ArgumentNullException.ThrowIfNull(mappings);
+        return this with
+        {
+            MappingsByProfile = MappingsByProfile.Set(
+                profileId,
+                NormalizeForProfile(profileId, mappings)),
+            LegacySlotMappings = null
+        };
+    }
+
+    public RadialMenuSettings NormalizeMappings()
+    {
+        RadialMappingsByProfile normalized = RadialMappingsByProfile.Empty;
+        foreach ((string profileId, RadialSlotMappings mappings) in MappingsByProfile)
+            normalized = normalized.Set(profileId, NormalizeForProfile(profileId, mappings));
+
+        return this with
+        {
+            MappingsByProfile = normalized,
+            LegacySlotMappings = null
+        };
+    }
 
     public bool TryValidate(out string error)
     {
@@ -65,9 +141,19 @@ public sealed record RadialMenuSettings
             return Invalid("选择高亮强度必须在 0～255 之间。", out error);
         if (SelectionPollIntervalMs is < MinimumSelectionPollIntervalMs or > MaximumSelectionPollIntervalMs)
             return Invalid($"选择检测间隔必须在 {MinimumSelectionPollIntervalMs}～{MaximumSelectionPollIntervalMs} ms 之间。", out error);
-        if (SlotMappings == null)
-            return Invalid("动作映射不能为空。", out error);
-        if (!SlotMappings.TryValidate(out error)) return false;
+        if (string.IsNullOrWhiteSpace(MappingProfileId))
+            return Invalid("动作映射布局 Profile ID 不能为空。", out error);
+        if (MappingsByProfile == null)
+            return Invalid("按布局隔离的动作映射不能为空。", out error);
+        foreach ((string profileId, RadialSlotMappings mappings) in MappingsByProfile)
+        {
+            if (string.IsNullOrWhiteSpace(profileId))
+                return Invalid("动作映射布局 Profile ID 不能为空。", out error);
+            if (TryGetProfileSlotCount(profileId, out int slotCount) && mappings.Count != slotCount)
+                return Invalid($"布局 {profileId} 必须包含 {slotCount} 个动作映射。", out error);
+            if (!mappings.TryValidate(out string mappingError))
+                return Invalid($"布局 {profileId}：{mappingError}", out error);
+        }
 
         error = string.Empty;
         return true;
@@ -93,6 +179,30 @@ public sealed record RadialMenuSettings
     }
 
     private static bool ValidAlpha(int value) => value is >= byte.MinValue and <= byte.MaxValue;
+
+    private static RadialSlotMappings NormalizeForProfile(
+        string profileId,
+        RadialSlotMappings? mappings)
+    {
+        RadialSlotMappings safeMappings = mappings ?? RadialSlotMappings.Empty;
+        return TryGetProfileSlotCount(profileId, out int slotCount)
+            ? safeMappings.Normalize(slotCount)
+            : RadialSlotMappings.Sanitize(safeMappings);
+    }
+
+    private static bool TryGetProfileSlotCount(string profileId, out int slotCount)
+    {
+        try
+        {
+            slotCount = LayoutProfileRegistry.GetRequired(profileId).SlotCount;
+            return true;
+        }
+        catch (InvalidDataException)
+        {
+            slotCount = 0;
+            return false;
+        }
+    }
 
     private static bool Invalid(string message, out string error)
     {

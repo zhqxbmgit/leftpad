@@ -12,7 +12,10 @@ public static class RadialActionCompletionHandler
 
         if (completion.IsCancelled) return "[环形菜单] 已取消";
 
-        RadialSlotMapping mapping = RadialActionResolver.GetMapping(activeSettings, completion);
+        RadialSlotMapping mapping = RadialActionResolver.GetMapping(
+            activeSettings,
+            activeSettings.MappingProfileId,
+            completion.SelectedSlot);
         return mapping.Kind switch
         {
             RadialActionKind.KeyboardKey or RadialActionKind.KeyboardShortcut =>

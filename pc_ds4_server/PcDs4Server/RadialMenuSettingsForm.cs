@@ -30,10 +30,14 @@ public sealed class RadialMenuSettingsForm : Form
     private readonly NumericUpDown _selectionPollInterval = Editor(
         RadialMenuSettings.MinimumSelectionPollIntervalMs,
         RadialMenuSettings.MaximumSelectionPollIntervalMs);
-    private readonly MappingEditor[] _mappingEditors =
-        Enumerable.Range(1, RadialSlotMappings.SlotCount)
-            .Select(slot => new MappingEditor(slot))
-            .ToArray();
+    private readonly TableLayoutPanel _mappingTable = new()
+    {
+        Dock = DockStyle.Top,
+        AutoSize = true,
+        ColumnCount = 3,
+        Padding = new Padding(6)
+    };
+    private MappingEditor[] _mappingEditors = Array.Empty<MappingEditor>();
     private readonly Label _validationStatus = new()
     {
         Dock = DockStyle.Bottom,
@@ -44,6 +48,8 @@ public sealed class RadialMenuSettingsForm : Form
     };
     private bool _populating;
     private string _populatedVisualPackId = RadialVisualPackContract.DefaultVisualPackId;
+    private string _mappingProfileId = LayoutProfileRegistry.Radial6ProfileId;
+    private RadialMenuSettings _workingSettings = RadialMenuSettings.Default;
 
     public RadialMenuSettingsForm(
         RadialMenuController controller,
@@ -141,34 +147,10 @@ public sealed class RadialMenuSettingsForm : Form
     private TabPage CreateMappingsPage()
     {
         var page = Page("动作映射");
-        var table = new TableLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            AutoSize = true,
-            ColumnCount = 3,
-            RowCount = RadialSlotMappings.SlotCount,
-            Padding = new Padding(6)
-        };
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 138));
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-
-        for (int index = 0; index < _mappingEditors.Length; index++)
-        {
-            MappingEditor editor = _mappingEditors[index];
-            table.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
-            table.Controls.Add(new Label
-            {
-                Text = $"Slot {index + 1}",
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft,
-                ForeColor = ThemeColors.TextSecondary
-            }, 0, index);
-            table.Controls.Add(editor.KindEditor, 1, index);
-            table.Controls.Add(editor.DetailPanel, 2, index);
-        }
-
-        page.Controls.Add(table);
+        _mappingTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 64));
+        _mappingTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 138));
+        _mappingTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        page.Controls.Add(_mappingTable);
         return page;
     }
 
@@ -223,8 +205,10 @@ public sealed class RadialMenuSettingsForm : Form
             SelectionDeadZone = Decimal.ToInt32(_selectionDeadZone.Value),
             HighlightAlpha = Decimal.ToInt32(_highlightAlpha.Value),
             SelectionPollIntervalMs = Decimal.ToInt32(_selectionPollInterval.Value),
-            SlotMappings = ReadMappings()
+            MappingProfileId = _mappingProfileId,
+            MappingsByProfile = _workingSettings.MappingsByProfile
         };
+        settings = settings.SetProfileMappings(_mappingProfileId, ReadMappings());
 
         if (settings.TryValidate(out string error))
         {
@@ -246,6 +230,7 @@ public sealed class RadialMenuSettingsForm : Form
         _populating = true;
         try
         {
+            _workingSettings = settings.NormalizeMappings();
             _populatedVisualPackId = settings.VisualPackId;
             _visualPack.SelectedItem = _visualPackCatalog.ResolveSelection(
                 settings.VisualPackId);
@@ -264,8 +249,7 @@ public sealed class RadialMenuSettingsForm : Form
             _borderAlpha.Value = settings.BorderAlpha;
             _textAlpha.Value = settings.TextAlpha;
             _selectionPollInterval.Value = settings.SelectionPollIntervalMs;
-            for (int index = 0; index < _mappingEditors.Length; index++)
-                _mappingEditors[index].Populate(settings.SlotMappings[index]);
+            BindMappingsForSelectedVisualPack();
         }
         finally
         {
@@ -285,7 +269,11 @@ public sealed class RadialMenuSettingsForm : Form
         {
             editor.ValueChanged += (_, _) => RefreshLivePreview();
         }
-        _visualPack.SelectedValueChanged += (_, _) => RefreshLivePreview();
+        _visualPack.SelectedValueChanged += (_, _) =>
+        {
+            SwitchMappingProfile();
+            RefreshLivePreview();
+        };
     }
 
     private void RefreshLivePreview()
@@ -298,9 +286,74 @@ public sealed class RadialMenuSettingsForm : Form
     private RadialSlotMappings ReadMappings()
     {
         RadialSlotMapping[] mappings = _mappingEditors.Select(editor => editor.Read()).ToArray();
-        return new RadialSlotMappings(
-            mappings[0], mappings[1], mappings[2],
-            mappings[3], mappings[4], mappings[5]);
+        return new RadialSlotMappings(mappings);
+    }
+
+    internal static int GetMappingRowCount(LayoutDefinition layoutDefinition)
+    {
+        ArgumentNullException.ThrowIfNull(layoutDefinition);
+        return layoutDefinition.SlotCount;
+    }
+
+    private void SwitchMappingProfile()
+    {
+        if (_populating) return;
+        if (_mappingEditors.Length > 0)
+            _workingSettings = _workingSettings.SetProfileMappings(_mappingProfileId, ReadMappings());
+        BindMappingsForSelectedVisualPack();
+    }
+
+    private void BindMappingsForSelectedVisualPack()
+    {
+        LayoutDefinition? layout =
+            (_visualPack.SelectedItem as RadialVisualPackCatalogEntry)?.Definition.LayoutDefinition;
+        if (layout != null)
+        {
+            _mappingProfileId = layout.ProfileId;
+            RebuildMappingEditors(GetMappingRowCount(layout));
+        }
+        else
+        {
+            _mappingProfileId = LayoutProfileRegistry.Radial6ProfileId;
+            RebuildMappingEditors(LayoutProfileRegistry.Radial6SlotCount);
+        }
+
+        RadialSlotMappings mappings = _workingSettings.GetProfileMappings(_mappingProfileId);
+        for (int index = 0; index < _mappingEditors.Length; index++)
+            _mappingEditors[index].Populate(mappings[index]);
+    }
+
+    private void RebuildMappingEditors(int slotCount)
+    {
+        _mappingTable.SuspendLayout();
+        try
+        {
+            _mappingTable.Controls.Clear();
+            _mappingTable.RowStyles.Clear();
+            _mappingTable.RowCount = slotCount;
+            _mappingEditors = Enumerable.Range(1, slotCount)
+                .Select(slot => new MappingEditor(slot))
+                .ToArray();
+
+            for (int index = 0; index < _mappingEditors.Length; index++)
+            {
+                MappingEditor editor = _mappingEditors[index];
+                _mappingTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+                _mappingTable.Controls.Add(new Label
+                {
+                    Text = $"Slot {index + 1}",
+                    Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    ForeColor = ThemeColors.TextSecondary
+                }, 0, index);
+                _mappingTable.Controls.Add(editor.KindEditor, 1, index);
+                _mappingTable.Controls.Add(editor.DetailPanel, 2, index);
+            }
+        }
+        finally
+        {
+            _mappingTable.ResumeLayout(performLayout: true);
+        }
     }
 
     private static TabPage Page(string text) => new(text)

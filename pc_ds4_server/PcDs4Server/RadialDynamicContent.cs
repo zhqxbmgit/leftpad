@@ -94,6 +94,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
     }
 
     internal int BuildCount { get; private set; }
+    internal int RenderedSlotCount { get; private set; }
 
     public bool Ensure(RadialMenuSettings settings, int targetSize)
     {
@@ -150,7 +151,8 @@ internal sealed class RadialDynamicContentCache : IDisposable
 
     private void DrawSlotContent(Graphics graphics, DynamicContentKey key, int workingSize)
     {
-        float masterScale = workingSize / (float)_definition.Layout.Canvas.Width;
+        LayoutDefinition layout = _definition.LayoutDefinition;
+        float masterScale = workingSize / (float)layout.Canvas.Width;
         float primaryWidth = 270f * masterScale;
         float primaryHeight = 92f * masterScale;
         float primaryFontSize = Math.Max(7.5f, key.FontPixelSize * 0.72f) * SupersampleScale;
@@ -168,11 +170,15 @@ internal sealed class RadialDynamicContentCache : IDisposable
             Trimming = StringTrimming.EllipsisCharacter
         };
 
-        for (int index = 0; index < RadialVisualPackDefinition.ExpectedSlotCount; index++)
+        int renderedSlotCount = 0;
+        for (int index = 0; index < layout.Slots.Count; index++)
         {
-            RadialLayoutSlot slot = _definition.Layout.Slots[index];
+            RadialSlotDefinition slot = layout.Slots[index];
+            RadialSlotMapping mapping = index < key.SlotMappings.Count
+                ? key.SlotMappings[index]
+                : RadialSlotMapping.None;
             RadialActionDisplayText display = RadialActionDisplayText.FromMapping(
-                key.SlotMappings[index]);
+                mapping);
             PointF primaryAnchor = _definition.ScalePoint(slot.GlyphAnchor, workingSize);
 
             DrawFittedText(
@@ -184,7 +190,9 @@ internal sealed class RadialDynamicContentCache : IDisposable
                 FontStyle.Bold,
                 primaryColor,
                 format);
+            renderedSlotCount++;
         }
+        RenderedSlotCount = renderedSlotCount;
     }
 
     private void DrawFittedText(

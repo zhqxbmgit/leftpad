@@ -4,16 +4,16 @@ public static class RadialActionResolver
 {
     public static RadialSlotMapping GetMapping(
         RadialMenuSettings activeSettings,
-        RadialMenuCompletion completion)
+        string profileId,
+        int slotId)
     {
         ArgumentNullException.ThrowIfNull(activeSettings);
-        if (completion.IsCancelled ||
-            completion.SelectedSlot is < 1 or > RadialSlotMappings.SlotCount)
-        {
-            return RadialSlotMapping.None;
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(profileId);
 
-        return activeSettings.SlotMappings[completion.SelectedSlot - 1];
+        RadialSlotMappings mappings = activeSettings.GetProfileMappings(profileId);
+        if (slotId < 1 || slotId > mappings.Count) return RadialSlotMapping.None;
+
+        return mappings[slotId - 1];
     }
 
     public static string FormatShortcut(RadialSlotMapping mapping)

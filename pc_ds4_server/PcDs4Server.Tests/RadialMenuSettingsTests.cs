@@ -25,7 +25,7 @@ public sealed class RadialMenuSettingsTests
         Assert.Equal(28, settings.SelectionDeadZone);
         Assert.Equal(80, settings.HighlightAlpha);
         Assert.Equal(16, settings.SelectionPollIntervalMs);
-        Assert.Equal(RadialSlotMappings.SlotCount, settings.SlotMappings.Count);
+        Assert.Equal(LayoutProfileRegistry.Radial6SlotCount, settings.SlotMappings.Count);
         Assert.All(settings.SlotMappings,
             mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
         Assert.True(settings.TryValidate(out _));
@@ -400,7 +400,7 @@ public sealed class RadialMenuSettingsTests
         RadialMenuSettingsLoadResult result = new RadialMenuSettingsStore(temporary.FilePath).Load();
 
         Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
-        Assert.Equal(RadialSlotMappings.SlotCount, result.Settings.SlotMappings.Count);
+        Assert.Equal(LayoutProfileRegistry.Radial6SlotCount, result.Settings.SlotMappings.Count);
         Assert.All(result.Settings.SlotMappings,
             mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
     }
