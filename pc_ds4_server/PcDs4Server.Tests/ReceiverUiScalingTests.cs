@@ -129,17 +129,26 @@ public sealed class ReceiverUiScalingTests
             int activeSlotCount = activePack.Definition.LayoutDefinition.SlotCount;
             var mappingTable = Assert.IsType<TableLayoutPanel>(Assert.Single(
                 form.Controls.Find("mappingTable", searchAllChildren: true)));
+            var leftColumn = Assert.IsType<TableLayoutPanel>(Assert.Single(
+                form.Controls.Find("mappingLeftColumn", searchAllChildren: true)));
+            var rightColumn = Assert.IsType<TableLayoutPanel>(Assert.Single(
+                form.Controls.Find("mappingRightColumn", searchAllChildren: true)));
             Label[] labels = Enumerable.Range(1, expectedSlotCount)
                 .Select(slot => Assert.IsType<Label>(Assert.Single(
                     form.Controls.Find($"slot{slot}Label", searchAllChildren: true))))
                 .ToArray();
+            int splitIndex = RadialMenuSettingsControl.GetMappingSplitIndex(expectedSlotCount);
 
             Assert.Equal(expectedSlotCount, activeSlotCount);
-            Assert.Equal(activeSlotCount, mappingTable.RowCount);
+            Assert.Equal(ReceiverUiLayoutMetrics.SettingsContentColumnCount, mappingTable.ColumnCount);
+            Assert.Equal(splitIndex, leftColumn.RowCount);
+            Assert.Equal(expectedSlotCount - splitIndex, rightColumn.RowCount);
             Assert.Equal(expectedSlotCount, labels.Length);
             Assert.Equal(
                 Enumerable.Range(1, expectedSlotCount).Select(slot => $"Slot {slot}"),
                 labels.Select(label => label.Text));
+            Assert.All(labels.Take(splitIndex), label => Assert.Same(leftColumn, label.Parent));
+            Assert.All(labels.Skip(splitIndex), label => Assert.Same(rightColumn, label.Parent));
         });
     }
 
@@ -224,7 +233,7 @@ public sealed class ReceiverUiScalingTests
     {
         IReadOnlyList<Rectangle> buttons = ReceiverUiLayoutMetrics.GetSettingsButtonBounds();
 
-        Assert.Equal(5, buttons.Count);
+        Assert.Equal(4, buttons.Count);
         for (int index = 0; index < buttons.Count; index++)
         {
             Assert.True(buttons[index].Right < ReceiverUiLayoutMetrics.SettingsClientBaseline.Width);
@@ -241,6 +250,7 @@ public sealed class ReceiverUiScalingTests
     [Theory]
     [InlineData(100)]
     [InlineData(150)]
+    [InlineData(200)]
     public void SettingsBasicControls_RemainReachableAtSupportedReviewScales(int scalePercent)
     {
         int contentHeight = ReceiverUiScaling.Scale(
@@ -255,8 +265,34 @@ public sealed class ReceiverUiScalingTests
     }
 
     [Theory]
+    [InlineData(100)]
+    [InlineData(150)]
+    public void WideSettingsDefaultContent_FitsTheEmbeddedViewportWithoutVerticalOverflow(
+        int scalePercent)
+    {
+        int reachableHeight = ReceiverUiScaling.Scale(
+            ReceiverUiLayoutMetrics.SettingsPageReachableHeight,
+            scalePercent);
+
+        Assert.True(
+            ReceiverUiScaling.Scale(
+                ReceiverUiLayoutMetrics.SettingsBasicContentHeight,
+                scalePercent) <= reachableHeight);
+        Assert.True(
+            ReceiverUiScaling.Scale(
+                ReceiverUiLayoutMetrics.GetSettingsMappingDefaultContentHeight(
+                    LayoutProfileRegistry.Radial8SlotCount),
+                scalePercent) <= reachableHeight);
+        Assert.True(
+            ReceiverUiScaling.Scale(
+                ReceiverUiLayoutMetrics.SettingsAdvancedContentHeight,
+                scalePercent) <= reachableHeight);
+    }
+
+    [Theory]
     [InlineData(100, 840, 660)]
     [InlineData(150, 1260, 990)]
+    [InlineData(200, 1680, 1320)]
     public void SettingsForm_ImportantControlsAndButtonsRemainReachable(
         int scalePercent,
         int expectedWidth,
@@ -290,7 +326,8 @@ public sealed class ReceiverUiScalingTests
                     form.Controls.Find("settingsActionButtons", searchAllChildren: true)));
                 actions.PerformLayout();
                 Button[] buttons = actions.Controls.OfType<Button>().ToArray();
-                Assert.Equal(5, buttons.Length);
+                Assert.Equal(4, buttons.Length);
+                Assert.DoesNotContain(buttons, button => button.Text == "关闭");
                 Assert.All(buttons, button =>
                 {
                     Assert.True(button.Width > 0);

@@ -107,7 +107,13 @@ public sealed class Radial8MinimalProductionIntegrationTests
 
             var mappingTable = Assert.IsType<TableLayoutPanel>(Assert.Single(
                 form.Controls.Find("mappingTable", searchAllChildren: true)));
-            Assert.Equal(8, mappingTable.RowCount);
+            var leftColumn = Assert.IsType<TableLayoutPanel>(Assert.Single(
+                form.Controls.Find("mappingLeftColumn", searchAllChildren: true)));
+            var rightColumn = Assert.IsType<TableLayoutPanel>(Assert.Single(
+                form.Controls.Find("mappingRightColumn", searchAllChildren: true)));
+            Assert.Equal(2, mappingTable.ColumnCount);
+            Assert.Equal(4, leftColumn.RowCount);
+            Assert.Equal(4, rightColumn.RowCount);
             Assert.Equal(
                 Enumerable.Range(1, 8).Select(slot => $"Slot {slot}"),
                 Enumerable.Range(1, 8).Select(slot =>

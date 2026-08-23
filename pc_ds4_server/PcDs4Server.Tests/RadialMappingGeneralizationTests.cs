@@ -143,8 +143,8 @@ public sealed class RadialMappingGeneralizationTests
         LayoutDefinition radial6 = CreateLayout("radial-6");
         LayoutDefinition radial8 = CreateLayout("radial-8");
 
-        Assert.Equal(6, RadialMenuSettingsForm.GetMappingRowCount(radial6));
-        Assert.Equal(8, RadialMenuSettingsForm.GetMappingRowCount(radial8));
+        Assert.Equal(6, RadialMenuSettingsControl.GetMappingRowCount(radial6));
+        Assert.Equal(8, RadialMenuSettingsControl.GetMappingRowCount(radial8));
     }
 
     private static RadialSlotMapping Keyboard(KeyboardKey key) => new()

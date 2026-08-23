@@ -44,12 +44,14 @@ namespace PcDs4Server
         private Label _pageTitle = null!;
         private TableLayoutPanel _overviewCards = null!, _overviewOutput = null!;
         private Panel _gamepadMonitor = null!, _joystickDebugSection = null!, _logSection = null!;
+        private RadialMenuSettingsControl _settingsPage = null!;
         private ReceiverPage _currentPage = ReceiverPage.Overview;
 
         private enum ReceiverPage
         {
             Overview,
             Gamepad,
+            Settings,
             Log
         }
 
@@ -96,6 +98,13 @@ namespace PcDs4Server
             _radialOverlay.PrepareVisualPack(radialSettings.Settings);
             _ = _radialOverlay.Handle;
             _radialMenu = new RadialMenuController(_radialOverlay, radialSettings.Settings);
+            _settingsPage.AttachReceiverUiScaling(_receiverUiScaling);
+            _settingsPage.Initialize(
+                _radialMenu,
+                _radialSettingsStore,
+                ApplyRadialMenuSettings,
+                LogRadialMessage,
+                _radialVisualPackCatalog);
             _radialSelectionTimer = new System.Windows.Forms.Timer
             {
                 Interval = radialSettings.Settings.SelectionPollIntervalMs
@@ -165,14 +174,15 @@ namespace PcDs4Server
             };
             _sidebar.Controls.Add(lblLogo);
 
-            var btnOverview = new SidebarButton { Text = "🎮 总览", Location = new Point(0, 112), Width = 210, IsSelected = true };
-            var btnGamepad = new SidebarButton { Text = "🕹 手柄状态", Location = new Point(0, 164), Width = 210 };
-            var btnSettings = new SidebarButton { Text = "⚙ 设置", Location = new Point(0, 216), Width = 210 };
-            var btnLog = new SidebarButton { Text = "📋 日志", Location = new Point(0, 268), Width = 210 };
+            var btnOverview = new SidebarButton { Name = "overviewNavigation", Text = "🎮 总览", Location = new Point(0, 112), Width = 210, IsSelected = true };
+            var btnGamepad = new SidebarButton { Name = "gamepadNavigation", Text = "🕹 手柄状态", Location = new Point(0, 164), Width = 210 };
+            var btnSettings = new SidebarButton { Name = "settingsNavigation", Text = "⚙ 设置", Location = new Point(0, 216), Width = 210 };
+            var btnLog = new SidebarButton { Name = "logNavigation", Text = "📋 日志", Location = new Point(0, 268), Width = 210 };
 
             _sidebar.Controls.AddRange(new Control[] { btnOverview, btnGamepad, btnSettings, btnLog });
             _pageNavigation.Add(ReceiverPage.Overview, btnOverview);
             _pageNavigation.Add(ReceiverPage.Gamepad, btnGamepad);
+            _pageNavigation.Add(ReceiverPage.Settings, btnSettings);
             _pageNavigation.Add(ReceiverPage.Log, btnLog);
 
             // 3. 右侧主内容区
@@ -388,24 +398,27 @@ namespace PcDs4Server
             _logSection.Controls.Add(lblLogTitle);
             _contentPanel.Controls.Add(_logSection);
 
+            _settingsPage = new RadialMenuSettingsControl
+            {
+                Dock = DockStyle.Fill,
+                Visible = false
+            };
+            _contentPanel.Controls.Add(_settingsPage);
+
             // DockStyle.Top follows z-order, not construction order. Keep the page
             // header first and make every page's sections flow downward predictably.
-            _contentPanel.Controls.SetChildIndex(_logSection, 0);
-            _contentPanel.Controls.SetChildIndex(_joystickDebugSection, 1);
-            _contentPanel.Controls.SetChildIndex(_gamepadMonitor, 2);
-            _contentPanel.Controls.SetChildIndex(_overviewOutput, 3);
-            _contentPanel.Controls.SetChildIndex(_overviewCards, 4);
-            _contentPanel.Controls.SetChildIndex(header, 5);
+            _contentPanel.Controls.SetChildIndex(_settingsPage, 0);
+            _contentPanel.Controls.SetChildIndex(_logSection, 1);
+            _contentPanel.Controls.SetChildIndex(_joystickDebugSection, 2);
+            _contentPanel.Controls.SetChildIndex(_gamepadMonitor, 3);
+            _contentPanel.Controls.SetChildIndex(_overviewOutput, 4);
+            _contentPanel.Controls.SetChildIndex(_overviewCards, 5);
+            _contentPanel.Controls.SetChildIndex(header, 6);
 
             btnOverview.Click += (_, _) => NavigateTo(ReceiverPage.Overview);
             btnGamepad.Click += (_, _) => NavigateTo(ReceiverPage.Gamepad);
+            btnSettings.Click += (_, _) => NavigateTo(ReceiverPage.Settings);
             btnLog.Click += (_, _) => NavigateTo(ReceiverPage.Log);
-            btnSettings.Click += (_, _) =>
-            {
-                SetSelectedNavigation(btnSettings);
-                OpenRadialMenuSettings();
-                SetSelectedNavigation(_pageNavigation[_currentPage]);
-            };
             NavigateTo(ReceiverPage.Overview);
 
             _mainContent.Controls.Add(_contentPanel);
@@ -577,17 +590,6 @@ namespace PcDs4Server
             });
         }
 
-        private void OpenRadialMenuSettings()
-        {
-            using var settingsForm = new RadialMenuSettingsForm(
-                _radialMenu,
-                _radialSettingsStore,
-                ApplyRadialMenuSettings,
-                LogRadialMessage,
-                _radialVisualPackCatalog);
-            settingsForm.ShowDialog(this);
-        }
-
         private void ApplyRadialMenuSettings(RadialMenuSettings settings)
         {
             _receiverUiScaling.Apply(settings.ReceiverUiScalePercent, preserveCenter: true);
@@ -617,11 +619,14 @@ namespace PcDs4Server
 
         private void NavigateTo(ReceiverPage page)
         {
+            if (_currentPage == ReceiverPage.Settings && page != ReceiverPage.Settings)
+                _settingsPage.Deactivate();
             _currentPage = page;
             _pageTitle.Text = page switch
             {
                 ReceiverPage.Overview => "控制中心",
                 ReceiverPage.Gamepad => "手柄状态",
+                ReceiverPage.Settings => "设置",
                 ReceiverPage.Log => "日志",
                 _ => throw new ArgumentOutOfRangeException(nameof(page))
             };
@@ -632,9 +637,14 @@ namespace PcDs4Server
             _overviewOutput.Visible = showOverview;
             _gamepadMonitor.Visible = showGamepad;
             _joystickDebugSection.Visible = showGamepad;
+            _settingsPage.Visible = page == ReceiverPage.Settings;
             _logSection.Visible = page == ReceiverPage.Log;
+            if (page == ReceiverPage.Settings && _settingsPage.IsInitialized)
+                _settingsPage.RefreshFromRuntime();
             SetSelectedNavigation(_pageNavigation[page]);
         }
+
+        internal RadialMenuSettingsControl SettingsControl => _settingsPage;
 
         private void SetSelectedNavigation(SidebarButton selected)
         {

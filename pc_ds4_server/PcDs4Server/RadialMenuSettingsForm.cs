@@ -1,13 +1,14 @@
 namespace PcDs4Server;
 
-public sealed class RadialMenuSettingsForm : Form
+public sealed class RadialMenuSettingsControl : UserControl
 {
-    private readonly RadialMenuController _controller;
-    private readonly RadialMenuSettingsStore _store;
-    private readonly Action<RadialMenuSettings> _applySettings;
-    private readonly Action<string> _log;
-    private readonly RadialVisualPackCatalogSnapshot _visualPackCatalog;
-    private ReceiverUiScaling? _receiverUiScaling;
+    private RadialMenuController? _controller;
+    private RadialMenuSettingsStore? _store;
+    private Action<RadialMenuSettings>? _applySettings;
+    private Action<string>? _log;
+    private RadialVisualPackCatalog? _visualPackCatalogProvider;
+    private RadialVisualPackCatalogSnapshot? _visualPackCatalog;
+    private ReceiverUiScaling? _hostUiScaling;
 
     private readonly ComboBox _visualPack = VisualPackDropDown();
     private readonly ComboBox _receiverUiScale = ReceiverUiScaleDropDown();
@@ -37,9 +38,15 @@ public sealed class RadialMenuSettingsForm : Form
         Name = "mappingTable",
         Dock = DockStyle.Top,
         AutoSize = true,
-        ColumnCount = 3,
-        Padding = new Padding(6)
+        AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        ColumnCount = ReceiverUiLayoutMetrics.SettingsContentColumnCount,
+        RowCount = 1,
+        Padding = new Padding(6, 4, 6, 4)
     };
+    private readonly TableLayoutPanel _mappingLeftColumn = MappingColumnTable(
+        "mappingLeftColumn");
+    private readonly TableLayoutPanel _mappingRightColumn = MappingColumnTable(
+        "mappingRightColumn");
     private MappingEditor[] _mappingEditors = Array.Empty<MappingEditor>();
     private readonly Label _validationStatus = new()
     {
@@ -53,39 +60,16 @@ public sealed class RadialMenuSettingsForm : Form
     private string _populatedVisualPackId = RadialVisualPackContract.DefaultVisualPackId;
     private string _mappingProfileId = LayoutProfileRegistry.Radial6ProfileId;
     private RadialMenuSettings _workingSettings = RadialMenuSettings.Default;
+    private bool _initialized;
+    private int _refreshCount;
 
-    public RadialMenuSettingsForm(
-        RadialMenuController controller,
-        RadialMenuSettingsStore store,
-        Action<RadialMenuSettings> applySettings,
-        Action<string> log,
-        RadialVisualPackCatalog? visualPackCatalog = null)
+    public RadialMenuSettingsControl()
     {
-        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
-        _store = store ?? throw new ArgumentNullException(nameof(store));
-        _applySettings = applySettings ?? throw new ArgumentNullException(nameof(applySettings));
-        _log = log ?? throw new ArgumentNullException(nameof(log));
-        _visualPackCatalog = (visualPackCatalog ?? new RadialVisualPackCatalog()).Discover();
-        _visualPack.Items.AddRange(_visualPackCatalog.Packs.Cast<object>().ToArray());
-        foreach (RadialVisualPackCatalogIssue issue in _visualPackCatalog.Issues)
-        {
-            _log(
-                $"[视觉主题] 忽略 '{issue.PackId ?? issue.DirectoryPath}'：" +
-                issue.Message);
-        }
-
-        Text = "环形菜单设置";
-        ClientSize = ReceiverUiLayoutMetrics.SettingsClientBaseline;
+        Name = "radialMenuSettingsControl";
         BackColor = ThemeColors.Background;
         ForeColor = ThemeColors.TextMain;
         Font = new Font("Microsoft YaHei UI", 9f);
-        // PMV2 owns monitor-DPI handling; the helper applies only the user preference.
         AutoScaleMode = AutoScaleMode.None;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = false;
-        MinimizeBox = false;
-        ShowInTaskbar = false;
-        StartPosition = FormStartPosition.CenterParent;
 
         var tabs = new TabControl
         {
@@ -107,101 +91,212 @@ public sealed class RadialMenuSettingsForm : Form
             WrapContents = false,
             AutoScroll = true
         };
-        buttons.Controls.Add(ActionButton("预览", Preview));
-        buttons.Controls.Add(ActionButton("隐藏预览", _controller.ClosePreview));
-        buttons.Controls.Add(ActionButton("应用并保存", ApplyAndSave));
-        buttons.Controls.Add(ActionButton("恢复默认", () => Populate(RadialMenuSettings.Default)));
-        buttons.Controls.Add(ActionButton("关闭", Close));
+        buttons.Controls.Add(ActionButton("previewSettingsButton", "预览", Preview));
+        buttons.Controls.Add(ActionButton(
+            "hideSettingsPreviewButton",
+            "隐藏预览",
+            () => _controller?.ClosePreview()));
+        buttons.Controls.Add(ActionButton("applySettingsButton", "应用并保存", ApplyAndSave));
+        buttons.Controls.Add(ActionButton(
+            "restoreDefaultSettingsButton",
+            "恢复默认",
+            () => Populate(RadialMenuSettings.Default)));
 
         Controls.Add(tabs);
         Controls.Add(_validationStatus);
         Controls.Add(buttons);
-        Populate(_controller.ActiveSettings);
         SubscribeToLivePreviewChanges();
-        _receiverUiScaling = new ReceiverUiScaling(this);
-        _receiverUiScaling.Apply(_controller.ActiveSettings.ReceiverUiScalePercent);
     }
 
-    protected override void OnFormClosed(FormClosedEventArgs e)
+    public RadialMenuSettingsControl(
+        RadialMenuController controller,
+        RadialMenuSettingsStore store,
+        Action<RadialMenuSettings> applySettings,
+        Action<string> log,
+        RadialVisualPackCatalog? visualPackCatalog = null) : this()
     {
-        _controller.ClosePreview();
-        _receiverUiScaling?.Dispose();
-        base.OnFormClosed(e);
+        Initialize(controller, store, applySettings, log, visualPackCatalog);
+    }
+
+    internal bool IsInitialized => _initialized;
+    internal int RefreshCount => _refreshCount;
+    internal int MappingRowCount => _mappingEditors.Length;
+    internal string ActiveMappingProfileId => _mappingProfileId;
+    internal string? SelectedVisualPackId =>
+        (_visualPack.SelectedItem as RadialVisualPackCatalogEntry)?.Id;
+
+    public void Initialize(
+        RadialMenuController controller,
+        RadialMenuSettingsStore store,
+        Action<RadialMenuSettings> applySettings,
+        Action<string> log,
+        RadialVisualPackCatalog? visualPackCatalog = null)
+    {
+        if (_initialized)
+            throw new InvalidOperationException("The radial settings control is already initialized.");
+        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _applySettings = applySettings ?? throw new ArgumentNullException(nameof(applySettings));
+        _log = log ?? throw new ArgumentNullException(nameof(log));
+        _visualPackCatalogProvider = visualPackCatalog ?? new RadialVisualPackCatalog();
+        _initialized = true;
+        RefreshFromRuntime();
+    }
+
+    internal void AttachReceiverUiScaling(ReceiverUiScaling receiverUiScaling)
+    {
+        _hostUiScaling = receiverUiScaling ?? throw new ArgumentNullException(nameof(receiverUiScaling));
+    }
+
+    public void RefreshFromRuntime()
+    {
+        EnsureInitialized();
+        RefreshVisualPackCatalog();
+        Populate(_controller!.ActiveSettings);
+        _refreshCount++;
+    }
+
+    public void Deactivate()
+    {
+        _controller?.ClosePreview();
+    }
+
+    private void RefreshVisualPackCatalog()
+    {
+        _visualPackCatalog = _visualPackCatalogProvider!.Discover();
+        _populating = true;
+        try
+        {
+            _visualPack.BeginUpdate();
+            _visualPack.Items.Clear();
+            _visualPack.Items.AddRange(_visualPackCatalog.Packs.Cast<object>().ToArray());
+        }
+        finally
+        {
+            _visualPack.EndUpdate();
+            _populating = false;
+        }
+
+        foreach (RadialVisualPackCatalogIssue issue in _visualPackCatalog.Issues)
+        {
+            _log!(
+                $"[视觉主题] 忽略 '{issue.PackId ?? issue.DirectoryPath}'：" +
+                issue.Message);
+        }
+    }
+
+    private void EnsureInitialized()
+    {
+        if (!_initialized)
+            throw new InvalidOperationException("The radial settings control has not been initialized.");
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) _controller?.ClosePreview();
+        base.Dispose(disposing);
     }
 
     private TabPage CreateBasicPage()
     {
         var page = Page("基础");
-        page.Controls.Add(EditorTable(
-            ("视觉主题", _visualPack),
-            ("接收器界面缩放", _receiverUiScale),
-            ("环形菜单整体大小 (%)", _scale),
-            ("环形菜单双击窗口 (ms)", _doubleTapWindow),
-            ("选择死区 (px)", _selectionDeadZone),
-            ("选择高亮强度", _highlightAlpha),
-            ("花瓣透明度 (0-255)", _fillAlpha),
-            ("边框透明度 (0-255)", _borderAlpha),
-            ("文字透明度 (0-255)", _textAlpha)));
+        page.Name = "basicSettingsPage";
+        page.Controls.Add(TwoColumnEditorLayout(
+            "basicTwoColumnLayout",
+            [
+                ("视觉主题", _visualPack),
+                ("接收器界面缩放", _receiverUiScale),
+                ("环形菜单整体大小 (%)", _scale),
+                ("环形菜单双击窗口 (ms)", _doubleTapWindow),
+                ("选择死区 (px)", _selectionDeadZone)
+            ],
+            [
+                ("选择高亮强度", _highlightAlpha),
+                ("花瓣透明度 (0-255)", _fillAlpha),
+                ("边框透明度 (0-255)", _borderAlpha),
+                ("文字透明度 (0-255)", _textAlpha)
+            ]));
         return page;
     }
 
     private TabPage CreateAdvancedPage()
     {
         var page = Page("高级");
-        page.Controls.Add(EditorTable(
-            ("画布大小 (px)", _canvas),
-            ("中心圆半径 (px)", _hubRadius),
-            ("花瓣内半径 (px)", _innerRadius),
-            ("花瓣外半径 (px)", _outerRadius),
-            ("文字位置半径 (px)", _textRadius),
-            ("花瓣间隔角度 (°)", _gap),
-            ("字体大小 (px)", _fontSize),
-            ("选择检测间隔 (ms)", _selectionPollInterval)));
+        page.Name = "advancedSettingsPage";
+        page.Controls.Add(TwoColumnEditorLayout(
+            "advancedTwoColumnLayout",
+            [
+                ("画布大小 (px)", _canvas),
+                ("中心圆半径 (px)", _hubRadius),
+                ("花瓣内半径 (px)", _innerRadius),
+                ("花瓣外半径 (px)", _outerRadius)
+            ],
+            [
+                ("文字位置半径 (px)", _textRadius),
+                ("花瓣间隔角度 (°)", _gap),
+                ("字体大小 (px)", _fontSize),
+                ("选择检测间隔 (ms)", _selectionPollInterval)
+            ]));
         return page;
     }
 
     private TabPage CreateMappingsPage()
     {
         var page = Page("动作映射");
-        _mappingTable.ColumnStyles.Add(new ColumnStyle(
-            SizeType.Absolute,
-            ReceiverUiLayoutMetrics.SettingsSlotLabelColumnWidth));
-        _mappingTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
-        _mappingTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        page.Name = "mappingSettingsPage";
+        _mappingTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        _mappingTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        _mappingTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        int halfGutter = ReceiverUiLayoutMetrics.SettingsContentColumnGutter / 2;
+        _mappingLeftColumn.Margin = new Padding(0, 0, halfGutter, 0);
+        _mappingRightColumn.Margin = new Padding(halfGutter, 0, 0, 0);
+        _mappingTable.Controls.Add(_mappingLeftColumn, 0, 0);
+        _mappingTable.Controls.Add(_mappingRightColumn, 1, 0);
         page.Controls.Add(_mappingTable);
         return page;
     }
 
     private void Preview()
     {
+        EnsureInitialized();
         if (!TryReadSettings(out RadialMenuSettings settings, showDialog: true)) return;
-        _controller.PreviewAt(Cursor.Position, settings);
+        _controller!.PreviewAt(Cursor.Position, settings);
     }
 
-    private void ApplyAndSave()
+    private void ApplyAndSave() => TryApplyAndSave(showDialog: true);
+
+    internal bool TryApplyAndSave(bool showDialog)
     {
-        if (!TryReadSettings(out RadialMenuSettings settings, showDialog: true)) return;
+        EnsureInitialized();
+        if (!TryReadSettings(out RadialMenuSettings settings, showDialog)) return false;
 
         if (RadialMenuSettingsPersistence.TryApplyAndSave(
-            _controller,
-            _store,
+            _controller!,
+            _store!,
             settings,
-            _applySettings,
+            _applySettings!,
             out string error))
         {
-            _receiverUiScaling?.Apply(settings.ReceiverUiScalePercent, preserveCenter: true);
-            _log("[环形菜单] 设置已保存");
-            MessageBox.Show(this, "环形菜单设置已应用并保存。",
-                "环形菜单", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            _log!("[环形菜单] 设置已保存");
+            if (showDialog)
+            {
+                MessageBox.Show(this, "环形菜单设置已应用并保存。",
+                    "环形菜单", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            return true;
         }
-        else
+
+        _log!($"[环形菜单] 设置保存失败：{error}");
+        if (showDialog)
         {
-            _receiverUiScaling?.Apply(settings.ReceiverUiScalePercent, preserveCenter: true);
-            _log($"[环形菜单] 设置保存失败：{error}");
             MessageBox.Show(this, $"设置已在本次运行中应用，但保存失败，请查看日志。\n\n{error}",
                 "环形菜单", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
+        return false;
     }
+
+    internal bool TryReadSettingsForTesting(out RadialMenuSettings settings) =>
+        TryReadSettings(out settings, showDialog: false);
 
     private bool TryReadSettings(out RadialMenuSettings settings, bool showDialog)
     {
@@ -255,7 +350,7 @@ public sealed class RadialMenuSettingsForm : Form
         {
             _workingSettings = settings.NormalizeMappings();
             _populatedVisualPackId = settings.VisualPackId;
-            _visualPack.SelectedItem = _visualPackCatalog.ResolveSelection(
+            _visualPack.SelectedItem = _visualPackCatalog!.ResolveSelection(
                 settings.VisualPackId);
             _receiverUiScale.SelectedItem = ReceiverUiScaling.Normalize(
                 settings.ReceiverUiScalePercent);
@@ -303,7 +398,7 @@ public sealed class RadialMenuSettingsForm : Form
 
     private void RefreshLivePreview()
     {
-        if (_populating || !_controller.IsPreviewActive) return;
+        if (_populating || _controller?.IsPreviewActive != true) return;
         if (!TryReadSettings(out RadialMenuSettings settings, showDialog: false)) return;
         _controller.UpdatePreview(settings);
     }
@@ -353,65 +448,120 @@ public sealed class RadialMenuSettingsForm : Form
         _mappingTable.SuspendLayout();
         try
         {
-            _mappingTable.Controls.Clear();
-            _mappingTable.RowStyles.Clear();
-            _mappingTable.RowCount = slotCount;
             _mappingEditors = Enumerable.Range(1, slotCount)
                 .Select(slot => new MappingEditor(slot))
                 .ToArray();
-
-            for (int index = 0; index < _mappingEditors.Length; index++)
-            {
-                MappingEditor editor = _mappingEditors[index];
-                var slotLabel = new Label
-                {
-                    Name = $"slot{index + 1}Label",
-                    Text = $"Slot {index + 1}",
-                    Dock = DockStyle.Fill,
-                    TextAlign = ContentAlignment.MiddleLeft,
-                    ForeColor = ThemeColors.TextSecondary
-                };
-                _receiverUiScaling?.CaptureBaseline(slotLabel, inheritFormFont: true);
-                _receiverUiScaling?.CaptureBaseline(editor.KindEditor, inheritFormFont: true);
-                _receiverUiScaling?.CaptureBaseline(editor.DetailPanel, inheritFormFont: true);
-                _mappingTable.RowStyles.Add(new RowStyle(
-                    SizeType.Absolute,
-                    ReceiverUiLayoutMetrics.SettingsMappingRowHeight));
-                _mappingTable.Controls.Add(slotLabel, 0, index);
-                _mappingTable.Controls.Add(editor.KindEditor, 1, index);
-                _mappingTable.Controls.Add(editor.DetailPanel, 2, index);
-            }
+            int splitIndex = GetMappingSplitIndex(slotCount);
+            RebuildMappingColumn(_mappingLeftColumn, startIndex: 0, count: splitIndex);
+            RebuildMappingColumn(
+                _mappingRightColumn,
+                startIndex: splitIndex,
+                count: slotCount - splitIndex);
         }
         finally
         {
             _mappingTable.ResumeLayout(performLayout: true);
         }
 
-        _receiverUiScaling?.Apply(
-            _receiverUiScaling.CurrentScalePercent,
+        _hostUiScaling?.Apply(
+            _hostUiScaling.CurrentScalePercent,
             preserveCenter: false);
+    }
+
+    internal static int GetMappingSplitIndex(int slotCount) =>
+        ReceiverUiLayoutMetrics.GetSettingsMappingRowsPerColumn(slotCount);
+
+    private void RebuildMappingColumn(
+        TableLayoutPanel column,
+        int startIndex,
+        int count)
+    {
+        column.SuspendLayout();
+        try
+        {
+            column.Controls.Clear();
+            column.RowStyles.Clear();
+            column.RowCount = count;
+            for (int row = 0; row < count; row++)
+            {
+                int index = startIndex + row;
+                MappingEditor editor = _mappingEditors[index];
+                var slotLabel = new Label
+                {
+                    Name = $"slot{index + 1}Label",
+                    Text = $"Slot {index + 1}",
+                    Dock = DockStyle.Fill,
+                    MinimumSize = new Size(0, ReceiverUiLayoutMetrics.SettingsMappingRowHeight),
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    ForeColor = ThemeColors.TextSecondary
+                };
+                _hostUiScaling?.CaptureBaseline(slotLabel, inheritFormFont: true);
+                _hostUiScaling?.CaptureBaseline(editor.KindEditor, inheritFormFont: true);
+                _hostUiScaling?.CaptureBaseline(editor.DetailPanel, inheritFormFont: true);
+                column.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                column.Controls.Add(slotLabel, 0, row);
+                column.Controls.Add(editor.KindEditor, 1, row);
+                column.Controls.Add(editor.DetailPanel, 2, row);
+            }
+        }
+        finally
+        {
+            column.ResumeLayout(performLayout: true);
+        }
     }
 
     private static TabPage Page(string text) => new(text)
     {
         BackColor = ThemeColors.ContentPanel,
         ForeColor = ThemeColors.TextMain,
-        Padding = new Padding(20),
+        Padding = new Padding(20, 6, 20, 6),
         AutoScroll = true
     };
 
-    private static TableLayoutPanel EditorTable(params (string Label, Control Editor)[] rows)
+    private static TableLayoutPanel TwoColumnEditorLayout(
+        string name,
+        (string Label, Control Editor)[] leftRows,
+        (string Label, Control Editor)[] rightRows)
+    {
+        var layout = new TableLayoutPanel
+        {
+            Name = name,
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = ReceiverUiLayoutMetrics.SettingsContentColumnCount,
+            RowCount = 1,
+            Padding = new Padding(12, 4, 12, 4)
+        };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        int halfGutter = ReceiverUiLayoutMetrics.SettingsContentColumnGutter / 2;
+        TableLayoutPanel left = EditorTable($"{name}LeftColumn", leftRows);
+        TableLayoutPanel right = EditorTable($"{name}RightColumn", rightRows);
+        left.Margin = new Padding(0, 0, halfGutter, 0);
+        right.Margin = new Padding(halfGutter, 0, 0, 0);
+        layout.Controls.Add(left, 0, 0);
+        layout.Controls.Add(right, 1, 0);
+        return layout;
+    }
+
+    private static TableLayoutPanel EditorTable(
+        string name,
+        params (string Label, Control Editor)[] rows)
     {
         var table = new TableLayoutPanel
         {
-            Dock = DockStyle.Top,
+            Name = name,
+            Dock = DockStyle.Fill,
             AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 2,
-            RowCount = rows.Length,
-            Padding = new Padding(12)
+            RowCount = rows.Length
         };
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60));
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54));
 
         for (int row = 0; row < rows.Length; row++)
         {
@@ -431,6 +581,26 @@ public sealed class RadialMenuSettingsForm : Form
             table.Controls.Add(rows[row].Editor, 1, row);
         }
 
+        return table;
+    }
+
+    private static TableLayoutPanel MappingColumnTable(string name)
+    {
+        var table = new TableLayoutPanel
+        {
+            Name = name,
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 3
+        };
+        table.ColumnStyles.Add(new ColumnStyle(
+            SizeType.Absolute,
+            ReceiverUiLayoutMetrics.SettingsSlotLabelColumnWidth));
+        table.ColumnStyles.Add(new ColumnStyle(
+            SizeType.Absolute,
+            ReceiverUiLayoutMetrics.SettingsMappingKindColumnWidth));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         return table;
     }
 
@@ -479,10 +649,11 @@ public sealed class RadialMenuSettingsForm : Form
         return editor;
     }
 
-    private static Button ActionButton(string text, Action action)
+    private static Button ActionButton(string name, string text, Action action)
     {
         var button = new Button
         {
+            Name = name,
             Text = text,
             AutoSize = true,
             Height = 32,
@@ -530,8 +701,10 @@ public sealed class RadialMenuSettingsForm : Form
             DetailPanel = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
+                WrapContents = true,
                 Padding = new Padding(4, 8, 0, 0),
                 Margin = Padding.Empty
             };
@@ -655,5 +828,56 @@ public sealed class RadialMenuSettingsForm : Form
             ForeColor = ThemeColors.TextMain,
             Margin = new Padding(0, 5, 4, 0)
         };
+    }
+}
+
+/// <summary>
+/// Compatibility host for tests and any out-of-process tooling that still constructs the
+/// historical settings form. The receiver runtime hosts <see cref="RadialMenuSettingsControl"/>
+/// directly and never opens this form.
+/// </summary>
+public sealed class RadialMenuSettingsForm : Form
+{
+    private readonly RadialMenuController _controller;
+    private readonly ReceiverUiScaling _receiverUiScaling;
+
+    public RadialMenuSettingsForm(
+        RadialMenuController controller,
+        RadialMenuSettingsStore store,
+        Action<RadialMenuSettings> applySettings,
+        Action<string> log,
+        RadialVisualPackCatalog? visualPackCatalog = null)
+    {
+        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+
+        Text = "环形菜单设置";
+        ClientSize = ReceiverUiLayoutMetrics.SettingsClientBaseline;
+        BackColor = ThemeColors.Background;
+        ForeColor = ThemeColors.TextMain;
+        Font = new Font("Microsoft YaHei UI", 9f);
+        AutoScaleMode = AutoScaleMode.None;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        ShowInTaskbar = false;
+        StartPosition = FormStartPosition.CenterParent;
+
+        var settingsControl = new RadialMenuSettingsControl
+        {
+            Dock = DockStyle.Fill
+        };
+        Controls.Add(settingsControl);
+
+        _receiverUiScaling = new ReceiverUiScaling(this);
+        settingsControl.AttachReceiverUiScaling(_receiverUiScaling);
+        settingsControl.Initialize(controller, store, applySettings, log, visualPackCatalog);
+        _receiverUiScaling.Apply(controller.ActiveSettings.ReceiverUiScalePercent);
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        _controller.ClosePreview();
+        _receiverUiScaling.Dispose();
+        base.OnFormClosed(e);
     }
 }

@@ -23,12 +23,18 @@ internal static class ReceiverUiLayoutMetrics
     public const int SettingsButtonAreaHeight = 92;
     public const int SettingsValidationAreaHeight = 34;
     public const int SettingsTabChromeAllowance = 34;
-    public const int SettingsPageVerticalPadding = 40;
-    public const int SettingsEditorTableVerticalPadding = 24;
+    public const int SettingsPageVerticalPadding = 12;
+    public const int SettingsEditorTableVerticalPadding = 8;
+    public const int SettingsMappingTableVerticalPadding = 8;
+    public const int SettingsContentColumnCount = 2;
+    public const int SettingsContentColumnGutter = 28;
     public const int SettingsBasicRowCount = 9;
+    public const int SettingsBasicLeftRowCount = 5;
+    public const int SettingsAdvancedRowCount = 8;
     public const int SettingsEditorRowHeight = 48;
     public const int SettingsMappingRowHeight = 58;
     public const int SettingsSlotLabelColumnWidth = 104;
+    public const int SettingsMappingKindColumnWidth = 144;
     public const int SettingsButtonGap = 12;
 
     public static int MainInnerContentWidth =>
@@ -69,16 +75,40 @@ internal static class ReceiverUiLayoutMetrics
         }
     }
 
+    public static Size SettingsEmbeddedViewportBaseline => new(
+        MainClientBaseline.Width -
+        MainSidebarWidth -
+        (2 * MainHorizontalPadding) -
+        (2 * MainContentPadding),
+        MainClientBaseline.Height -
+        MainTopBarHeight -
+        MainBottomPadding -
+        (2 * MainContentPadding) -
+        MainHeaderHeight);
+
     public static int SettingsBasicContentHeight =>
         SettingsEditorTableVerticalPadding +
-        (SettingsBasicRowCount * SettingsEditorRowHeight);
+        (SettingsBasicLeftRowCount * SettingsEditorRowHeight);
 
-    public static int SettingsBasicReachableHeight =>
-        SettingsClientBaseline.Height -
+    public static int SettingsPageReachableHeight =>
+        SettingsEmbeddedViewportBaseline.Height -
         SettingsButtonAreaHeight -
         SettingsValidationAreaHeight -
         SettingsTabChromeAllowance -
         SettingsPageVerticalPadding;
+
+    public static int SettingsBasicReachableHeight => SettingsPageReachableHeight;
+
+    public static int SettingsAdvancedContentHeight =>
+        SettingsEditorTableVerticalPadding +
+        ((SettingsAdvancedRowCount / SettingsContentColumnCount) * SettingsEditorRowHeight);
+
+    public static int GetSettingsMappingRowsPerColumn(int slotCount) =>
+        (slotCount + SettingsContentColumnCount - 1) / SettingsContentColumnCount;
+
+    public static int GetSettingsMappingDefaultContentHeight(int slotCount) =>
+        SettingsMappingTableVerticalPadding +
+        (GetSettingsMappingRowsPerColumn(slotCount) * SettingsMappingRowHeight);
 
     public static int GetSettingsButtonMinimumWidth(string text) => text switch
     {
@@ -92,7 +122,7 @@ internal static class ReceiverUiLayoutMetrics
 
     public static IReadOnlyList<Rectangle> GetSettingsButtonBounds()
     {
-        string[] labels = { "预览", "隐藏预览", "应用并保存", "恢复默认", "关闭" };
+        string[] labels = { "预览", "隐藏预览", "应用并保存", "恢复默认" };
         int x = 14;
         var bounds = new List<Rectangle>(labels.Length);
         foreach (string label in labels)
