@@ -1,0 +1,11 @@
+{
+  "id": "radial-8-minimal-v1",
+  "name": "Radial 8 Minimal V1",
+  "version": 1,
+  "layoutProfile": "radial-8",
+  "slotCount": 8,
+  "base": "radial-base.png",
+  "selected": "radial-selected-card.png",
+  "layout": "radial-layout.json",
+  "selectionAssetMode": "canonical-transform"
+}

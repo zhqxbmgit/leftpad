@@ -1,0 +1,196 @@
+{
+  "canvas": {
+    "height": 1254,
+    "mode": "RGBA",
+    "width": 1254
+  },
+  "centerDecoration": {
+    "businessIcon": false,
+    "controllerPrompt": false,
+    "ringCount": 2,
+    "text": false
+  },
+  "centerMaterial": {
+    "core": "#0D1013",
+    "innerRing": "#252A2E",
+    "middle": "#13171B",
+    "outer": "#191D21",
+    "outerRing": "#4A4F53"
+  },
+  "geometry": {
+    "centerDynamicContentSafeRadius": 140,
+    "centerInnerRadius": 164,
+    "centerRadius": 188,
+    "cornerRadius": 4,
+    "effectLevel": "low",
+    "gapConstruction": "angular seam derived from gapPx at mean card radius",
+    "gapPx": 9,
+    "geometryFamily": "reference-minimal-hud-v1",
+    "innerRadius": 198,
+    "orangeV3MaterialReused": false,
+    "outerRadius": 500,
+    "v1V5GeometryReused": false,
+    "visualOnlyRevision": true
+  },
+  "internalRender": {
+    "downsample": "Pillow LANCZOS",
+    "height": 5016,
+    "scale": 4,
+    "width": 5016
+  },
+  "materialConcepts": [
+    "../minimal-material-concept.png"
+  ],
+  "normalMaterial": {
+    "border": "#111519",
+    "edgeLift": "#777B7E",
+    "inner": "#1A1E22",
+    "innerMid": "#22272C",
+    "middle": "#292E33",
+    "outer": "#30353A",
+    "recess": "#0C0F12"
+  },
+  "reference": "../reference.png",
+  "selectedAssetCanonicalSlot": 1,
+  "selectedAssetRotationDegreesClockwise": [
+    0,
+    45,
+    90,
+    135,
+    180,
+    225,
+    270,
+    315
+  ],
+  "selectedMaterial": {
+    "border": "#8E3C04",
+    "edgeLift": "#FFC06B",
+    "halo": "#F17816",
+    "inner": "#C45A08",
+    "innerMid": "#D9680B",
+    "middle": "#E67610",
+    "outer": "#ED861C"
+  },
+  "selectionAssetMode": "canonical-transform",
+  "slotAnglesDegrees": [
+    0,
+    45,
+    90,
+    135,
+    180,
+    225,
+    270,
+    315
+  ],
+  "slotCount": 8,
+  "slots": [
+    {
+      "angleDegreesClockwiseFromTop": 0,
+      "glyphAnchor": {
+        "x": 627.0,
+        "y": 277.0
+      },
+      "labelAnchor": {
+        "x": 627.0,
+        "y": 219.0
+      },
+      "name": "Top",
+      "slot": 1
+    },
+    {
+      "angleDegreesClockwiseFromTop": 45,
+      "glyphAnchor": {
+        "x": 874.487,
+        "y": 379.513
+      },
+      "labelAnchor": {
+        "x": 915.5,
+        "y": 338.5
+      },
+      "name": "Upper Right",
+      "slot": 2
+    },
+    {
+      "angleDegreesClockwiseFromTop": 90,
+      "glyphAnchor": {
+        "x": 977.0,
+        "y": 627.0
+      },
+      "labelAnchor": {
+        "x": 1035.0,
+        "y": 627.0
+      },
+      "name": "Right",
+      "slot": 3
+    },
+    {
+      "angleDegreesClockwiseFromTop": 135,
+      "glyphAnchor": {
+        "x": 874.487,
+        "y": 874.487
+      },
+      "labelAnchor": {
+        "x": 915.5,
+        "y": 915.5
+      },
+      "name": "Lower Right",
+      "slot": 4
+    },
+    {
+      "angleDegreesClockwiseFromTop": 180,
+      "glyphAnchor": {
+        "x": 627.0,
+        "y": 977.0
+      },
+      "labelAnchor": {
+        "x": 627.0,
+        "y": 1035.0
+      },
+      "name": "Bottom",
+      "slot": 5
+    },
+    {
+      "angleDegreesClockwiseFromTop": 225,
+      "glyphAnchor": {
+        "x": 379.513,
+        "y": 874.487
+      },
+      "labelAnchor": {
+        "x": 338.5,
+        "y": 915.5
+      },
+      "name": "Lower Left",
+      "slot": 6
+    },
+    {
+      "angleDegreesClockwiseFromTop": 270,
+      "glyphAnchor": {
+        "x": 277.0,
+        "y": 627.0
+      },
+      "labelAnchor": {
+        "x": 219.0,
+        "y": 627.0
+      },
+      "name": "Left",
+      "slot": 7
+    },
+    {
+      "angleDegreesClockwiseFromTop": 315,
+      "glyphAnchor": {
+        "x": 379.513,
+        "y": 379.513
+      },
+      "labelAnchor": {
+        "x": 338.5,
+        "y": 338.5
+      },
+      "name": "Upper Left",
+      "slot": 8
+    }
+  ],
+  "wheelCenter": {
+    "x": 627,
+    "y": 627
+  }
+}
