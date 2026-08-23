@@ -11,6 +11,8 @@ namespace PcDs4Server
         [STAThread]
         static void Main(string[] args)
         {
+            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+
             if (args.Contains("--keyboard-smoke-test", StringComparer.OrdinalIgnoreCase))
             {
                 Application.EnableVisualStyles();

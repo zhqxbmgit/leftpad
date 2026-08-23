@@ -20,6 +20,7 @@ public sealed record RadialMenuSettings
     public static RadialMenuSettings Default => new();
 
     public string VisualPackId { get; init; } = RadialVisualPackContract.DefaultVisualPackId;
+    public int ReceiverUiScalePercent { get; init; } = ReceiverUiScaling.DefaultScalePercent;
     public int ScalePercent { get; init; } = 100;
     public int BaseCanvasSize { get; init; } = 280;
     public int HubRadius { get; init; } = 35;
@@ -113,8 +114,10 @@ public sealed record RadialMenuSettings
     {
         if (string.IsNullOrWhiteSpace(VisualPackId))
             return Invalid("视觉主题 ID 不能为空。", out error);
+        if (!ReceiverUiScaling.IsPreset(ReceiverUiScalePercent))
+            return Invalid("接收器界面缩放必须为 100%、125%、150%、175% 或 200%。", out error);
         if (ScalePercent is < MinimumScalePercent or > MaximumScalePercent)
-            return Invalid($"整体大小必须在 {MinimumScalePercent}%～{MaximumScalePercent}% 之间。", out error);
+            return Invalid($"环形菜单整体大小必须在 {MinimumScalePercent}%～{MaximumScalePercent}% 之间。", out error);
         if (BaseCanvasSize < 160 || BaseCanvasSize > 800)
             return Invalid("画布大小必须在 160～800 px 之间。", out error);
         if (HubRadius <= 0)

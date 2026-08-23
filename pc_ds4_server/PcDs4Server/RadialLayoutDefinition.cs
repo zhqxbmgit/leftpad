@@ -109,7 +109,7 @@ internal static class LayoutProfileRegistry
                 Radial8ProfileId,
                 RadialFamily,
                 AngleSelectionModel,
-                runtimeSessionSupported: false,
+                runtimeSessionSupported: true,
                 new[] { 0d, 45d, 90d, 135d, 180d, 225d, 270d, 315d })
         };
 

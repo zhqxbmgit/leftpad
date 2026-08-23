@@ -9,6 +9,13 @@ namespace PcDs4Server
 {
     public class MainForm : Form
     {
+        internal static string GetOutputModeDisplayText(OutputMode mode) => mode switch
+        {
+            OutputMode.DirectDs4 => "Direct DS4",
+            OutputMode.Keyboard => "键盘",
+            _ => mode.ToString()
+        };
+
         private readonly Ds4Service _service;
         private readonly ServerLifecycleController _lifecycle;
         private NotifyIcon? _notifyIcon;
@@ -22,7 +29,7 @@ namespace PcDs4Server
         private Label _joystickDebug = null!;
         private ComboBox _outputMode = null!;
         private Button _startStop = null!;
-        private FlowLayoutPanel _keyboardMapping = null!;
+        private TableLayoutPanel _keyboardMapping = null!;
         private readonly Dictionary<string, ComboBox> _bindingEditors = new(StringComparer.OrdinalIgnoreCase);
         private bool _initializingBindingEditors = true;
         private bool _isReallyClosing = false;
@@ -32,9 +39,10 @@ namespace PcDs4Server
         private readonly RadialVisualPackCatalog _radialVisualPackCatalog;
         private readonly RadialMenuOverlay _radialOverlay;
         private readonly System.Windows.Forms.Timer _radialSelectionTimer;
+        private readonly ReceiverUiScaling _receiverUiScaling;
         private readonly Dictionary<ReceiverPage, SidebarButton> _pageNavigation = new();
         private Label _pageTitle = null!;
-        private FlowLayoutPanel _overviewCards = null!, _overviewOutput = null!;
+        private TableLayoutPanel _overviewCards = null!, _overviewOutput = null!;
         private Panel _gamepadMonitor = null!, _joystickDebugSection = null!, _logSection = null!;
         private ReceiverPage _currentPage = ReceiverPage.Overview;
 
@@ -59,13 +67,26 @@ namespace PcDs4Server
         [DllImport("user32.DLL", EntryPoint = "SendMessage")]
         private extern static void SendMessage(System.IntPtr hWnd, int wMsg, int wParam, int lParam);
 
+        private const int WmNcHitTest = 0x0084;
+        private const int HtClient = 1;
+        private const int HtLeft = 10;
+        private const int HtRight = 11;
+        private const int HtTop = 12;
+        private const int HtTopLeft = 13;
+        private const int HtTopRight = 14;
+        private const int HtBottom = 15;
+        private const int HtBottomLeft = 16;
+        private const int HtBottomRight = 17;
+
         public MainForm(Ds4Service service, RadialMenuSettingsStore? radialSettingsStore = null)
         {
             _service = service;
             _lifecycle = new ServerLifecycleController(service);
-            InitializeComponent();
             _radialSettingsStore = radialSettingsStore ?? new RadialMenuSettingsStore();
             RadialMenuSettingsLoadResult radialSettings = _radialSettingsStore.Load();
+            InitializeComponent();
+            _receiverUiScaling = new ReceiverUiScaling(this);
+            _receiverUiScaling.Apply(radialSettings.Settings.ReceiverUiScalePercent);
             _joystickOverlay = new VirtualJoystickOverlay();
             _ = _joystickOverlay.Handle;
             _radialVisualPackCatalog = new RadialVisualPackCatalog();
@@ -91,26 +112,34 @@ namespace PcDs4Server
         {
             // 基础属性：无边框现代化设计
             this.Text = "LeftPad DS4 接收器";
-            this.Size = new Size(960, 620);
+            this.Size = ReceiverUiLayoutMetrics.MainClientBaseline;
             this.Font = new Font("Microsoft YaHei UI", 9f);
+            // PMV2 owns monitor-DPI handling. ReceiverUiScaling adds only the user
+            // preference, so WinForms must not apply a second font/DPI multiplier.
+            this.AutoScaleMode = AutoScaleMode.None;
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterScreen;
             this.BackColor = ThemeColors.Background;
             this.Icon = SystemIcons.Application;
 
             // 1. 顶部栏 (用于拖动和关闭按钮)
-            _topBar = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Color.Transparent };
+            _topBar = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = ReceiverUiLayoutMetrics.MainTopBarHeight,
+                BackColor = Color.Transparent
+            };
             _topBar.MouseDown += (s, e) => { ReleaseCapture(); SendMessage(Handle, 0x112, 0xf012, 0); };
 
             var btnExit = new Button {
-                Text = "✕", Size = new Size(40, 40), Dock = DockStyle.Right,
+                Text = "✕", Size = new Size(44, 44), Dock = DockStyle.Right,
                 FlatStyle = FlatStyle.Flat, ForeColor = Color.Gray
             };
             btnExit.FlatAppearance.BorderSize = 0;
             btnExit.Click += (s, e) => { this.Close(); };
 
             var btnMin = new Button {
-                Text = "—", Size = new Size(40, 40), Dock = DockStyle.Right,
+                Text = "—", Size = new Size(44, 44), Dock = DockStyle.Right,
                 FlatStyle = FlatStyle.Flat, ForeColor = Color.Gray
             };
             btnMin.FlatAppearance.BorderSize = 0;
@@ -120,21 +149,26 @@ namespace PcDs4Server
             _topBar.Controls.Add(btnExit);
 
             // 2. 左侧导航栏
-            _sidebar = new Panel { Dock = DockStyle.Left, Width = 200, BackColor = ThemeColors.Sidebar };
+            _sidebar = new Panel
+            {
+                Dock = DockStyle.Left,
+                Width = ReceiverUiLayoutMetrics.MainSidebarWidth,
+                BackColor = ThemeColors.Sidebar
+            };
 
             var lblLogo = new Label {
                 Text = "LeftPad\nDS4 接收器",
                 Font = new Font("Microsoft YaHei UI", 12, FontStyle.Bold),
                 ForeColor = ThemeColors.AccentPurple,
-                Location = new Point(20, 20),
+                Location = new Point(24, 24),
                 AutoSize = true
             };
             _sidebar.Controls.Add(lblLogo);
 
-            var btnOverview = new SidebarButton { Text = "🎮 总览", Location = new Point(0, 100), Width = 200, IsSelected = true };
-            var btnGamepad = new SidebarButton { Text = "🕹 手柄状态", Location = new Point(0, 145), Width = 200 };
-            var btnSettings = new SidebarButton { Text = "⚙ 设置", Location = new Point(0, 190), Width = 200 };
-            var btnLog = new SidebarButton { Text = "📋 日志", Location = new Point(0, 235), Width = 200 };
+            var btnOverview = new SidebarButton { Text = "🎮 总览", Location = new Point(0, 112), Width = 210, IsSelected = true };
+            var btnGamepad = new SidebarButton { Text = "🕹 手柄状态", Location = new Point(0, 164), Width = 210 };
+            var btnSettings = new SidebarButton { Text = "⚙ 设置", Location = new Point(0, 216), Width = 210 };
+            var btnLog = new SidebarButton { Text = "📋 日志", Location = new Point(0, 268), Width = 210 };
 
             _sidebar.Controls.AddRange(new Control[] { btnOverview, btnGamepad, btnSettings, btnLog });
             _pageNavigation.Add(ReceiverPage.Overview, btnOverview);
@@ -142,62 +176,121 @@ namespace PcDs4Server
             _pageNavigation.Add(ReceiverPage.Log, btnLog);
 
             // 3. 右侧主内容区
-            _mainContent = new Panel { Dock = DockStyle.Fill, Padding = new Padding(20, 0, 20, 20) };
+            _mainContent = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(
+                    ReceiverUiLayoutMetrics.MainHorizontalPadding,
+                    0,
+                    ReceiverUiLayoutMetrics.MainHorizontalPadding,
+                    ReceiverUiLayoutMetrics.MainBottomPadding)
+            };
 
             _contentPanel = new RoundedPanel {
                 Dock = DockStyle.Fill,
                 BackColor = ThemeColors.ContentPanel,
                 Radius = 20,
-                Padding = new Padding(25)
+                Padding = new Padding(ReceiverUiLayoutMetrics.MainContentPadding)
             };
 
             // 4. 内容区头部
-            var header = new Panel { Dock = DockStyle.Top, Height = 60 };
+            var header = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                Height = ReceiverUiLayoutMetrics.MainHeaderHeight,
+                ColumnCount = 2,
+                Padding = new Padding(0, 8, 0, 12)
+            };
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
             _pageTitle = new Label {
                 Text = "控制中心", Font = new Font("Microsoft YaHei UI", 16, FontStyle.Bold),
-                ForeColor = ThemeColors.TextMain, Location = new Point(0, 5), AutoSize = true
+                ForeColor = ThemeColors.TextMain, Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft
             };
             _lblStatusBadge = new Label {
                 Text = "等待连接", TextAlign = ContentAlignment.MiddleCenter,
-                Size = new Size(110, 28), Location = new Point(580, 8),
+                Dock = DockStyle.Fill, Margin = new Padding(12, 8, 0, 8),
                 Font = new Font("Microsoft YaHei UI", 8, FontStyle.Bold),
                 BackColor = Color.FromArgb(40, 40, 0), ForeColor = ThemeColors.Warning
             };
-            header.Controls.Add(_pageTitle);
-            header.Controls.Add(_lblStatusBadge);
+            header.Controls.Add(_pageTitle, 0, 0);
+            header.Controls.Add(_lblStatusBadge, 1, 0);
             _contentPanel.Controls.Add(header);
 
             // 5. 状态卡片布局
-            _overviewCards = new FlowLayoutPanel {
-                Dock = DockStyle.Top, Height = 100,
-                FlowDirection = FlowDirection.LeftToRight
+            _overviewCards = new TableLayoutPanel {
+                Name = "overviewCardsLayout",
+                Dock = DockStyle.Top,
+                Height = ReceiverUiLayoutMetrics.MainStatusCardsHeight,
+                ColumnCount = ReceiverUiLayoutMetrics.StatusCardCount,
+                RowCount = 1,
+                Padding = new Padding(0, 6, 0, 18)
             };
+            for (int index = 0; index < ReceiverUiLayoutMetrics.StatusCardCount; index++)
+                _overviewCards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
             _cardVigem = new ModernStatusCard("ViGEmBus", "检查中...");
             _cardDs4 = new ModernStatusCard("虚拟 DS4", "未启动");
             _cardPhone = new ModernStatusCard("手机", "等待连接");
             _cardPort = new ModernStatusCard("端口", "8888");
+            ModernStatusCard[] statusCards = { _cardVigem, _cardDs4, _cardPhone, _cardPort };
+            for (int index = 0; index < statusCards.Length; index++)
+            {
+                statusCards[index].Name = $"statusCard{index + 1}";
+                statusCards[index].Dock = DockStyle.Fill;
+                statusCards[index].Margin = new Padding(
+                    0,
+                    0,
+                    index == statusCards.Length - 1 ? 0 : ReceiverUiLayoutMetrics.StatusCardGap,
+                    0);
+                _overviewCards.Controls.Add(statusCards[index], index, 0);
+            }
             _cardPort.SetStatusColor(ThemeColors.Success);
-            _overviewCards.Controls.AddRange(new Control[] { _cardVigem, _cardDs4, _cardPhone, _cardPort });
             _contentPanel.Controls.Add(_overviewCards);
 
-            _overviewOutput = new FlowLayoutPanel {
-                Dock = DockStyle.Top, Height = 82, FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false, Padding = new Padding(0, 8, 0, 4)
+            _overviewOutput = new TableLayoutPanel {
+                Name = "overviewOutputLayout",
+                Dock = DockStyle.Top,
+                Height = ReceiverUiLayoutMetrics.MainOutputAreaHeight,
+                ColumnCount = 2,
+                RowCount = 1,
+                Padding = new Padding(0, 12, 0, 18)
             };
-            _overviewOutput.Controls.Add(new Label {
-                Text = "输出模式", AutoSize = false, Width = 90, Height = 28,
+            _overviewOutput.ColumnStyles.Add(new ColumnStyle(
+                SizeType.Absolute,
+                ReceiverUiLayoutMetrics.MainOutputControlsWidth));
+            _overviewOutput.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+            var outputControls = new FlowLayoutPanel
+            {
+                Name = "outputControlsGroup",
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                Padding = new Padding(0, 12, 12, 0),
+                Margin = Padding.Empty
+            };
+            outputControls.Controls.Add(new Label {
+                Name = "outputModeLabel",
+                Text = "输出模式", AutoSize = false, Width = 100, Height = 32,
+                Margin = new Padding(0, 0, 8, 0),
                 TextAlign = ContentAlignment.MiddleLeft, ForeColor = ThemeColors.TextSecondary
             });
             _outputMode = new ComboBox {
-                DropDownStyle = ComboBoxStyle.DropDownList, Width = 125,
+                Name = "outputModeSelector",
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = ReceiverUiLayoutMetrics.MainOutputModeComboBoxWidth,
+                Margin = new Padding(0, 3, 10, 0),
                 DataSource = new[] { OutputMode.DirectDs4, OutputMode.Keyboard }
             };
-            _outputMode.Format += (_, e) => e.Value = (OutputMode)e.ListItem! == OutputMode.DirectDs4
-                ? "Direct DS4" : "键盘";
+            _outputMode.Format += (_, e) => e.Value =
+                GetOutputModeDisplayText((OutputMode)e.ListItem!);
             _outputMode.SelectedValueChanged += (_, _) => ApplySelectedOutputMode();
-            _overviewOutput.Controls.Add(_outputMode);
+            outputControls.Controls.Add(_outputMode);
             _startStop = new Button {
-                Text = "启动", Width = 80, Height = 28,
+                Name = "startStopButton",
+                Text = "启动", Width = 86, Height = 32,
+                Margin = Padding.Empty,
                 FlatStyle = FlatStyle.Flat,
                 UseVisualStyleBackColor = false,
                 BackColor = ThemeColors.ControlDark,
@@ -205,32 +298,56 @@ namespace PcDs4Server
             };
             _startStop.FlatAppearance.BorderColor = ThemeColors.BorderPurple;
             _startStop.Click += (_, _) => ToggleServer();
-            _overviewOutput.Controls.Add(_startStop);
-            _keyboardMapping = new FlowLayoutPanel {
-                Width = 385, Height = 66, AutoScroll = true, WrapContents = true,
-                FlowDirection = FlowDirection.LeftToRight
+            outputControls.Controls.Add(_startStop);
+
+            _keyboardMapping = new TableLayoutPanel {
+                Name = "keyboardMappingGrid",
+                Dock = DockStyle.Fill,
+                ColumnCount = 4,
+                RowCount = 5,
+                Margin = new Padding(18, 0, 0, 0),
+                Padding = new Padding(0, 2, 0, 0)
             };
-            foreach (string action in KeyboardBindings.ProtocolActions)
+            _keyboardMapping.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15));
+            _keyboardMapping.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
+            _keyboardMapping.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15));
+            _keyboardMapping.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
+            for (int row = 0; row < 5; row++)
+                _keyboardMapping.RowStyles.Add(new RowStyle(SizeType.Percent, 20));
+
+            for (int index = 0; index < KeyboardBindings.ProtocolActions.Count; index++)
             {
+                string action = KeyboardBindings.ProtocolActions[index];
+                int row = index / 2;
+                int column = (index % 2) * 2;
                 var label = new Label {
-                    Text = action.ToUpperInvariant(), Width = 58, Height = 25,
+                    Name = $"bindingLabel_{action}",
+                    Text = action.ToUpperInvariant(), Dock = DockStyle.Fill,
+                    Margin = new Padding(4, 4, 6, 4),
                     TextAlign = ContentAlignment.MiddleRight,
                     ForeColor = ThemeColors.TextSecondary
                 };
-                var editor = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 105 };
+                var editor = new ComboBox
+                {
+                    Name = $"bindingEditor_{action}",
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(0, 4, 12, 4)
+                };
                 editor.DataSource = Enum.GetValues<KeyboardKey>();
                 editor.SelectedItem = _service.KeyboardBindings.Get(action);
                 editor.SelectedValueChanged += (_, _) => SaveKeyboardMappings();
                 _bindingEditors[action] = editor;
-                _keyboardMapping.Controls.Add(label);
-                _keyboardMapping.Controls.Add(editor);
+                _keyboardMapping.Controls.Add(label, column, row);
+                _keyboardMapping.Controls.Add(editor, column + 1, row);
             }
             _initializingBindingEditors = false;
-            _overviewOutput.Controls.Add(_keyboardMapping);
+            _overviewOutput.Controls.Add(outputControls, 0, 0);
+            _overviewOutput.Controls.Add(_keyboardMapping, 1, 0);
             _contentPanel.Controls.Add(_overviewOutput);
 
             // 6. 手柄监控区 (绘制在 Panel 上)
-            _gamepadMonitor = new Panel { Dock = DockStyle.Top, Height = 130, Padding = new Padding(0, 10, 0, 0) };
+            _gamepadMonitor = new Panel { Dock = DockStyle.Top, Height = 154, Padding = new Padding(0, 14, 0, 8) };
             var lblMonitorTitle = new Label {
                 Text = "手柄输入监视", Font = new Font("Microsoft YaHei UI", 9, FontStyle.Bold),
                 ForeColor = ThemeColors.TextSecondary, Dock = DockStyle.Top
@@ -241,7 +358,7 @@ namespace PcDs4Server
             _gamepadMonitor.Controls.Add(lblMonitorTitle);
             _contentPanel.Controls.Add(_gamepadMonitor);
 
-            _joystickDebugSection = new Panel { Dock = DockStyle.Top, Height = 148, Padding = new Padding(0, 8, 0, 4) };
+            _joystickDebugSection = new Panel { Dock = DockStyle.Top, Height = 176, Padding = new Padding(0, 16, 0, 8) };
             var lblJoystickTitle = new Label {
                 Text = "可视虚拟摇杆", Font = new Font("Microsoft YaHei UI", 9, FontStyle.Bold),
                 ForeColor = ThemeColors.TextSecondary, Dock = DockStyle.Top, Height = 20
@@ -257,7 +374,7 @@ namespace PcDs4Server
             _contentPanel.Controls.Add(_joystickDebugSection);
 
             // 7. 日志区
-            _logSection = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 15, 0, 0) };
+            _logSection = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 20, 0, 0) };
             var lblLogTitle = new Label {
                 Text = "实时日志", Font = new Font("Microsoft YaHei UI", 9, FontStyle.Bold),
                 ForeColor = ThemeColors.TextSecondary, Dock = DockStyle.Top
@@ -270,6 +387,15 @@ namespace PcDs4Server
             _logSection.Controls.Add(_logBox);
             _logSection.Controls.Add(lblLogTitle);
             _contentPanel.Controls.Add(_logSection);
+
+            // DockStyle.Top follows z-order, not construction order. Keep the page
+            // header first and make every page's sections flow downward predictably.
+            _contentPanel.Controls.SetChildIndex(_logSection, 0);
+            _contentPanel.Controls.SetChildIndex(_joystickDebugSection, 1);
+            _contentPanel.Controls.SetChildIndex(_gamepadMonitor, 2);
+            _contentPanel.Controls.SetChildIndex(_overviewOutput, 3);
+            _contentPanel.Controls.SetChildIndex(_overviewCards, 4);
+            _contentPanel.Controls.SetChildIndex(header, 5);
 
             btnOverview.Click += (_, _) => NavigateTo(ReceiverPage.Overview);
             btnGamepad.Click += (_, _) => NavigateTo(ReceiverPage.Gamepad);
@@ -301,12 +427,48 @@ namespace PcDs4Server
             this.FormClosing += MainForm_FormClosing;
         }
 
+        protected override void WndProc(ref Message message)
+        {
+            base.WndProc(ref message);
+            if (message.Msg != WmNcHitTest ||
+                message.Result != (IntPtr)HtClient ||
+                WindowState != FormWindowState.Normal)
+            {
+                return;
+            }
+
+            long packedPoint = message.LParam.ToInt64();
+            var screenPoint = new Point(
+                unchecked((short)(packedPoint & 0xffff)),
+                unchecked((short)((packedPoint >> 16) & 0xffff)));
+            Point clientPoint = PointToClient(screenPoint);
+            const int resizeGrip = 10;
+            bool left = clientPoint.X <= resizeGrip;
+            bool right = clientPoint.X >= ClientSize.Width - resizeGrip;
+            bool top = clientPoint.Y <= resizeGrip;
+            bool bottom = clientPoint.Y >= ClientSize.Height - resizeGrip;
+
+            message.Result = (IntPtr)((left, right, top, bottom) switch
+            {
+                (true, _, true, _) => HtTopLeft,
+                (_, true, true, _) => HtTopRight,
+                (true, _, _, true) => HtBottomLeft,
+                (_, true, _, true) => HtBottomRight,
+                (true, _, _, _) => HtLeft,
+                (_, true, _, _) => HtRight,
+                (_, _, true, _) => HtTop,
+                (_, _, _, true) => HtBottom,
+                _ => HtClient
+            });
+        }
+
         private void DrawGamepadMonitor(Graphics g, int w, int h)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            int radius = 42, gap = 70;
+            int radius = _receiverUiScaling.ScaleLogical(42);
+            int gap = _receiverUiScaling.ScaleLogical(70);
             int startX = (w - (4 * radius + 3 * gap)) / 2;
-            int y = 25;
+            int y = _receiverUiScaling.ScaleLogical(25);
 
             string[] keys = { "triangle", "square", "cross", "circle" };
             string[] labels = { "△", "▢", "✖", "○" };
@@ -324,13 +486,18 @@ namespace PcDs4Server
                 }
 
                 // 绘制描边
-                using (var pen = new Pen(active ? colors[i] : Color.FromArgb(60, 65, 120), 2))
+                using (var pen = new Pen(
+                    active ? colors[i] : Color.FromArgb(60, 65, 120),
+                    _receiverUiScaling.ScaleLogical(2)))
                 {
                     g.DrawEllipse(pen, rect);
                 }
 
                 // 绘制符号
-                using (var font = new Font("Segoe UI", 12, FontStyle.Bold))
+                using (var font = new Font(
+                    "Segoe UI",
+                    ReceiverUiScaling.Scale(12f, _receiverUiScaling.CurrentEffectiveScalePercent),
+                    FontStyle.Bold))
                 {
                     var size = g.MeasureString(labels[i], font);
                     g.DrawString(labels[i], font, active ? Brushes.White : Brushes.DimGray,
@@ -423,6 +590,7 @@ namespace PcDs4Server
 
         private void ApplyRadialMenuSettings(RadialMenuSettings settings)
         {
+            _receiverUiScaling.Apply(settings.ReceiverUiScalePercent, preserveCenter: true);
             _radialOverlay.PrepareVisualPack(settings);
             _radialMenu.ApplySettings(settings);
             _service.SetRadialDoubleTapWindow(settings.DoubleTapWindowMs);
@@ -495,10 +663,12 @@ namespace PcDs4Server
 
         private void LogRadialSettingsLoad(RadialMenuSettingsLoadResult result)
         {
+            RadialSlotMappings mappings = result.Settings.GetProfileMappings(
+                _radialMenu.ActiveSettings.MappingProfileId);
             string message = result.Status switch
             {
                 RadialMenuSettingsLoadStatus.Loaded =>
-                    $"[环形菜单] 设置已加载（动作映射：{result.Settings.SlotMappings.Count(MappingIsConfigured)}/6）",
+                    $"[环形菜单] 设置已加载（动作映射：{mappings.Count(MappingIsConfigured)}/{mappings.Count}）",
                 RadialMenuSettingsLoadStatus.Missing => "[环形菜单] 正在使用默认设置",
                 _ => "[环形菜单] 设置加载失败，已恢复默认设置"
             };
@@ -687,6 +857,7 @@ namespace PcDs4Server
             _radialSelectionTimer.Dispose();
             _radialMenu.Dispose();
             _joystickOverlay.Dispose();
+            _receiverUiScaling.Dispose();
             base.OnFormClosed(e);
         }
     }

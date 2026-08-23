@@ -67,7 +67,7 @@ public sealed class RadialVisualPackRuntimeTests
     }
 
     [Fact]
-    public void InvalidNewPack_FromNonDefaultThemeInstallsRadialV5Fallback()
+    public void InvalidNewPack_FromNonDefaultThemeRetainsOldSession()
     {
         using var temporary = CatalogWithDefault();
         temporary.AddPack("alternate", "alternate", "Alternate");
@@ -80,13 +80,14 @@ public sealed class RadialVisualPackRuntimeTests
             RadialMenuSettings.Default with { VisualPackId = "alternate" },
             280)!;
 
-        RadialVisualPackSession fallback = runtime.Ensure(
+        RadialVisualPackSession retained = runtime.Ensure(
             RadialMenuSettings.Default with { VisualPackId = "broken" },
             280)!;
 
-        Assert.Equal("radial-v5", fallback.PackId);
-        Assert.True(alternate.IsDisposed);
-        Assert.Equal(3, runtime.InstallCount);
+        Assert.Same(alternate, retained);
+        Assert.Equal("alternate", retained.PackId);
+        Assert.False(alternate.IsDisposed);
+        Assert.Equal(2, runtime.InstallCount);
     }
 
     [Fact]

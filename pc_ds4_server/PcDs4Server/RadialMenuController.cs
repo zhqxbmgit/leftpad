@@ -9,6 +9,16 @@ public interface IRadialMenuOverlay : IDisposable
     void Hide();
 }
 
+public interface IRadialLayoutProvider
+{
+    LayoutDefinition? ActiveLayoutDefinition { get; }
+}
+
+public interface IRadialDpiProvider
+{
+    int ActiveDpi { get; }
+}
+
 public sealed class RadialMenuController : IDisposable
 {
     private static readonly Lazy<LayoutDefinition> DefaultLayout = new(
@@ -61,7 +71,12 @@ public sealed class RadialMenuController : IDisposable
     public int SelectedSlot => IsNormalMenuOpen ? _selectedSlot : 0;
     public bool IsPreviewActive => !_disposed && _isPreviewActive;
     public Point? PreviewAnchor => IsPreviewActive ? _previewAnchor : null;
-    public RadialMenuSettings ActiveSettings => _activeSettings with { };
+    public RadialMenuSettings ActiveSettings => _activeSettings with
+    {
+        MappingProfileId = CurrentLayoutDefinition.ProfileId
+    };
+    internal LayoutDefinition CurrentLayoutDefinition =>
+        (_overlay as IRadialLayoutProvider)?.ActiveLayoutDefinition ?? _layout.Value;
 
     public void OpenAt(Point screenPoint, RadialTriggerSource source)
     {
@@ -138,11 +153,16 @@ public sealed class RadialMenuController : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!_isNormalMenuOpen || _isPreviewActive || _normalAnchor is not Point anchor) return false;
 
+        int activeDpi = (_overlay as IRadialDpiProvider)?.ActiveDpi ??
+            RadialDpiScaling.DefaultDpi;
+        int physicalDeadZone = RadialDpiScaling.ToPhysicalPixels(
+            _activeSettings.SelectionDeadZone,
+            activeDpi);
         int selectedSlot = RadialSelectionEngine.GetSelectedSlot(
-            _layout.Value,
+            CurrentLayoutDefinition,
             anchor,
             cursor,
-            _activeSettings.SelectionDeadZone);
+            physicalDeadZone);
         if (selectedSlot == _selectedSlot) return false;
 
         _selectedSlot = selectedSlot;

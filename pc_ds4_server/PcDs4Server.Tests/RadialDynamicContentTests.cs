@@ -77,6 +77,23 @@ public sealed class RadialDynamicContentTests
                 Kind = RadialActionKind.Ds4Button,
                 Ds4Button = "dpad_down"
             }));
+
+        RadialActionDisplayText[] runtimeTexts =
+        [
+            RadialActionDisplayText.FromMapping(RadialSlotMapping.None),
+            RadialActionDisplayText.FromMapping(new RadialSlotMapping
+            {
+                Kind = RadialActionKind.KeyboardKey,
+                Key = KeyboardKey.K
+            }),
+            RadialActionDisplayText.FromMapping(new RadialSlotMapping
+            {
+                Kind = RadialActionKind.Ds4Button,
+                Ds4Button = "cross"
+            })
+        ];
+        Assert.All(runtimeTexts, display =>
+            Assert.DoesNotContain("Slot", display.Primary, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

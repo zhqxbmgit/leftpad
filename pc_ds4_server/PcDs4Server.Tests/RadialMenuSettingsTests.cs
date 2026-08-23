@@ -10,6 +10,7 @@ public sealed class RadialMenuSettingsTests
         RadialMenuSettings settings = RadialMenuSettings.Default;
 
         Assert.Equal(RadialVisualPackContract.DefaultVisualPackId, settings.VisualPackId);
+        Assert.Equal(ReceiverUiScaling.DefaultScalePercent, settings.ReceiverUiScalePercent);
         Assert.Equal(100, settings.ScalePercent);
         Assert.Equal(280, settings.BaseCanvasSize);
         Assert.Equal(35, settings.HubRadius);

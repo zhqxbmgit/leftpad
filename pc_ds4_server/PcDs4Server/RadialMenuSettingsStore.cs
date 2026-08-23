@@ -55,7 +55,9 @@ public sealed class RadialMenuSettingsStore
             }
             settings = settings with
             {
-                SlotMappings = RadialSlotMappings.Sanitize(settings.SlotMappings)
+                SlotMappings = RadialSlotMappings.Sanitize(settings.SlotMappings),
+                ReceiverUiScalePercent = ReceiverUiScaling.Normalize(
+                    settings.ReceiverUiScalePercent)
             };
             if (!settings.TryValidate(out string validationError))
             {

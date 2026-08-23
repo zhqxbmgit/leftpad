@@ -54,9 +54,12 @@ namespace PcDs4Server
             base.OnPaint(e);
             if (IsSelected)
             {
+                float receiverScale = Height / 45f;
                 using (SolidBrush brush = new SolidBrush(ThemeColors.AccentPurple))
                 {
-                    e.Graphics.FillRectangle(brush, 0, 10, 4, Height - 20);
+                    int inset = (int)MathF.Round(10 * receiverScale);
+                    int markerWidth = Math.Max(1, (int)MathF.Round(4 * receiverScale));
+                    e.Graphics.FillRectangle(brush, 0, inset, markerWidth, Height - (2 * inset));
                 }
                 this.ForeColor = ThemeColors.TextMain;
                 this.Font = new Font(this.Font, FontStyle.Bold);
@@ -112,9 +115,30 @@ namespace PcDs4Server
         public void SetStatusColor(Color color)
         {
             _indicator.BackColor = color;
-            var path = new GraphicsPath();
-            path.AddEllipse(0, 0, 8, 8);
+            UpdateIndicatorRegion();
+        }
+
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            base.OnLayout(levent);
+            UpdateIndicatorRegion();
+        }
+
+        private void UpdateIndicatorRegion()
+        {
+            // Setting the card's Size in the constructor can synchronously call
+            // OnLayout before the child indicator has been created.
+            if (_indicator == null || _indicator.IsDisposed ||
+                _indicator.Width <= 0 || _indicator.Height <= 0)
+            {
+                return;
+            }
+
+            using var path = new GraphicsPath();
+            path.AddEllipse(0, 0, _indicator.Width, _indicator.Height);
+            Region? previous = _indicator.Region;
             _indicator.Region = new Region(path);
+            previous?.Dispose();
         }
     }
 }

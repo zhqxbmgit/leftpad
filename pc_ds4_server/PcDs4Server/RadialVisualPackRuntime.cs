@@ -14,6 +14,7 @@ internal sealed class RadialVisualPackSession : IDisposable
     {
         Definition = definition ?? throw new ArgumentNullException(nameof(definition));
         Definition.EnsureRuntimeSessionSupported();
+        Mappings = settings.GetProfileMappings(LayoutDefinition.ProfileId);
         AssetCache = new RadialVisualPackCache(definition, targetSize);
         RadialDynamicContentCache? dynamicContent = null;
         try
@@ -36,6 +37,7 @@ internal sealed class RadialVisualPackSession : IDisposable
     public LayoutDefinition LayoutDefinition => Definition.LayoutDefinition;
     public RadialVisualPackCache AssetCache { get; }
     public RadialDynamicContentCache DynamicContent { get; }
+    public RadialSlotMappings Mappings { get; private set; }
     public string PackId => Definition.Manifest.Id;
     internal bool IsDisposed => _disposed;
 
@@ -44,6 +46,7 @@ internal sealed class RadialVisualPackSession : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         AssetCache.Rebuild(targetSize);
         DynamicContent.Ensure(settings, targetSize);
+        Mappings = settings.GetProfileMappings(LayoutDefinition.ProfileId);
     }
 
     public void Dispose()
@@ -99,6 +102,14 @@ internal sealed class RadialVisualPackRuntime : IDisposable
         {
             string reason = $"requested pack '{requestedId}' is unavailable or incompatible";
             LogFallback(requestedId, reason);
+            _lastRequestedId = requestedId;
+            if (_active != null)
+            {
+                _log(
+                    $"[视觉主题] Retaining active pack '{_active.PackId}' after " +
+                    $"failed switch to '{requestedId}'.");
+                return _active;
+            }
             target = snapshot.Find(RadialVisualPackContract.DefaultVisualPackId);
         }
 
@@ -122,6 +133,13 @@ internal sealed class RadialVisualPackRuntime : IDisposable
 
         string targetFailure = LastError ?? "unknown load failure";
         LogFallback(requestedId, targetFailure);
+        if (_active != null)
+        {
+            _log(
+                $"[视觉主题] Retaining active pack '{_active.PackId}' after " +
+                $"failed switch to '{requestedId}'.");
+            return _active;
+        }
         if (string.Equals(
                 target.Id,
                 RadialVisualPackContract.DefaultVisualPackId,

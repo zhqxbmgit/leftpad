@@ -95,6 +95,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
 
     internal int BuildCount { get; private set; }
     internal int RenderedSlotCount { get; private set; }
+    internal RadialVisualPackDefinition Definition => _definition;
 
     public bool Ensure(RadialMenuSettings settings, int targetSize)
     {
@@ -103,11 +104,13 @@ internal sealed class RadialDynamicContentCache : IDisposable
         if (targetSize <= 0) throw new ArgumentOutOfRangeException(nameof(targetSize));
 
         RadialMenuRenderMetrics metrics = settings.CreateRenderMetrics();
+        float outputScale = targetSize / (float)metrics.CanvasSize;
         var key = new DynamicContentKey(
             targetSize,
-            metrics.FontSize,
+            metrics.FontSize * outputScale,
+            outputScale,
             settings.TextAlpha,
-            settings.SlotMappings);
+            settings.GetProfileMappings(_definition.LayoutDefinition.ProfileId));
         if (_content != null && key == _key) return false;
 
         Bitmap replacement = BuildContent(key);
@@ -155,7 +158,9 @@ internal sealed class RadialDynamicContentCache : IDisposable
         float masterScale = workingSize / (float)layout.Canvas.Width;
         float primaryWidth = 270f * masterScale;
         float primaryHeight = 92f * masterScale;
-        float primaryFontSize = Math.Max(7.5f, key.FontPixelSize * 0.72f) * SupersampleScale;
+        float primaryFontSize = Math.Max(
+            7.5f * key.OutputScale,
+            key.FontPixelSize * 0.72f) * SupersampleScale;
         Color primaryColor = Color.FromArgb(
             Math.Min(key.TextAlpha, 235),
             0xCC,
@@ -186,7 +191,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
                 display.Primary,
                 CenteredBounds(primaryAnchor, primaryWidth, primaryHeight),
                 primaryFontSize,
-                6f * SupersampleScale,
+                6f * key.OutputScale * SupersampleScale,
                 FontStyle.Bold,
                 primaryColor,
                 format);
@@ -266,6 +271,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
     private sealed record DynamicContentKey(
         int TargetSize,
         float FontPixelSize,
+        float OutputScale,
         int TextAlpha,
         RadialSlotMappings SlotMappings);
 }

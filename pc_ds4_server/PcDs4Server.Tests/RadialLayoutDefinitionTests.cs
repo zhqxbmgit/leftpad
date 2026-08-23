@@ -36,12 +36,12 @@ public sealed class RadialLayoutDefinitionTests
     }
 
     [Fact]
-    public void Radial8_ParseCreatesValidatedDefinitionButRuntimeLoadRemainsRejected()
+    public void Radial8_LoadCreatesRuntimeSupportedDefinition()
     {
         using var temporary = new RadialVisualPackTestDirectory();
         string directory = temporary.AddRadial8Pack();
 
-        RadialVisualPackDefinition pack = RadialVisualPackDefinition.Parse(directory);
+        RadialVisualPackDefinition pack = RadialVisualPackDefinition.Load(directory);
         LayoutDefinition definition = pack.LayoutDefinition;
 
         Assert.Equal("radial-8", definition.ProfileId);
@@ -52,13 +52,10 @@ public sealed class RadialLayoutDefinitionTests
         Assert.Equal(Radial8Angles, definition.Slots.Select(slot => slot.AngleDegrees));
         Assert.Equal(Enumerable.Range(1, 8), definition.Slots.Select(slot => slot.Id));
 
-        InvalidDataException exception = Assert.Throws<InvalidDataException>(
-            () => RadialVisualPackDefinition.Load(directory));
-        Assert.Contains("not Runtime integrated", exception.Message);
     }
 
     [Fact]
-    public void Radial8_ParseOnlyPackIsNotExposedByRuntimeCatalog()
+    public void Radial8_RuntimePackIsExposedByCatalog()
     {
         using var temporary = new RadialVisualPackTestDirectory();
         _ = temporary.AddRadial8Pack();
@@ -66,10 +63,8 @@ public sealed class RadialLayoutDefinitionTests
         RadialVisualPackCatalogSnapshot snapshot =
             new RadialVisualPackCatalog(temporary.Root).Discover();
 
-        Assert.Empty(snapshot.Packs);
-        RadialVisualPackCatalogIssue issue = Assert.Single(snapshot.Issues);
-        Assert.Equal("radial-8-test", issue.PackId);
-        Assert.Contains("not Runtime integrated", issue.Message);
+        Assert.Equal("radial-8-test", Assert.Single(snapshot.Packs).Id);
+        Assert.Empty(snapshot.Issues);
     }
 
     [Fact]
@@ -128,7 +123,7 @@ public sealed class RadialLayoutDefinitionTests
     }
 
     [Fact]
-    public void Registry_RegistersRadial6ForRuntimeAndRadial8ForParseOnly()
+    public void Registry_RegistersRadial6AndRadial8ForRuntime()
     {
         LayoutProfileRegistration radial6 = LayoutProfileRegistry.GetRequired("radial-6");
         LayoutProfileRegistration radial8 = LayoutProfileRegistry.GetRequired("radial-8");
@@ -138,7 +133,7 @@ public sealed class RadialLayoutDefinitionTests
         Assert.Equal(Radial6Angles, radial6.ExpectedAngles);
 
         Assert.Equal(8, radial8.SlotCount);
-        Assert.False(radial8.RuntimeSessionSupported);
+        Assert.True(radial8.RuntimeSessionSupported);
         Assert.Equal(Radial8Angles, radial8.ExpectedAngles);
     }
 

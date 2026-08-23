@@ -77,15 +77,20 @@ public sealed class RadialRendererGeneralizationTests
     }
 
     [Fact]
-    public void Radial8_RemainsRejectedByRuntimeSession()
+    public void Radial8_RuntimeSessionUsesEightSlotCaches()
     {
         using var temporary = new RadialVisualPackTestDirectory();
-        RadialVisualPackDefinition pack = RadialVisualPackDefinition.Parse(
+        RadialVisualPackDefinition pack = RadialVisualPackDefinition.Load(
             temporary.AddRadial8Pack());
 
-        InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
-            new RadialVisualPackSession(pack, RadialMenuSettings.Default, targetSize: 280));
-        Assert.Contains("not Runtime integrated", exception.Message);
+        using var session = new RadialVisualPackSession(
+            pack,
+            RadialMenuSettings.Default,
+            targetSize: 280);
+
+        Assert.Equal(8, session.AssetCache.SelectedSlotCount);
+        Assert.Equal(8, session.Mappings.Count);
+        Assert.Equal(8, session.DynamicContent.RenderedSlotCount);
     }
 
     [Fact]
