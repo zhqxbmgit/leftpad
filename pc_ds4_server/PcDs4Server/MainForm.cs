@@ -7,7 +7,7 @@ using Nefarius.ViGEm.Client.Targets.DualShock4;
 
 namespace PcDs4Server
 {
-    public class MainForm : Form
+    public partial class MainForm : Form
     {
         internal static string GetOutputModeDisplayText(OutputMode mode) => mode switch
         {
@@ -89,6 +89,7 @@ namespace PcDs4Server
             InitializeComponent();
             _receiverUiScaling = new ReceiverUiScaling(this);
             _receiverUiScaling.Apply(radialSettings.Settings.ReceiverUiScalePercent);
+            InitializeDreamscapeOverviewFeature();
             _joystickOverlay = new VirtualJoystickOverlay();
             _ = _joystickOverlay.Handle;
             _radialVisualPackCatalog = new RadialVisualPackCatalog();
@@ -642,6 +643,7 @@ namespace PcDs4Server
             if (page == ReceiverPage.Settings && _settingsPage.IsInitialized)
                 _settingsPage.RefreshFromRuntime();
             SetSelectedNavigation(_pageNavigation[page]);
+            SetDreamscapeOverviewVisibility(showOverview);
         }
 
         internal RadialMenuSettingsControl SettingsControl => _settingsPage;
@@ -856,6 +858,7 @@ namespace PcDs4Server
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
+            InitializeDreamscapeOverviewRuntime();
             BeginInvoke(AutoStartDirectDs4Once);
         }
 

@@ -1,0 +1,11 @@
+<Project>
+  <!-- Microsoft.Web.WebView2 supplies both desktop control flavors through
+       buildTransitive.  Every project in this solution is WinForms-only, so the
+       unused WPF control is removed before assembly resolution. -->
+  <Target Name="RemoveUnusedWebView2WpfReference" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)"
+                 Condition="'%(Reference.Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
+</Project>
