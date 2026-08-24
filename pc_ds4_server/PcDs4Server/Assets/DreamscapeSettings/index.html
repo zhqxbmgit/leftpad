@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>LeftPad Dreamscape Settings Basic</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="viewport">
+    <main id="design-root" aria-label="LeftPad DS4 接收器设置基础页面">
+      <img class="scene-art" src="static-art.png" alt="梦境建筑设置场景">
+
+      <section class="brand" aria-label="品牌">
+        <div class="brand-name">LeftPad</div>
+        <div class="brand-subtitle">DS4 接收器</div>
+      </section>
+
+      <nav aria-label="主导航">
+        <button class="nav-command" data-command="showOverview" style="--y:286px"><span>总览</span></button>
+        <button class="nav-command" data-command="showGamepad" style="--y:352px"><span>手柄状态</span></button>
+        <button class="nav-command selected" data-command="settingsRequestState" style="--y:423px"><span>设置</span></button>
+        <button class="nav-command" data-command="showLogs" style="--y:496px"><span>日志</span></button>
+      </nav>
+
+      <header class="page-title">设置</header>
+      <div class="connection-pill" aria-live="polite">
+        <span id="connection-dot"></span><span id="connection-status">等待连接</span>
+      </div>
+
+      <nav class="settings-tabs" aria-label="设置分类">
+        <button class="settings-tab active" data-command="settingsRequestState" style="--x:332px;--w:160px">基础</button>
+        <button class="settings-tab" data-command="showSettingsAdvanced" style="--x:492px;--w:139px">高级</button>
+        <button class="settings-tab" data-command="showSettingsMappings" style="--x:631px;--w:180px">动作映射</button>
+      </nav>
+
+      <section id="settings-form" aria-label="基础设置">
+        <div class="setting-row select-row" style="--x:350px;--y:300px;--w:555px">
+          <label for="visual-pack">视觉主题</label>
+          <select id="visual-pack" class="premium-select" data-field="visualPackId"></select>
+        </div>
+        <div class="setting-row select-row" style="--x:350px;--y:385px;--w:555px">
+          <label for="receiver-scale">接收器界面缩放</label>
+          <select id="receiver-scale" class="premium-select" data-field="receiverUiScalePercent"></select>
+        </div>
+
+        <div class="setting-row slider-row left-row" style="--x:350px;--y:477px;--w:545px">
+          <label for="overall-size">环形菜单整体大小</label>
+          <output id="overall-size-value" for="overall-size"></output>
+          <input id="overall-size" type="range" data-field="overallSizePercent">
+        </div>
+        <div class="setting-row slider-row left-row" style="--x:350px;--y:573px;--w:545px">
+          <label for="double-tap">环形菜单双击窗口</label>
+          <output id="double-tap-value" for="double-tap"></output>
+          <input id="double-tap" type="range" data-field="doubleTapWindowMs">
+        </div>
+        <div class="setting-row slider-row left-row" style="--x:350px;--y:669px;--w:545px">
+          <label for="dead-zone">选择死区 (px)</label>
+          <output id="dead-zone-value" for="dead-zone"></output>
+          <input id="dead-zone" type="range" data-field="selectionDeadZone">
+        </div>
+
+        <div class="setting-row slider-row right-row" style="--x:963px;--y:300px;--w:501px">
+          <label for="highlight">选择高亮强度</label>
+          <output id="highlight-value" for="highlight"></output>
+          <input id="highlight" type="range" data-field="selectedIntensity">
+        </div>
+        <div class="setting-row slider-row right-row" style="--x:963px;--y:401px;--w:501px">
+          <label for="petal-opacity">花瓣透明度 (0-255)</label>
+          <output id="petal-opacity-value" for="petal-opacity"></output>
+          <input id="petal-opacity" type="range" data-field="petalOpacity">
+        </div>
+        <div class="setting-row slider-row right-row" style="--x:963px;--y:501px;--w:501px">
+          <label for="border-opacity">边框透明度 (0-255)</label>
+          <output id="border-opacity-value" for="border-opacity"></output>
+          <input id="border-opacity" type="range" data-field="borderOpacity">
+        </div>
+        <div class="setting-row slider-row right-row" style="--x:963px;--y:601px;--w:501px">
+          <label for="text-opacity">文字透明度 (0-255)</label>
+          <output id="text-opacity-value" for="text-opacity"></output>
+          <input id="text-opacity" type="range" data-field="textOpacity">
+        </div>
+      </section>
+
+      <section class="settings-actions" aria-label="设置操作">
+        <button id="preview-button" class="action-button preview" data-command="settingsPreview">
+          <svg aria-hidden="true" viewBox="0 0 32 32"><path d="M3 16s5-8 13-8 13 8 13 8-5 8-13 8S3 16 3 16Zm13 5a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"/></svg><span>预览</span>
+        </button>
+        <button id="hide-preview-button" class="action-button hide" data-command="settingsHidePreview">
+          <svg aria-hidden="true" viewBox="0 0 32 32"><path d="m5 4 23 23-2 2-5-5c-1.5.7-3.2 1-5 1C8 25 3 16 3 16a25 25 0 0 1 5-6l-5-4 2-2Zm7 10a5 5 0 0 0 6 6l-6-6Zm4-7c8 0 13 9 13 9a24 24 0 0 1-4 5l-4-4v-1a5 5 0 0 0-5-5h-1l-4-3c1.5-.7 3.2-1 5-1Z"/></svg><span>隐藏预览</span>
+        </button>
+        <button id="apply-button" class="action-button apply" data-command="settingsApplySave">
+          <svg aria-hidden="true" viewBox="0 0 32 32"><path d="M5 4h19l4 4v20H5V4Zm5 3v8h13V7H10Zm2 13v5h9v-5h-9Z"/></svg><span>应用并保存</span>
+        </button>
+        <button id="restore-button" class="action-button restore" data-command="settingsRestoreDefault">
+          <svg aria-hidden="true" viewBox="0 0 32 32"><path d="M8 9a12 12 0 1 1-2 14l4-2a8 8 0 1 0 1-9l4 4H4V5l4 4Z"/></svg><span>恢复默认</span>
+        </button>
+      </section>
+
+      <div id="window-drag-zone" aria-hidden="true"></div>
+      <button class="window-button minimize" data-command="minimize" aria-label="最小化">—</button>
+      <button class="window-button close" data-command="closeWindow" aria-label="关闭">×</button>
+      <output id="status-message" aria-live="polite"></output>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

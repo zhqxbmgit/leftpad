@@ -106,6 +106,7 @@ namespace PcDs4Server
                 ApplyRadialMenuSettings,
                 LogRadialMessage,
                 _radialVisualPackCatalog);
+            InitializeDreamscapeSettingsFeature();
             _radialSelectionTimer = new System.Windows.Forms.Timer
             {
                 Interval = radialSettings.Settings.SelectionPollIntervalMs
@@ -638,9 +639,10 @@ namespace PcDs4Server
             _overviewOutput.Visible = showOverview;
             _gamepadMonitor.Visible = showGamepad;
             _joystickDebugSection.Visible = showGamepad;
-            _settingsPage.Visible = page == ReceiverPage.Settings;
+            bool showWebSettings = SetDreamscapeSettingsVisibility(page == ReceiverPage.Settings);
+            _settingsPage.Visible = page == ReceiverPage.Settings && !showWebSettings;
             _logSection.Visible = page == ReceiverPage.Log;
-            if (page == ReceiverPage.Settings && _settingsPage.IsInitialized)
+            if (page == ReceiverPage.Settings && !showWebSettings && _settingsPage.IsInitialized)
                 _settingsPage.RefreshFromRuntime();
             SetSelectedNavigation(_pageNavigation[page]);
             SetDreamscapeOverviewVisibility(showOverview);
@@ -859,6 +861,7 @@ namespace PcDs4Server
         {
             base.OnShown(e);
             InitializeDreamscapeOverviewRuntime();
+            InitializeDreamscapeSettingsRuntime();
             BeginInvoke(AutoStartDirectDs4Once);
         }
 
