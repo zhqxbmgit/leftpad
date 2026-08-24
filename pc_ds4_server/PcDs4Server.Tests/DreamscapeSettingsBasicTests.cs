@@ -49,6 +49,27 @@ public sealed class DreamscapeSettingsBasicTests
     }
 
     [Fact]
+    public void StateDto_SerializesAllEightAdvancedFieldsWithNativeDefinitions()
+    {
+        SessionHarness harness = CreateHarness();
+        harness.Session.Activate();
+        using JsonDocument document = JsonDocument.Parse(
+            harness.Session.CreateState("已连接").ToJson());
+        JsonElement fields = document.RootElement.GetProperty("advancedFields");
+
+        Assert.Equal(8, fields.EnumerateObject().Count());
+        Assert.Equal(160, fields.GetProperty("canvasSize").GetProperty("min").GetInt32());
+        Assert.Equal(800, fields.GetProperty("canvasSize").GetProperty("max").GetInt32());
+        Assert.Equal(280, fields.GetProperty("canvasSize").GetProperty("default").GetInt32());
+        Assert.Equal("px", fields.GetProperty("canvasSize").GetProperty("unit").GetString());
+        Assert.Equal(0.5m, fields.GetProperty("petalGapDegrees").GetProperty("step").GetDecimal());
+        Assert.Equal(0.5m, fields.GetProperty("fontSize").GetProperty("step").GetDecimal());
+        Assert.Equal(8, fields.GetProperty("selectionPollIntervalMs").GetProperty("min").GetInt32());
+        Assert.Equal(50, fields.GetProperty("selectionPollIntervalMs").GetProperty("max").GetInt32());
+        Assert.Equal("basic", document.RootElement.GetProperty("activeSection").GetString());
+    }
+
+    [Fact]
     public void BasicFieldContract_HasExactlyTheRequestedNineFields()
     {
         Assert.Equal(9, SettingsBasicFields.All.Count);
@@ -62,8 +83,48 @@ public sealed class DreamscapeSettingsBasicTests
             SettingsBasicFields.All);
     }
 
+    [Fact]
+    public void AdvancedFieldContract_HasFrozenFourPlusFourOptionAStructure()
+    {
+        Assert.Equal(
+            ["canvasSize", "centerRadius", "petalInnerRadius", "petalOuterRadius"],
+            SettingsAdvancedFields.Left);
+        Assert.Equal(
+            ["textRadius", "petalGapDegrees", "fontSize", "selectionPollIntervalMs"],
+            SettingsAdvancedFields.Right);
+        Assert.Equal(8, SettingsAdvancedFields.All.Count);
+        Assert.Equal(8, SettingsAdvancedFields.All.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Theory]
+    [InlineData("canvasSize", 160, 800, 1, 280, "px")]
+    [InlineData("centerRadius", 1, 399, 1, 35, "px")]
+    [InlineData("petalInnerRadius", 1, 399, 1, 42, "px")]
+    [InlineData("petalOuterRadius", 2, 399, 1, 103, "px")]
+    [InlineData("textRadius", 1, 399, 1, 73, "px")]
+    [InlineData("petalGapDegrees", 0, 12, 0.5, 4, "°")]
+    [InlineData("fontSize", 6, 48, 0.5, 15, "px")]
+    [InlineData("selectionPollIntervalMs", 8, 50, 1, 16, "ms")]
+    public void AdvancedDefinitions_MatchNativeEditorsAndRuntimeDefaults(
+        string field,
+        double min,
+        double max,
+        double step,
+        double defaultValue,
+        string unit)
+    {
+        SettingsAdvancedFieldState definition = SettingsAdvancedFields.Definition(field);
+
+        Assert.Equal((decimal)min, definition.Min);
+        Assert.Equal((decimal)max, definition.Max);
+        Assert.Equal((decimal)step, definition.Step);
+        Assert.Equal((decimal)defaultValue, definition.Default);
+        Assert.Equal(unit, definition.Unit);
+    }
+
     [Theory]
     [InlineData("settingsBasicChange", "BasicChange")]
+    [InlineData("settingsAdvancedChange", "AdvancedChange")]
     [InlineData("settingsPreview", "Preview")]
     [InlineData("settingsHidePreview", "HidePreview")]
     [InlineData("settingsApplySave", "ApplySave")]
@@ -72,6 +133,7 @@ public sealed class DreamscapeSettingsBasicTests
     [InlineData("showOverview", "ShowOverview")]
     [InlineData("showGamepad", "ShowGamepad")]
     [InlineData("showLogs", "ShowLogs")]
+    [InlineData("showSettingsBasic", "ShowBasic")]
     [InlineData("showSettingsAdvanced", "ShowAdvanced")]
     [InlineData("showSettingsMappings", "ShowMappings")]
     [InlineData("beginDrag", "BeginDrag")]
@@ -81,9 +143,14 @@ public sealed class DreamscapeSettingsBasicTests
         string commandName,
         string expected)
     {
-        string json = commandName == "settingsBasicChange"
-            ? "{\"command\":\"settingsBasicChange\",\"field\":\"overallSizePercent\",\"value\":100}"
-            : JsonSerializer.Serialize(new { command = commandName });
+        string json = commandName switch
+        {
+            "settingsBasicChange" =>
+                "{\"command\":\"settingsBasicChange\",\"field\":\"overallSizePercent\",\"value\":100}",
+            "settingsAdvancedChange" =>
+                "{\"command\":\"settingsAdvancedChange\",\"field\":\"fontSize\",\"value\":15.5}",
+            _ => JsonSerializer.Serialize(new { command = commandName })
+        };
 
         bool accepted = ReceiverSettingsCommandAllowList.TryParse(
             json,
@@ -103,6 +170,9 @@ public sealed class DreamscapeSettingsBasicTests
     [InlineData("{\"command\":\"settingsBasicChange\"}")]
     [InlineData("{\"command\":\"settingsBasicChange\",\"field\":\"unknown\",\"value\":1}")]
     [InlineData("{\"command\":\"settingsBasicChange\",\"field\":\"visualPackId\",\"value\":42}")]
+    [InlineData("{\"command\":\"settingsAdvancedChange\"}")]
+    [InlineData("{\"command\":\"settingsAdvancedChange\",\"field\":\"unknown\",\"value\":1}")]
+    [InlineData("{\"command\":\"settingsAdvancedChange\",\"field\":\"fontSize\",\"value\":\"15.5\"}")]
     public void UnknownOrMalformedCommands_AreRejectedWithoutThrowing(string json)
     {
         bool accepted = ReceiverSettingsCommandAllowList.TryParse(json, out _, out string reason);
@@ -126,6 +196,30 @@ public sealed class DreamscapeSettingsBasicTests
         string json = JsonSerializer.Serialize(new
         {
             command = "settingsBasicChange",
+            field,
+            value
+        });
+
+        Assert.False(ReceiverSettingsCommandAllowList.TryParse(json, out _, out string reason));
+        Assert.NotEmpty(reason);
+    }
+
+    [Theory]
+    [InlineData("canvasSize", 159)]
+    [InlineData("canvasSize", 801)]
+    [InlineData("centerRadius", 0)]
+    [InlineData("petalOuterRadius", 1)]
+    [InlineData("petalGapDegrees", 12.5)]
+    [InlineData("petalGapDegrees", 4.25)]
+    [InlineData("fontSize", 5.5)]
+    [InlineData("fontSize", 48.5)]
+    [InlineData("selectionPollIntervalMs", 7)]
+    [InlineData("selectionPollIntervalMs", 51)]
+    public void AdvancedChange_RejectsInvalidRangeOrStep(string field, double value)
+    {
+        string json = JsonSerializer.Serialize(new
+        {
+            command = "settingsAdvancedChange",
             field,
             value
         });
@@ -237,6 +331,108 @@ public sealed class DreamscapeSettingsBasicTests
 
         Assert.True(harness.Session.IsDirty);
         Assert.Contains(value.ToString(), harness.Session.CreateState("ready").ToJson());
+    }
+
+    [Theory]
+    [InlineData("canvasSize", 300)]
+    [InlineData("centerRadius", 34)]
+    [InlineData("petalInnerRadius", 43)]
+    [InlineData("petalOuterRadius", 104)]
+    [InlineData("textRadius", 74)]
+    [InlineData("petalGapDegrees", 4.5)]
+    [InlineData("fontSize", 15.5)]
+    [InlineData("selectionPollIntervalMs", 17)]
+    public void EveryAdvancedField_ChangesTheSharedDraft(string field, double value)
+    {
+        SessionHarness harness = CreateHarness();
+        harness.Session.Activate();
+
+        ApplyAdvancedChange(harness.Session, field, (decimal)value);
+
+        Assert.True(harness.Session.IsDirty);
+        Assert.Equal((decimal)value,
+            SettingsAdvancedFields.CreateStates(harness.Session.Draft)[field].Value);
+    }
+
+    [Fact]
+    public void BasicAndAdvancedTabs_PreserveOneSharedDraft()
+    {
+        SessionHarness harness = CreateHarness();
+        harness.Session.Activate();
+        ApplyIntegerChange(harness.Session, SettingsBasicFields.OverallSizePercent, 120);
+        harness.Session.ShowAdvanced();
+        ApplyAdvancedChange(harness.Session, SettingsAdvancedFields.FontSize, 15.5m);
+        harness.Session.ShowBasic();
+
+        Assert.Equal(120, harness.Session.Draft.ScalePercent);
+        Assert.Equal(15.5f, harness.Session.Draft.FontSize);
+        Assert.Equal(ReceiverSettingsSection.Basic, harness.Session.ActiveSection);
+        harness.Session.ShowAdvanced();
+        Assert.Equal(ReceiverSettingsSection.Advanced, harness.Session.ActiveSection);
+        Assert.Equal(120, harness.Session.Draft.ScalePercent);
+    }
+
+    [Fact]
+    public void PreviewAndApply_IncludeBasicAndAdvancedDraftChangesTogether()
+    {
+        SessionHarness harness = CreateHarness();
+        harness.Session.Activate();
+        ApplyIntegerChange(harness.Session, SettingsBasicFields.TextOpacity, 220);
+        ApplyAdvancedChange(harness.Session, SettingsAdvancedFields.FontSize, 15.5m);
+
+        harness.Session.Preview();
+        Assert.Equal(220, harness.LastPreview!.TextAlpha);
+        Assert.Equal(15.5f, harness.LastPreview.FontSize);
+        Assert.True(harness.Session.ApplyAndSave(out string error), error);
+        Assert.Equal(220, harness.Active.TextAlpha);
+        Assert.Equal(15.5f, harness.Active.FontSize);
+    }
+
+    [Fact]
+    public void Deactivate_DiscardsUnsavedBasicAndAdvancedChanges()
+    {
+        SessionHarness harness = CreateHarness();
+        harness.Session.Activate();
+        ApplyIntegerChange(harness.Session, SettingsBasicFields.OverallSizePercent, 120);
+        ApplyAdvancedChange(harness.Session, SettingsAdvancedFields.CanvasSize, 300m);
+        harness.Session.Deactivate();
+        harness.Session.Activate();
+
+        Assert.Equal(112, harness.Session.Draft.ScalePercent);
+        Assert.Equal(RadialMenuSettings.Default.BaseCanvasSize, harness.Session.Draft.BaseCanvasSize);
+        Assert.False(harness.Session.IsDirty);
+    }
+
+    [Fact]
+    public void RestoreDefault_ResetsBasicAndAdvancedInTheSharedDraft()
+    {
+        SessionHarness harness = CreateHarness();
+        harness.Session.Activate();
+        ApplyIntegerChange(harness.Session, SettingsBasicFields.OverallSizePercent, 120);
+        ApplyAdvancedChange(harness.Session, SettingsAdvancedFields.FontSize, 15.5m);
+
+        harness.Session.RestoreDefault();
+
+        Assert.Equal(RadialMenuSettings.Default.ScalePercent, harness.Session.Draft.ScalePercent);
+        Assert.Equal(RadialMenuSettings.Default.FontSize, harness.Session.Draft.FontSize);
+        Assert.Equal(0, harness.SaveCount);
+    }
+
+    [Fact]
+    public void OptionAFrontend_ContainsInteractiveFourPlusFourRangesAndKeyboardFocusStyling()
+    {
+        string html = File.ReadAllText(Path.Combine(DreamscapeSettingsFeature.AssetDirectory, "index.html"));
+        string script = File.ReadAllText(Path.Combine(DreamscapeSettingsFeature.AssetDirectory, "app.js"));
+        string styles = File.ReadAllText(Path.Combine(DreamscapeSettingsFeature.AssetDirectory, "styles.css"));
+
+        Assert.Equal(8, System.Text.RegularExpressions.Regex.Matches(
+            html, "data-advanced-field=\\\"").Count);
+        Assert.Equal(4, System.Text.RegularExpressions.Regex.Matches(html, "advanced-left-row").Count);
+        Assert.Equal(4, System.Text.RegularExpressions.Regex.Matches(html, "advanced-right-row").Count);
+        Assert.Contains("settingsAdvancedChange", script);
+        Assert.Contains("addEventListener('input'", script);
+        Assert.Contains(".advanced-row input[type=\"range\"]:focus-visible", styles);
+        Assert.DoesNotContain("type=\"number\"", html);
     }
 
     [Fact]
@@ -393,7 +589,11 @@ public sealed class DreamscapeSettingsBasicTests
         harness.Session = new DreamscapeSettingsBasicSession(
             () => harness.Active,
             () => new RadialVisualPackCatalog().Discover(),
-            _ => harness.PreviewCount++,
+            settings =>
+            {
+                harness.PreviewCount++;
+                harness.LastPreview = settings;
+            },
             _ => harness.UpdatePreviewCount++,
             () => harness.HidePreviewCount++,
             draft =>
@@ -420,6 +620,18 @@ public sealed class DreamscapeSettingsBasicTests
         Assert.True(session.TryApplyChange(message, out string error), error);
     }
 
+    private static void ApplyAdvancedChange(
+        DreamscapeSettingsBasicSession session,
+        string field,
+        decimal value)
+    {
+        var message = new ReceiverSettingsMessage(
+            ReceiverSettingsCommand.AdvancedChange,
+            field,
+            DecimalValue: value);
+        Assert.True(session.TryApplyChange(message, out string error), error);
+    }
+
     private static void RunInSta(Action action)
     {
         Exception? failure = null;
@@ -441,6 +653,7 @@ public sealed class DreamscapeSettingsBasicTests
         public RadialMenuSettings Active { get; set; } = RadialMenuSettings.Default;
         public DreamscapeSettingsBasicSession Session { get; set; } = null!;
         public int PreviewCount { get; set; }
+        public RadialMenuSettings? LastPreview { get; set; }
         public int UpdatePreviewCount { get; set; }
         public int HidePreviewCount { get; set; }
         public int SaveCount { get; set; }

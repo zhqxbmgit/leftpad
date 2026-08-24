@@ -24,14 +24,14 @@ internal sealed class DreamscapeSettingsHost : UserControl
         _log = log ?? throw new ArgumentNullException(nameof(log));
         _assetDirectory = assetDirectory ?? DreamscapeSettingsFeature.AssetDirectory;
         Name = "dreamscapeSettingsHost";
-        AccessibleName = "Dreamscape WebView2 Settings Basic";
+        AccessibleName = "Dreamscape WebView2 Settings";
         Dock = DockStyle.Fill;
         BackColor = Color.FromArgb(35, 48, 105);
 
         _webView = new WebView2
         {
             Name = "dreamscapeSettingsWebView",
-            AccessibleName = "Dreamscape Settings Basic Web Content",
+            AccessibleName = "Dreamscape Settings Web Content",
             Dock = DockStyle.Fill,
             DefaultBackgroundColor = Color.FromArgb(35, 48, 105)
         };

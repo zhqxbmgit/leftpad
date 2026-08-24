@@ -33,6 +33,7 @@ internal sealed class DreamscapeSettingsBasicSession
     public bool IsActive { get; private set; }
     public bool IsPreviewActive { get; private set; }
     public bool IsDirty { get; private set; }
+    public ReceiverSettingsSection ActiveSection { get; private set; } = ReceiverSettingsSection.Basic;
     internal RadialMenuSettings Draft => _draft;
 
     public void Activate()
@@ -41,6 +42,7 @@ internal sealed class DreamscapeSettingsBasicSession
         _catalog = _discoverCatalog();
         _draft = _activeSettings().NormalizeMappings();
         IsDirty = false;
+        ActiveSection = ReceiverSettingsSection.Basic;
         IsActive = true;
     }
 
@@ -56,13 +58,48 @@ internal sealed class DreamscapeSettingsBasicSession
         out string rejectionReason)
     {
         rejectionReason = string.Empty;
-        if (!IsActive || message.Command != ReceiverSettingsCommand.BasicChange || message.Field == null)
+        if (!IsActive ||
+            (message.Command != ReceiverSettingsCommand.BasicChange &&
+             message.Command != ReceiverSettingsCommand.AdvancedChange) ||
+            message.Field == null)
         {
-            rejectionReason = "Settings Basic session is not active.";
+            rejectionReason = "Settings session is not active or the change command is invalid.";
             return false;
         }
 
-        RadialMenuSettings candidate = message.Field switch
+        RadialMenuSettings candidate = message.Command == ReceiverSettingsCommand.BasicChange
+            ? ApplyBasicChange(message, out rejectionReason)
+            : ApplyAdvancedChange(message, out rejectionReason);
+        if (!string.IsNullOrEmpty(rejectionReason))
+            return false;
+        if (!candidate.TryValidate(out rejectionReason))
+            return false;
+
+        _draft = candidate;
+        IsDirty = !SettingsEqual(_draft, _activeSettings());
+        if (IsPreviewActive)
+            _updatePreview(_draft);
+        return true;
+    }
+
+    public void ShowBasic()
+    {
+        EnsureActive();
+        ActiveSection = ReceiverSettingsSection.Basic;
+    }
+
+    public void ShowAdvanced()
+    {
+        EnsureActive();
+        ActiveSection = ReceiverSettingsSection.Advanced;
+    }
+
+    private RadialMenuSettings ApplyBasicChange(
+        ReceiverSettingsMessage message,
+        out string rejectionReason)
+    {
+        rejectionReason = string.Empty;
+        return message.Field switch
         {
             SettingsBasicFields.VisualPackId => ChangeVisualPack(message.StringValue, out rejectionReason),
             SettingsBasicFields.ReceiverUiScalePercent => _draft with
@@ -97,18 +134,31 @@ internal sealed class DreamscapeSettingsBasicSession
             {
                 TextAlpha = message.IntegerValue!.Value
             },
-            _ => _draft
+            _ => RejectUnknownField(message.Field, out rejectionReason)
         };
-        if (!string.IsNullOrEmpty(rejectionReason))
-            return false;
-        if (!candidate.TryValidate(out rejectionReason))
-            return false;
+    }
 
-        _draft = candidate;
-        IsDirty = !BasicEquals(_draft, _activeSettings());
-        if (IsPreviewActive)
-            _updatePreview(_draft);
-        return true;
+    private RadialMenuSettings ApplyAdvancedChange(
+        ReceiverSettingsMessage message,
+        out string rejectionReason)
+    {
+        rejectionReason = string.Empty;
+        decimal value = message.DecimalValue!.Value;
+        return message.Field switch
+        {
+            SettingsAdvancedFields.CanvasSize => _draft with { BaseCanvasSize = decimal.ToInt32(value) },
+            SettingsAdvancedFields.CenterRadius => _draft with { HubRadius = decimal.ToInt32(value) },
+            SettingsAdvancedFields.PetalInnerRadius => _draft with { PetalInnerRadius = decimal.ToInt32(value) },
+            SettingsAdvancedFields.PetalOuterRadius => _draft with { PetalOuterRadius = decimal.ToInt32(value) },
+            SettingsAdvancedFields.TextRadius => _draft with { TextRadius = decimal.ToInt32(value) },
+            SettingsAdvancedFields.PetalGapDegrees => _draft with { PetalGapDegrees = (float)value },
+            SettingsAdvancedFields.FontSize => _draft with { FontSize = (float)value },
+            SettingsAdvancedFields.SelectionPollIntervalMs => _draft with
+            {
+                SelectionPollIntervalMs = decimal.ToInt32(value)
+            },
+            _ => RejectUnknownField(message.Field, out rejectionReason)
+        };
     }
 
     public void Preview()
@@ -140,7 +190,7 @@ internal sealed class DreamscapeSettingsBasicSession
     {
         EnsureActive();
         _draft = RadialMenuSettings.Default.NormalizeMappings();
-        IsDirty = !BasicEquals(_draft, _activeSettings());
+        IsDirty = !SettingsEqual(_draft, _activeSettings());
         if (IsPreviewActive)
             _updatePreview(_draft);
     }
@@ -169,6 +219,8 @@ internal sealed class DreamscapeSettingsBasicSession
             _draft.BorderAlpha,
             _draft.TextAlpha,
             SettingsBasicFields.Ranges,
+            SettingsAdvancedFields.CreateStates(_draft),
+            ActiveSection == ReceiverSettingsSection.Advanced ? "advanced" : "basic",
             IsPreviewActive,
             IsDirty,
             IsActive && options.Length > 0);
@@ -197,21 +249,18 @@ internal sealed class DreamscapeSettingsBasicSession
         IsPreviewActive = false;
     }
 
+    private RadialMenuSettings RejectUnknownField(string? field, out string rejectionReason)
+    {
+        rejectionReason = $"Unknown Settings field '{field ?? "<null>"}'.";
+        return _draft;
+    }
+
     private void EnsureActive()
     {
         if (!IsActive)
-            throw new InvalidOperationException("Settings Basic session is not active.");
+            throw new InvalidOperationException("Settings session is not active.");
     }
 
-    private static bool BasicEquals(RadialMenuSettings left, RadialMenuSettings right) =>
-        left.VisualPackId == right.VisualPackId &&
-        left.MappingProfileId == right.MappingProfileId &&
-        left.ReceiverUiScalePercent == right.ReceiverUiScalePercent &&
-        left.ScalePercent == right.ScalePercent &&
-        left.DoubleTapWindowMs == right.DoubleTapWindowMs &&
-        left.SelectionDeadZone == right.SelectionDeadZone &&
-        left.HighlightAlpha == right.HighlightAlpha &&
-        left.FillAlpha == right.FillAlpha &&
-        left.BorderAlpha == right.BorderAlpha &&
-        left.TextAlpha == right.TextAlpha;
+    private static bool SettingsEqual(RadialMenuSettings left, RadialMenuSettings right) =>
+        left.NormalizeMappings() == right.NormalizeMappings();
 }

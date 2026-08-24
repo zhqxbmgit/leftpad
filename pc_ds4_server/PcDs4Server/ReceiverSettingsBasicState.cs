@@ -13,6 +13,14 @@ internal sealed record SettingsBasicRange(
     [property: JsonPropertyName("max")] int Max,
     [property: JsonPropertyName("step")] int Step);
 
+internal sealed record SettingsAdvancedFieldState(
+    [property: JsonPropertyName("value")] decimal Value,
+    [property: JsonPropertyName("min")] decimal Min,
+    [property: JsonPropertyName("max")] decimal Max,
+    [property: JsonPropertyName("step")] decimal Step,
+    [property: JsonPropertyName("default")] decimal Default,
+    [property: JsonPropertyName("unit")] string Unit);
+
 internal sealed record ReceiverSettingsBasicState(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("connectionStatus")] string ConnectionStatus,
@@ -28,6 +36,8 @@ internal sealed record ReceiverSettingsBasicState(
     [property: JsonPropertyName("borderOpacity")] int BorderOpacity,
     [property: JsonPropertyName("textOpacity")] int TextOpacity,
     [property: JsonPropertyName("ranges")] IReadOnlyDictionary<string, SettingsBasicRange> Ranges,
+    [property: JsonPropertyName("advancedFields")] IReadOnlyDictionary<string, SettingsAdvancedFieldState> AdvancedFields,
+    [property: JsonPropertyName("activeSection")] string ActiveSection,
     [property: JsonPropertyName("previewActive")] bool PreviewActive,
     [property: JsonPropertyName("dirty")] bool Dirty,
     [property: JsonPropertyName("enabled")] bool Enabled)
@@ -35,6 +45,12 @@ internal sealed record ReceiverSettingsBasicState(
     public const string MessageType = "receiverSettingsBasicState";
 
     public string ToJson() => JsonSerializer.Serialize(this);
+}
+
+internal enum ReceiverSettingsSection
+{
+    Basic,
+    Advanced
 }
 
 internal static class SettingsBasicFields
@@ -84,9 +100,72 @@ internal static class SettingsBasicFields
         };
 }
 
+internal static class SettingsAdvancedFields
+{
+    public const string CanvasSize = "canvasSize";
+    public const string CenterRadius = "centerRadius";
+    public const string PetalInnerRadius = "petalInnerRadius";
+    public const string PetalOuterRadius = "petalOuterRadius";
+    public const string TextRadius = "textRadius";
+    public const string PetalGapDegrees = "petalGapDegrees";
+    public const string FontSize = "fontSize";
+    public const string SelectionPollIntervalMs = "selectionPollIntervalMs";
+
+    public static IReadOnlyList<string> Left { get; } =
+    [
+        CanvasSize,
+        CenterRadius,
+        PetalInnerRadius,
+        PetalOuterRadius
+    ];
+
+    public static IReadOnlyList<string> Right { get; } =
+    [
+        TextRadius,
+        PetalGapDegrees,
+        FontSize,
+        SelectionPollIntervalMs
+    ];
+
+    public static IReadOnlyList<string> All { get; } = [.. Left, .. Right];
+
+    public static IReadOnlyDictionary<string, SettingsAdvancedFieldState> CreateStates(
+        RadialMenuSettings settings)
+    {
+        RadialMenuSettings defaults = RadialMenuSettings.Default;
+        return new Dictionary<string, SettingsAdvancedFieldState>(StringComparer.Ordinal)
+        {
+            [CanvasSize] = new(settings.BaseCanvasSize, 160, 800, 1, defaults.BaseCanvasSize, "px"),
+            [CenterRadius] = new(settings.HubRadius, 1, 399, 1, defaults.HubRadius, "px"),
+            [PetalInnerRadius] = new(settings.PetalInnerRadius, 1, 399, 1, defaults.PetalInnerRadius, "px"),
+            [PetalOuterRadius] = new(settings.PetalOuterRadius, 2, 399, 1, defaults.PetalOuterRadius, "px"),
+            [TextRadius] = new(settings.TextRadius, 1, 399, 1, defaults.TextRadius, "px"),
+            [PetalGapDegrees] = new(
+                (decimal)settings.PetalGapDegrees,
+                (decimal)RadialMenuSettings.MinimumGapDegrees,
+                (decimal)RadialMenuSettings.MaximumGapDegrees,
+                0.5m,
+                (decimal)defaults.PetalGapDegrees,
+                "°"),
+            [FontSize] = new((decimal)settings.FontSize, 6, 48, 0.5m, (decimal)defaults.FontSize, "px"),
+            [SelectionPollIntervalMs] = new(
+                settings.SelectionPollIntervalMs,
+                RadialMenuSettings.MinimumSelectionPollIntervalMs,
+                RadialMenuSettings.MaximumSelectionPollIntervalMs,
+                1,
+                defaults.SelectionPollIntervalMs,
+                "ms")
+        };
+    }
+
+    public static SettingsAdvancedFieldState Definition(string field) =>
+        CreateStates(RadialMenuSettings.Default)[field];
+}
+
 internal enum ReceiverSettingsCommand
 {
     BasicChange,
+    AdvancedChange,
     Preview,
     HidePreview,
     ApplySave,
@@ -95,6 +174,7 @@ internal enum ReceiverSettingsCommand
     ShowOverview,
     ShowGamepad,
     ShowLogs,
+    ShowBasic,
     ShowAdvanced,
     ShowMappings,
     BeginDrag,
@@ -106,7 +186,8 @@ internal sealed record ReceiverSettingsMessage(
     ReceiverSettingsCommand Command,
     string? Field = null,
     string? StringValue = null,
-    int? IntegerValue = null);
+    int? IntegerValue = null,
+    decimal? DecimalValue = null);
 
 internal static class ReceiverSettingsCommandAllowList
 {
@@ -114,6 +195,7 @@ internal static class ReceiverSettingsCommandAllowList
         new Dictionary<string, ReceiverSettingsCommand>(StringComparer.Ordinal)
         {
             ["settingsBasicChange"] = ReceiverSettingsCommand.BasicChange,
+            ["settingsAdvancedChange"] = ReceiverSettingsCommand.AdvancedChange,
             ["settingsPreview"] = ReceiverSettingsCommand.Preview,
             ["settingsHidePreview"] = ReceiverSettingsCommand.HidePreview,
             ["settingsApplySave"] = ReceiverSettingsCommand.ApplySave,
@@ -122,6 +204,7 @@ internal static class ReceiverSettingsCommandAllowList
             ["showOverview"] = ReceiverSettingsCommand.ShowOverview,
             ["showGamepad"] = ReceiverSettingsCommand.ShowGamepad,
             ["showLogs"] = ReceiverSettingsCommand.ShowLogs,
+            ["showSettingsBasic"] = ReceiverSettingsCommand.ShowBasic,
             ["showSettingsAdvanced"] = ReceiverSettingsCommand.ShowAdvanced,
             ["showSettingsMappings"] = ReceiverSettingsCommand.ShowMappings,
             ["beginDrag"] = ReceiverSettingsCommand.BeginDrag,
@@ -157,7 +240,8 @@ internal static class ReceiverSettingsCommandAllowList
                     out rejectionReason);
             }
 
-            if (command != ReceiverSettingsCommand.BasicChange)
+            if (command != ReceiverSettingsCommand.BasicChange &&
+                command != ReceiverSettingsCommand.AdvancedChange)
             {
                 message = new ReceiverSettingsMessage(command);
                 return true;
@@ -166,15 +250,19 @@ internal static class ReceiverSettingsCommandAllowList
             if (!root.TryGetProperty("field", out JsonElement fieldElement) ||
                 fieldElement.ValueKind != JsonValueKind.String)
             {
-                return Reject("settingsBasicChange requires a string field.", out rejectionReason);
+                return Reject($"{commandName} requires a string field.", out rejectionReason);
             }
             string? field = fieldElement.GetString();
-            if (field == null || !SettingsBasicFields.All.Contains(field, StringComparer.Ordinal))
-                return Reject($"Unknown Settings Basic field '{field ?? "<null>"}'.", out rejectionReason);
+            IReadOnlyList<string> allowedFields = command == ReceiverSettingsCommand.BasicChange
+                ? SettingsBasicFields.All
+                : SettingsAdvancedFields.All;
+            if (field == null || !allowedFields.Contains(field, StringComparer.Ordinal))
+                return Reject($"Unknown Settings {command} field '{field ?? "<null>"}'.", out rejectionReason);
             if (!root.TryGetProperty("value", out JsonElement valueElement))
-                return Reject("settingsBasicChange requires a value.", out rejectionReason);
+                return Reject($"{commandName} requires a value.", out rejectionReason);
 
-            if (field == SettingsBasicFields.VisualPackId)
+            if (command == ReceiverSettingsCommand.BasicChange &&
+                field == SettingsBasicFields.VisualPackId)
             {
                 if (valueElement.ValueKind != JsonValueKind.String ||
                     string.IsNullOrWhiteSpace(valueElement.GetString()))
@@ -185,8 +273,26 @@ internal static class ReceiverSettingsCommandAllowList
                 return true;
             }
 
-            if (valueElement.ValueKind != JsonValueKind.Number ||
-                !valueElement.TryGetInt32(out int integerValue))
+            if (valueElement.ValueKind != JsonValueKind.Number)
+                return Reject($"{field} must be a number.", out rejectionReason);
+
+            if (command == ReceiverSettingsCommand.AdvancedChange)
+            {
+                if (!valueElement.TryGetDecimal(out decimal decimalValue))
+                    return Reject($"{field} must be a finite decimal number.", out rejectionReason);
+                SettingsAdvancedFieldState definition = SettingsAdvancedFields.Definition(field);
+                if (decimalValue < definition.Min || decimalValue > definition.Max ||
+                    (decimalValue - definition.Min) % definition.Step != 0)
+                {
+                    return Reject(
+                        $"{field} must be between {definition.Min} and {definition.Max} in steps of {definition.Step}.",
+                        out rejectionReason);
+                }
+                message = new ReceiverSettingsMessage(command, field, DecimalValue: decimalValue);
+                return true;
+            }
+
+            if (!valueElement.TryGetInt32(out int integerValue))
             {
                 return Reject($"{field} must be an integer.", out rejectionReason);
             }
