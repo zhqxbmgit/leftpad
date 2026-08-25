@@ -34,6 +34,10 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
+    <None Update="Assets\DreamscapeLogs\index.html;Assets\DreamscapeLogs\styles.css;Assets\DreamscapeLogs\app.js;Assets\DreamscapeLogs\static-art.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

@@ -108,6 +108,7 @@ namespace PcDs4Server
                 _radialVisualPackCatalog);
             InitializeDreamscapeSettingsFeature();
             InitializeDreamscapeControllerFeature();
+            InitializeDreamscapeLogsFeature();
             _radialSelectionTimer = new System.Windows.Forms.Timer
             {
                 Interval = radialSettings.Settings.SelectionPollIntervalMs
@@ -540,6 +541,7 @@ namespace PcDs4Server
                 _lblStatusBadge.ForeColor = connected ? ThemeColors.Success : ThemeColors.Warning;
                 _lblStatusBadge.BackColor = connected ? Color.FromArgb(0, 50, 20) : Color.FromArgb(40, 35, 0);
                 PublishDreamscapeControllerDisplayState();
+                PublishDreamscapeLogsConnectionState();
             });
             _service.OnButtonEvent += btn => PostToUi(() => {
                 foreach(var key in _btnStates.Keys) {
@@ -590,9 +592,11 @@ namespace PcDs4Server
         {
             if (this.IsDisposed || _logBox == null) return;
             PostToUi(() => {
+                ReceiverLogEntry webEntry = BufferDreamscapeLog(message);
                 if (_logBox.Lines.Length > 300) _logBox.Clear();
                 _logBox.AppendText(message + Environment.NewLine);
                 _logBox.ScrollToCaret();
+                PublishDreamscapeLogAppend(webEntry);
             });
         }
 
@@ -646,7 +650,8 @@ namespace PcDs4Server
             _joystickDebugSection.Visible = showGamepad && !showWebController;
             bool showWebSettings = SetDreamscapeSettingsVisibility(page == ReceiverPage.Settings);
             _settingsPage.Visible = page == ReceiverPage.Settings && !showWebSettings;
-            _logSection.Visible = page == ReceiverPage.Log;
+            bool showWebLogs = SetDreamscapeLogsVisibility(page == ReceiverPage.Log);
+            _logSection.Visible = page == ReceiverPage.Log && !showWebLogs;
             if (page == ReceiverPage.Settings && !showWebSettings && _settingsPage.IsInitialized)
                 _settingsPage.RefreshFromRuntime();
             SetSelectedNavigation(_pageNavigation[page]);
@@ -868,6 +873,7 @@ namespace PcDs4Server
             InitializeDreamscapeOverviewRuntime();
             InitializeDreamscapeSettingsRuntime();
             InitializeDreamscapeControllerRuntime();
+            InitializeDreamscapeLogsRuntime();
             BeginInvoke(AutoStartDirectDs4Once);
         }
 

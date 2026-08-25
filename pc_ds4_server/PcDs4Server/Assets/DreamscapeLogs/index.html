@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>LeftPad Dreamscape Logs</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="viewport">
+    <main id="design-root" aria-label="LeftPad DS4 接收器日志">
+      <img id="static-art" class="scene-art" src="static-art.png" alt="Dreamscape 日志建筑场景">
+
+      <nav class="nav-rail" aria-label="主导航">
+        <button class="nav-command overview" data-command="showOverview" aria-label="总览"><span>总览</span></button>
+        <button class="nav-command controller" data-command="showController" aria-label="手柄状态"><span>手柄状态</span></button>
+        <button class="nav-command settings" data-command="showSettings" aria-label="设置"><span>设置</span></button>
+        <button class="nav-command logs selected" data-command="logsRequestSnapshot" aria-label="日志"><span>日志</span></button>
+      </nav>
+
+      <div id="connection-pill" class="connection-pill" aria-live="polite">
+        <span id="connection-dot"></span>
+        <span id="connection-state">等待连接</span>
+      </div>
+
+      <section class="log-shell" aria-label="接收器运行日志">
+        <div id="log-view" class="log-view" tabindex="0" role="log" aria-live="polite" aria-relevant="additions text"></div>
+        <button id="latest-marker" class="latest-marker" type="button" data-pending="false" aria-label="回到最新日志">
+          <i aria-hidden="true"></i><span>最新</span>
+        </button>
+      </section>
+
+      <div id="window-drag-zone" aria-hidden="true"></div>
+      <button class="window-button minimize" data-command="minimize" aria-label="最小化">—</button>
+      <button class="window-button close" data-command="closeWindow" aria-label="关闭">×</button>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
