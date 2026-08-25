@@ -125,6 +125,8 @@ public sealed class DreamscapeSettingsBasicTests
     [Theory]
     [InlineData("settingsBasicChange", "BasicChange")]
     [InlineData("settingsAdvancedChange", "AdvancedChange")]
+    [InlineData("settingsMappingSelectSlot", "MappingSelectSlot")]
+    [InlineData("settingsMappingChange", "MappingChange")]
     [InlineData("settingsPreview", "Preview")]
     [InlineData("settingsHidePreview", "HidePreview")]
     [InlineData("settingsApplySave", "ApplySave")]
@@ -149,6 +151,10 @@ public sealed class DreamscapeSettingsBasicTests
                 "{\"command\":\"settingsBasicChange\",\"field\":\"overallSizePercent\",\"value\":100}",
             "settingsAdvancedChange" =>
                 "{\"command\":\"settingsAdvancedChange\",\"field\":\"fontSize\",\"value\":15.5}",
+            "settingsMappingSelectSlot" =>
+                "{\"command\":\"settingsMappingSelectSlot\",\"profileId\":\"radial-6\",\"slotId\":1}",
+            "settingsMappingChange" =>
+                "{\"command\":\"settingsMappingChange\",\"profileId\":\"radial-6\",\"slotId\":1,\"actionKind\":\"none\"}",
             _ => JsonSerializer.Serialize(new { command = commandName })
         };
 

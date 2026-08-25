@@ -82,8 +82,14 @@ public partial class MainForm
         {
             case ReceiverSettingsCommand.BasicChange:
             case ReceiverSettingsCommand.AdvancedChange:
+            case ReceiverSettingsCommand.MappingChange:
                 if (!_dreamscapeSettingsSession.TryApplyChange(message, out string rejectionReason))
                     AppendLog($"[WebView2 Settings] Rejected change: {rejectionReason}");
+                _dreamscapeSettingsHost.PostState();
+                break;
+            case ReceiverSettingsCommand.MappingSelectSlot:
+                if (!_dreamscapeSettingsSession.TrySelectMappingSlot(message, out string selectionRejection))
+                    AppendLog($"[WebView2 Settings] Rejected mapping selection: {selectionRejection}");
                 _dreamscapeSettingsHost.PostState();
                 break;
             case ReceiverSettingsCommand.Preview:
@@ -124,7 +130,8 @@ public partial class MainForm
                 _dreamscapeSettingsHost.PostState();
                 break;
             case ReceiverSettingsCommand.ShowMappings:
-                ShowNativeSettingsTab(2);
+                _dreamscapeSettingsSession.ShowMappings();
+                _dreamscapeSettingsHost.PostState();
                 break;
             case ReceiverSettingsCommand.BeginDrag:
                 BeginDreamscapeWindowDrag();
@@ -230,12 +237,77 @@ public partial class MainForm
                 _dreamscapeSettingsSession.Draft.FontSize == (float)testFontSize;
 
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postChange('visualPackId','radial-8-minimal-v1'); true");
+            await Task.Delay(200);
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postCommand('showSettingsMappings'); true");
+            await Task.Delay(250);
+            string? mappingDefaultCapture = Environment.GetEnvironmentVariable(
+                "LEFTPAD_WEBVIEW2_SETTINGS_MAPPING_DEFAULT_CAPTURE");
+            if (!string.IsNullOrWhiteSpace(mappingDefaultCapture))
+                await _dreamscapeSettingsHost.CapturePreviewAsync(mappingDefaultCapture);
+            string? radial8DefaultDiagnostics = await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "JSON.stringify(window.leftpadSettings.diagnostics())");
+
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postMappingChange('radial-8',1,{actionKind:'keyboardKey',key:'F1'}); true");
+            await Task.Delay(120);
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postMappingChange('radial-8',2,{actionKind:'keyboardShortcut',key:'P',ctrl:true,alt:true,shift:true,win:true}); true");
+            await Task.Delay(120);
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postMappingChange('radial-8',3,{actionKind:'ds4Button',ds4Action:'cross'}); true");
+            await Task.Delay(250);
+            string? mappingShortcutCapture = Environment.GetEnvironmentVariable(
+                "LEFTPAD_WEBVIEW2_SETTINGS_MAPPING_SHORTCUT_CAPTURE");
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postMappingSelection('radial-8',2); true");
+            await Task.Delay(150);
+            if (!string.IsNullOrWhiteSpace(mappingShortcutCapture))
+                await _dreamscapeSettingsHost.CapturePreviewAsync(mappingShortcutCapture);
+            string? radial8ShortcutDiagnostics = await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "JSON.stringify(window.leftpadSettings.diagnostics())");
+
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postChange('visualPackId','radial-v5'); true");
+            await Task.Delay(200);
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postMappingChange('radial-6',1,{actionKind:'keyboardKey',key:'F6'}); true");
+            await Task.Delay(200);
+            string? mappingRadial6Capture = Environment.GetEnvironmentVariable(
+                "LEFTPAD_WEBVIEW2_SETTINGS_MAPPING_RADIAL6_CAPTURE");
+            if (!string.IsNullOrWhiteSpace(mappingRadial6Capture))
+                await _dreamscapeSettingsHost.CapturePreviewAsync(mappingRadial6Capture);
+            string? radial6Diagnostics = await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "JSON.stringify(window.leftpadSettings.diagnostics())");
+
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postChange('visualPackId','radial-8-minimal-v1'); true");
+            await Task.Delay(200);
+            RadialSlotMappings radial8Draft =
+                _dreamscapeSettingsSession.Draft.GetProfileMappings(LayoutProfileRegistry.Radial8ProfileId);
+            RadialSlotMappings radial6Draft =
+                _dreamscapeSettingsSession.Draft.GetProfileMappings(LayoutProfileRegistry.Radial6ProfileId);
+            bool mappingProfileRoundTrip =
+                radial8Draft[0].Key == KeyboardKey.F1 &&
+                radial8Draft[1].Kind == RadialActionKind.KeyboardShortcut &&
+                radial8Draft[1].Ctrl && radial8Draft[1].Alt &&
+                radial8Draft[1].Shift && radial8Draft[1].Win &&
+                radial8Draft[2].Ds4Button == "cross" &&
+                radial6Draft[0].Key == KeyboardKey.F6;
+            bool sharedMappingDraftPreserved = sharedDraftPreserved &&
+                _dreamscapeSettingsSession.Draft.ScalePercent == testScale &&
+                _dreamscapeSettingsSession.Draft.FontSize == (float)testFontSize &&
+                mappingProfileRoundTrip;
+
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
                 "document.getElementById('preview-button').click(); true");
             await Task.Delay(250);
             bool previewRoundTrip = _dreamscapeSettingsSession.IsPreviewActive &&
                 _radialMenu.IsPreviewActive &&
                 _dreamscapeSettingsSession.Draft.ScalePercent == testScale &&
-                _dreamscapeSettingsSession.Draft.FontSize == (float)testFontSize;
+                _dreamscapeSettingsSession.Draft.FontSize == (float)testFontSize &&
+                mappingProfileRoundTrip;
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
                 "document.getElementById('hide-preview-button').click(); true");
             await Task.Delay(200);
@@ -274,6 +346,12 @@ public partial class MainForm
             bool unsavedDiscarded =
                 _dreamscapeSettingsSession.Draft.ScalePercent == originalSettings.ScalePercent &&
                 _dreamscapeSettingsSession.Draft.FontSize == originalSettings.FontSize &&
+                _dreamscapeSettingsSession.Draft
+                    .GetProfileMappings(LayoutProfileRegistry.Radial6ProfileId)
+                    .Equals(originalSettings.GetProfileMappings(LayoutProfileRegistry.Radial6ProfileId)) &&
+                _dreamscapeSettingsSession.Draft
+                    .GetProfileMappings(LayoutProfileRegistry.Radial8ProfileId)
+                    .Equals(originalSettings.GetProfileMappings(LayoutProfileRegistry.Radial8ProfileId)) &&
                 _radialSettingsStore.Load().Settings.ScalePercent == originalSettings.ScalePercent;
 
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
@@ -286,25 +364,57 @@ public partial class MainForm
                 $"window.leftpadSettings.postAdvancedChange('fontSize',{testFontSize}); true");
             await Task.Delay(200);
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postChange('visualPackId','radial-8-minimal-v1'); true");
+            await Task.Delay(150);
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postMappingChange('radial-8',2,{actionKind:'keyboardShortcut',key:'P',ctrl:true,alt:true,shift:true,win:true}); true");
+            await Task.Delay(150);
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postChange('visualPackId','radial-v5'); true");
+            await Task.Delay(150);
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postMappingChange('radial-6',1,{actionKind:'keyboardKey',key:'F6'}); true");
+            await Task.Delay(150);
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postChange('visualPackId','radial-8-minimal-v1'); true");
+            await Task.Delay(150);
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
                 "document.getElementById('apply-button').click(); true");
             await Task.Delay(400);
             bool applyRoundTrip = _radialMenu.ActiveSettings.ScalePercent == testScale &&
-                _radialMenu.ActiveSettings.FontSize == (float)testFontSize;
+                _radialMenu.ActiveSettings.FontSize == (float)testFontSize &&
+                _radialMenu.ActiveSettings.GetProfileMappings(LayoutProfileRegistry.Radial8ProfileId)[1].Kind ==
+                    RadialActionKind.KeyboardShortcut &&
+                _radialMenu.ActiveSettings.GetProfileMappings(LayoutProfileRegistry.Radial6ProfileId)[0].Key ==
+                    KeyboardKey.F6;
             bool persistenceRoundTrip =
                 _radialSettingsStore.Load().Settings.ScalePercent == testScale &&
-                _radialSettingsStore.Load().Settings.FontSize == (float)testFontSize;
+                _radialSettingsStore.Load().Settings.FontSize == (float)testFontSize &&
+                _radialSettingsStore.Load().Settings
+                    .GetProfileMappings(LayoutProfileRegistry.Radial8ProfileId)[1].Kind ==
+                    RadialActionKind.KeyboardShortcut &&
+                _radialSettingsStore.Load().Settings
+                    .GetProfileMappings(LayoutProfileRegistry.Radial6ProfileId)[0].Key == KeyboardKey.F6;
 
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
                 "document.getElementById('restore-button').click(); true");
             await Task.Delay(200);
             bool restoreDefaultDraft =
                 _dreamscapeSettingsSession.Draft.ScalePercent == RadialMenuSettings.Default.ScalePercent &&
-                _dreamscapeSettingsSession.Draft.FontSize == RadialMenuSettings.Default.FontSize;
+                _dreamscapeSettingsSession.Draft.FontSize == RadialMenuSettings.Default.FontSize &&
+                _dreamscapeSettingsSession.Draft
+                    .GetProfileMappings(LayoutProfileRegistry.Radial6ProfileId)
+                    .All(mapping => mapping.Kind == RadialActionKind.None) &&
+                _dreamscapeSettingsSession.Draft
+                    .GetProfileMappings(LayoutProfileRegistry.Radial8ProfileId)
+                    .All(mapping => mapping.Kind == RadialActionKind.None);
 
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
                 "window.chrome.webview.postMessage({command:'settingsBasicChange',field:'notAllowed',value:1}); true");
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
                 "window.chrome.webview.postMessage({command:'settingsAdvancedChange',field:'notAllowed',value:1}); true");
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.chrome.webview.postMessage({command:'settingsMappingChange',profileId:'radial-8',slotId:99,actionKind:'none'}); true");
             await Task.Delay(100);
 
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
@@ -329,10 +439,16 @@ public partial class MainForm
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
                 "window.leftpadSettings.postCommand('showSettingsMappings'); true");
             await Task.Delay(200);
-            bool nativeMappings = NativeSettingsTabIsSelected(2);
+            bool webMappings = _dreamscapeSettingsHost.Visible &&
+                _dreamscapeSettingsSession.ActiveSection == ReceiverSettingsSection.Mapping &&
+                !NativeSettingsTabIsSelected(2);
 
             NavigateTo(ReceiverPage.Settings);
             await Task.Delay(200);
+            await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                "window.leftpadSettings.postCommand('beginDrag'); true");
+            await Task.Delay(150);
+            bool dragRoundTrip = IsHandleCreated && !IsDisposed && Visible;
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
                 "window.leftpadSettings.postCommand('minimize'); true");
             await Task.Delay(250);
@@ -379,12 +495,20 @@ public partial class MainForm
                 capturePath,
                 advancedCapture,
                 overviewCapture,
+                mappingDefaultCapture,
+                mappingShortcutCapture,
+                mappingRadial6Capture,
                 before = DecodeScriptJson(before),
                 after = DecodeScriptJson(after),
+                radial8DefaultDiagnostics = DecodeScriptJson(radial8DefaultDiagnostics),
+                radial8ShortcutDiagnostics = DecodeScriptJson(radial8ShortcutDiagnostics),
+                radial6Diagnostics = DecodeScriptJson(radial6Diagnostics),
                 previewRoundTrip,
                 hidePreviewRoundTrip,
                 draftChanged,
                 sharedDraftPreserved,
+                sharedMappingDraftPreserved,
+                mappingProfileRoundTrip,
                 unsavedDiscarded,
                 applyRoundTrip,
                 persistenceRoundTrip,
@@ -394,7 +518,8 @@ public partial class MainForm
                 nativeGamepad,
                 nativeLogs,
                 webAdvanced,
-                nativeMappings,
+                webMappings,
+                dragRoundTrip,
                 minimizeRoundTrip,
                 closeToTrayRoundTrip,
                 visibleTopLevelWindows,

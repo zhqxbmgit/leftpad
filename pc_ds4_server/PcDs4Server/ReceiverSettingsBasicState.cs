@@ -21,6 +21,20 @@ internal sealed record SettingsAdvancedFieldState(
     [property: JsonPropertyName("default")] decimal Default,
     [property: JsonPropertyName("unit")] string Unit);
 
+internal sealed record SettingsMappingOption(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("name")] string Name);
+
+internal sealed record SettingsMappingSlotState(
+    [property: JsonPropertyName("slotId")] int SlotId,
+    [property: JsonPropertyName("actionKind")] string ActionKind,
+    [property: JsonPropertyName("key")] string? Key,
+    [property: JsonPropertyName("ctrl")] bool Ctrl,
+    [property: JsonPropertyName("alt")] bool Alt,
+    [property: JsonPropertyName("shift")] bool Shift,
+    [property: JsonPropertyName("win")] bool Win,
+    [property: JsonPropertyName("ds4Action")] string? Ds4Action);
+
 internal sealed record ReceiverSettingsBasicState(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("connectionStatus")] string ConnectionStatus,
@@ -37,6 +51,14 @@ internal sealed record ReceiverSettingsBasicState(
     [property: JsonPropertyName("textOpacity")] int TextOpacity,
     [property: JsonPropertyName("ranges")] IReadOnlyDictionary<string, SettingsBasicRange> Ranges,
     [property: JsonPropertyName("advancedFields")] IReadOnlyDictionary<string, SettingsAdvancedFieldState> AdvancedFields,
+    [property: JsonPropertyName("mappingProfileId")] string MappingProfileId,
+    [property: JsonPropertyName("mappingSlotCount")] int MappingSlotCount,
+    [property: JsonPropertyName("mappingSplitIndex")] int MappingSplitIndex,
+    [property: JsonPropertyName("selectedMappingSlot")] int? SelectedMappingSlot,
+    [property: JsonPropertyName("mappings")] IReadOnlyList<SettingsMappingSlotState> Mappings,
+    [property: JsonPropertyName("actionKindOptions")] IReadOnlyList<SettingsMappingOption> ActionKindOptions,
+    [property: JsonPropertyName("keyboardKeyOptions")] IReadOnlyList<SettingsMappingOption> KeyboardKeyOptions,
+    [property: JsonPropertyName("ds4ActionOptions")] IReadOnlyList<SettingsMappingOption> Ds4ActionOptions,
     [property: JsonPropertyName("activeSection")] string ActiveSection,
     [property: JsonPropertyName("previewActive")] bool PreviewActive,
     [property: JsonPropertyName("dirty")] bool Dirty,
@@ -50,7 +72,66 @@ internal sealed record ReceiverSettingsBasicState(
 internal enum ReceiverSettingsSection
 {
     Basic,
-    Advanced
+    Advanced,
+    Mapping
+}
+
+internal static class SettingsMappingCatalogs
+{
+    public static IReadOnlyList<SettingsMappingOption> ActionKinds { get; } =
+        Enum.GetValues<RadialActionKind>()
+            .Select(kind => new SettingsMappingOption(KindId(kind), KindName(kind)))
+            .ToArray();
+
+    public static IReadOnlyList<SettingsMappingOption> KeyboardKeys { get; } =
+        KeyboardKeyCatalog.MainKeys
+            .Select(key => new SettingsMappingOption(key.ToString(), key.ToString()))
+            .ToArray();
+
+    public static IReadOnlyList<SettingsMappingOption> Ds4Actions { get; } =
+        RadialDs4ActionCatalog.Actions
+            .Select(action => new SettingsMappingOption(action.Id, action.DisplayName))
+            .ToArray();
+
+    public static string KindId(RadialActionKind kind) => kind switch
+    {
+        RadialActionKind.None => "none",
+        RadialActionKind.KeyboardKey => "keyboardKey",
+        RadialActionKind.KeyboardShortcut => "keyboardShortcut",
+        RadialActionKind.Ds4Button => "ds4Button",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind))
+    };
+
+    public static bool TryKind(string? id, out RadialActionKind kind)
+    {
+        kind = id switch
+        {
+            "none" => RadialActionKind.None,
+            "keyboardKey" => RadialActionKind.KeyboardKey,
+            "keyboardShortcut" => RadialActionKind.KeyboardShortcut,
+            "ds4Button" => RadialActionKind.Ds4Button,
+            _ => (RadialActionKind)(-1)
+        };
+        return Enum.IsDefined(kind);
+    }
+
+    private static string KindName(RadialActionKind kind) => kind switch
+    {
+        RadialActionKind.None => "无",
+        RadialActionKind.KeyboardKey => "键盘单键",
+        RadialActionKind.KeyboardShortcut => "键盘组合键",
+        RadialActionKind.Ds4Button => "DS4 按键",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind))
+    };
+}
+
+internal static class SettingsMappingLayout
+{
+    public static int SplitIndex(int slotCount)
+    {
+        if (slotCount <= 0) throw new ArgumentOutOfRangeException(nameof(slotCount));
+        return (slotCount + 1) / 2;
+    }
 }
 
 internal static class SettingsBasicFields
@@ -166,6 +247,8 @@ internal enum ReceiverSettingsCommand
 {
     BasicChange,
     AdvancedChange,
+    MappingSelectSlot,
+    MappingChange,
     Preview,
     HidePreview,
     ApplySave,
@@ -187,7 +270,16 @@ internal sealed record ReceiverSettingsMessage(
     string? Field = null,
     string? StringValue = null,
     int? IntegerValue = null,
-    decimal? DecimalValue = null);
+    decimal? DecimalValue = null,
+    string? ProfileId = null,
+    int? SlotId = null,
+    RadialActionKind? ActionKind = null,
+    KeyboardKey? Key = null,
+    bool Ctrl = false,
+    bool Alt = false,
+    bool Shift = false,
+    bool Win = false,
+    string? Ds4Action = null);
 
 internal static class ReceiverSettingsCommandAllowList
 {
@@ -196,6 +288,8 @@ internal static class ReceiverSettingsCommandAllowList
         {
             ["settingsBasicChange"] = ReceiverSettingsCommand.BasicChange,
             ["settingsAdvancedChange"] = ReceiverSettingsCommand.AdvancedChange,
+            ["settingsMappingSelectSlot"] = ReceiverSettingsCommand.MappingSelectSlot,
+            ["settingsMappingChange"] = ReceiverSettingsCommand.MappingChange,
             ["settingsPreview"] = ReceiverSettingsCommand.Preview,
             ["settingsHidePreview"] = ReceiverSettingsCommand.HidePreview,
             ["settingsApplySave"] = ReceiverSettingsCommand.ApplySave,
@@ -238,6 +332,12 @@ internal static class ReceiverSettingsCommandAllowList
                 return Reject(
                     $"Unknown settings bridge command '{commandName ?? "<null>"}'.",
                     out rejectionReason);
+            }
+
+            if (command is ReceiverSettingsCommand.MappingSelectSlot or
+                ReceiverSettingsCommand.MappingChange)
+            {
+                return TryParseMapping(root, commandName, command, out message, out rejectionReason);
             }
 
             if (command != ReceiverSettingsCommand.BasicChange &&
@@ -326,5 +426,131 @@ internal static class ReceiverSettingsCommandAllowList
     {
         rejectionReason = reason;
         return false;
+    }
+
+    private static bool TryParseMapping(
+        JsonElement root,
+        string commandName,
+        ReceiverSettingsCommand command,
+        out ReceiverSettingsMessage message,
+        out string rejectionReason)
+    {
+        message = new ReceiverSettingsMessage(default);
+        rejectionReason = string.Empty;
+        if (!TryRequiredString(root, "profileId", out string? profileId))
+            return Reject($"{commandName} requires a non-empty profileId.", out rejectionReason);
+
+        LayoutProfileRegistration profile;
+        try
+        {
+            profile = LayoutProfileRegistry.GetRequired(profileId);
+        }
+        catch (InvalidDataException)
+        {
+            return Reject($"Unknown mapping profile '{profileId}'.", out rejectionReason);
+        }
+
+        if (!root.TryGetProperty("slotId", out JsonElement slotElement) ||
+            !slotElement.TryGetInt32(out int slotId) ||
+            slotId < 1 || slotId > profile.SlotCount)
+        {
+            return Reject(
+                $"slotId must be between 1 and {profile.SlotCount} for profile {profile.ProfileId}.",
+                out rejectionReason);
+        }
+
+        if (command == ReceiverSettingsCommand.MappingSelectSlot)
+        {
+            message = new ReceiverSettingsMessage(command, ProfileId: profile.ProfileId, SlotId: slotId);
+            return true;
+        }
+
+        if (!TryRequiredString(root, "actionKind", out string? kindId) ||
+            !SettingsMappingCatalogs.TryKind(kindId, out RadialActionKind kind))
+        {
+            return Reject($"Unknown mapping action kind '{kindId ?? "<null>"}'.", out rejectionReason);
+        }
+
+        KeyboardKey? key = null;
+        if (root.TryGetProperty("key", out JsonElement keyElement) &&
+            keyElement.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
+        {
+            if (keyElement.ValueKind != JsonValueKind.String ||
+                !Enum.TryParse(keyElement.GetString(), ignoreCase: false, out KeyboardKey parsedKey) ||
+                !KeyboardKeyCatalog.IsMainKey(parsedKey))
+            {
+                return Reject($"Unknown keyboard key '{keyElement.ToString()}'.", out rejectionReason);
+            }
+            key = parsedKey;
+        }
+
+        bool ctrl = OptionalBoolean(root, "ctrl", out bool ctrlValid);
+        bool alt = OptionalBoolean(root, "alt", out bool altValid);
+        bool shift = OptionalBoolean(root, "shift", out bool shiftValid);
+        bool win = OptionalBoolean(root, "win", out bool winValid);
+        if (!ctrlValid || !altValid || !shiftValid || !winValid)
+            return Reject("Mapping modifiers must be booleans.", out rejectionReason);
+
+        string? ds4Action = null;
+        if (root.TryGetProperty("ds4Action", out JsonElement ds4Element) &&
+            ds4Element.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
+        {
+            if (ds4Element.ValueKind != JsonValueKind.String ||
+                !RadialDs4ActionCatalog.TryGet(ds4Element.GetString(), out RadialDs4ActionMapping action))
+            {
+                return Reject($"Unknown DS4 action '{ds4Element.ToString()}'.", out rejectionReason);
+            }
+            ds4Action = action.Id;
+        }
+
+        var mapping = new RadialSlotMapping
+        {
+            Kind = kind,
+            Key = key,
+            Ctrl = ctrl,
+            Alt = alt,
+            Shift = shift,
+            Win = win,
+            Ds4Button = ds4Action
+        };
+        if (!mapping.TryValidate(out string mappingError))
+            return Reject(mappingError, out rejectionReason);
+
+        message = new ReceiverSettingsMessage(
+            command,
+            ProfileId: profile.ProfileId,
+            SlotId: slotId,
+            ActionKind: kind,
+            Key: key,
+            Ctrl: ctrl,
+            Alt: alt,
+            Shift: shift,
+            Win: win,
+            Ds4Action: ds4Action);
+        return true;
+    }
+
+    private static bool TryRequiredString(JsonElement root, string name, out string? value)
+    {
+        if (root.TryGetProperty(name, out JsonElement element) &&
+            element.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(element.GetString()))
+        {
+            value = element.GetString();
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool OptionalBoolean(JsonElement root, string name, out bool valid)
+    {
+        if (!root.TryGetProperty(name, out JsonElement element))
+        {
+            valid = true;
+            return false;
+        }
+        valid = element.ValueKind is JsonValueKind.True or JsonValueKind.False;
+        return valid && element.GetBoolean();
     }
 }

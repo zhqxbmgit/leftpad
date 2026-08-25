@@ -34,6 +34,7 @@ internal sealed class DreamscapeSettingsBasicSession
     public bool IsPreviewActive { get; private set; }
     public bool IsDirty { get; private set; }
     public ReceiverSettingsSection ActiveSection { get; private set; } = ReceiverSettingsSection.Basic;
+    public int? SelectedMappingSlot { get; private set; }
     internal RadialMenuSettings Draft => _draft;
 
     public void Activate()
@@ -43,6 +44,7 @@ internal sealed class DreamscapeSettingsBasicSession
         _draft = _activeSettings().NormalizeMappings();
         IsDirty = false;
         ActiveSection = ReceiverSettingsSection.Basic;
+        SelectedMappingSlot = null;
         IsActive = true;
     }
 
@@ -51,6 +53,7 @@ internal sealed class DreamscapeSettingsBasicSession
         ClosePreview();
         IsActive = false;
         IsDirty = false;
+        SelectedMappingSlot = null;
     }
 
     public bool TryApplyChange(
@@ -60,22 +63,30 @@ internal sealed class DreamscapeSettingsBasicSession
         rejectionReason = string.Empty;
         if (!IsActive ||
             (message.Command != ReceiverSettingsCommand.BasicChange &&
-             message.Command != ReceiverSettingsCommand.AdvancedChange) ||
-            message.Field == null)
+             message.Command != ReceiverSettingsCommand.AdvancedChange &&
+             message.Command != ReceiverSettingsCommand.MappingChange) ||
+            (message.Command != ReceiverSettingsCommand.MappingChange && message.Field == null))
         {
             rejectionReason = "Settings session is not active or the change command is invalid.";
             return false;
         }
 
-        RadialMenuSettings candidate = message.Command == ReceiverSettingsCommand.BasicChange
-            ? ApplyBasicChange(message, out rejectionReason)
-            : ApplyAdvancedChange(message, out rejectionReason);
+        string previousProfileId = _draft.MappingProfileId;
+        RadialMenuSettings candidate = message.Command switch
+        {
+            ReceiverSettingsCommand.BasicChange => ApplyBasicChange(message, out rejectionReason),
+            ReceiverSettingsCommand.AdvancedChange => ApplyAdvancedChange(message, out rejectionReason),
+            ReceiverSettingsCommand.MappingChange => ApplyMappingChange(message, out rejectionReason),
+            _ => _draft
+        };
         if (!string.IsNullOrEmpty(rejectionReason))
             return false;
         if (!candidate.TryValidate(out rejectionReason))
             return false;
 
         _draft = candidate;
+        if (!string.Equals(previousProfileId, _draft.MappingProfileId, StringComparison.Ordinal))
+            SelectedMappingSlot = null;
         IsDirty = !SettingsEqual(_draft, _activeSettings());
         if (IsPreviewActive)
             _updatePreview(_draft);
@@ -92,6 +103,38 @@ internal sealed class DreamscapeSettingsBasicSession
     {
         EnsureActive();
         ActiveSection = ReceiverSettingsSection.Advanced;
+    }
+
+    public void ShowMappings()
+    {
+        EnsureActive();
+        ActiveSection = ReceiverSettingsSection.Mapping;
+    }
+
+    public bool TrySelectMappingSlot(
+        ReceiverSettingsMessage message,
+        out string rejectionReason)
+    {
+        rejectionReason = string.Empty;
+        if (!IsActive || message.Command != ReceiverSettingsCommand.MappingSelectSlot ||
+            message.ProfileId == null || message.SlotId == null)
+        {
+            rejectionReason = "Settings session is not active or the mapping selection is invalid.";
+            return false;
+        }
+        if (!string.Equals(message.ProfileId, _draft.MappingProfileId, StringComparison.Ordinal))
+        {
+            rejectionReason = $"Mapping profile '{message.ProfileId}' is not active.";
+            return false;
+        }
+        int slotCount = ActiveLayoutDefinition().SlotCount;
+        if (message.SlotId < 1 || message.SlotId > slotCount)
+        {
+            rejectionReason = $"Slot must be between 1 and {slotCount}.";
+            return false;
+        }
+        SelectedMappingSlot = message.SlotId.Value;
+        return true;
     }
 
     private RadialMenuSettings ApplyBasicChange(
@@ -161,6 +204,47 @@ internal sealed class DreamscapeSettingsBasicSession
         };
     }
 
+    private RadialMenuSettings ApplyMappingChange(
+        ReceiverSettingsMessage message,
+        out string rejectionReason)
+    {
+        rejectionReason = string.Empty;
+        if (message.ProfileId == null || message.SlotId == null || message.ActionKind == null)
+            return RejectUnknownField("mapping", out rejectionReason);
+        if (!string.Equals(message.ProfileId, _draft.MappingProfileId, StringComparison.Ordinal))
+        {
+            rejectionReason = $"Mapping profile '{message.ProfileId}' is not active.";
+            return _draft;
+        }
+
+        LayoutDefinition layout = ActiveLayoutDefinition();
+        int slotId = message.SlotId.Value;
+        if (slotId < 1 || slotId > layout.SlotCount)
+        {
+            rejectionReason = $"Slot must be between 1 and {layout.SlotCount}.";
+            return _draft;
+        }
+
+        var mapping = new RadialSlotMapping
+        {
+            Kind = message.ActionKind.Value,
+            Key = message.Key,
+            Ctrl = message.Ctrl,
+            Alt = message.Alt,
+            Shift = message.Shift,
+            Win = message.Win,
+            Ds4Button = message.Ds4Action
+        };
+        if (!mapping.TryValidate(out rejectionReason))
+            return _draft;
+
+        SelectedMappingSlot = slotId;
+        RadialSlotMappings mappings = _draft
+            .GetProfileMappings(layout.ProfileId)
+            .WithSlot(slotId, mapping);
+        return _draft.SetProfileMappings(layout.ProfileId, mappings);
+    }
+
     public void Preview()
     {
         EnsureActive();
@@ -220,7 +304,20 @@ internal sealed class DreamscapeSettingsBasicSession
             _draft.TextAlpha,
             SettingsBasicFields.Ranges,
             SettingsAdvancedFields.CreateStates(_draft),
-            ActiveSection == ReceiverSettingsSection.Advanced ? "advanced" : "basic",
+            _draft.MappingProfileId,
+            ActiveLayoutDefinition().SlotCount,
+            SettingsMappingLayout.SplitIndex(ActiveLayoutDefinition().SlotCount),
+            SelectedMappingSlot,
+            CreateMappingStates(),
+            SettingsMappingCatalogs.ActionKinds,
+            SettingsMappingCatalogs.KeyboardKeys,
+            SettingsMappingCatalogs.Ds4Actions,
+            ActiveSection switch
+            {
+                ReceiverSettingsSection.Advanced => "advanced",
+                ReceiverSettingsSection.Mapping => "mappings",
+                _ => "basic"
+            },
             IsPreviewActive,
             IsDirty,
             IsActive && options.Length > 0);
@@ -240,6 +337,43 @@ internal sealed class DreamscapeSettingsBasicSession
             VisualPackId = pack.Id,
             MappingProfileId = pack.Definition.LayoutDefinition.ProfileId
         };
+    }
+
+    private LayoutDefinition ActiveLayoutDefinition()
+    {
+        RadialVisualPackCatalogEntry? pack = _catalog?.Find(_draft.VisualPackId);
+        if (pack != null)
+            return pack.Definition.LayoutDefinition;
+        LayoutProfileRegistration profile = LayoutProfileRegistry.GetRequired(_draft.MappingProfileId);
+        return new LayoutDefinition(
+            profile.ProfileId,
+            profile.Family,
+            profile.SlotCount,
+            new LayoutCanvasDefinition(1, 1, "settings"),
+            new LayoutPointDefinition(0, 0),
+            profile.SelectionModel,
+            "settings",
+            Enumerable.Range(1, profile.SlotCount)
+                .Select(slot => new RadialSlotDefinition(
+                    slot,
+                    profile.ExpectedAngles[slot - 1],
+                    new LayoutPointDefinition(0, 0),
+                    new LayoutPointDefinition(0, 0))));
+    }
+
+    private SettingsMappingSlotState[] CreateMappingStates()
+    {
+        LayoutDefinition layout = ActiveLayoutDefinition();
+        RadialSlotMappings mappings = _draft.GetProfileMappings(layout.ProfileId);
+        return mappings.Select((mapping, index) => new SettingsMappingSlotState(
+            index + 1,
+            SettingsMappingCatalogs.KindId(mapping.Kind),
+            mapping.Key?.ToString(),
+            mapping.Ctrl,
+            mapping.Alt,
+            mapping.Shift,
+            mapping.Win,
+            mapping.Ds4Button)).ToArray();
     }
 
     private void ClosePreview()
