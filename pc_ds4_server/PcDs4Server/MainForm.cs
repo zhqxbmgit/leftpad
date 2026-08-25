@@ -107,6 +107,7 @@ namespace PcDs4Server
                 LogRadialMessage,
                 _radialVisualPackCatalog);
             InitializeDreamscapeSettingsFeature();
+            InitializeDreamscapeControllerFeature();
             _radialSelectionTimer = new System.Windows.Forms.Timer
             {
                 Interval = radialSettings.Settings.SelectionPollIntervalMs
@@ -538,6 +539,7 @@ namespace PcDs4Server
                 _lblStatusBadge.Text = connected ? "已连接" : "等待连接";
                 _lblStatusBadge.ForeColor = connected ? ThemeColors.Success : ThemeColors.Warning;
                 _lblStatusBadge.BackColor = connected ? Color.FromArgb(0, 50, 20) : Color.FromArgb(40, 35, 0);
+                PublishDreamscapeControllerDisplayState();
             });
             _service.OnButtonEvent += btn => PostToUi(() => {
                 foreach(var key in _btnStates.Keys) {
@@ -547,6 +549,7 @@ namespace PcDs4Server
                     }
                 }
                 _contentPanel.Refresh(); // 强制重绘手柄状态
+                PublishDreamscapeControllerDisplayState();
             });
             _service.OnJoystickStateChanged += state => PostToUi(() => {
                 string center = state.Center is ScreenPoint centerPoint
@@ -571,6 +574,7 @@ namespace PcDs4Server
                     $"摇杆：{state.StickX:F3} / {state.StickY:F3}    幅度：{stickMagnitude:F3}    DS4：{state.Ds4X} / {state.Ds4Y}\n" +
                     $"中心：{center}    当前光标：{currentCursor}\n" +
                     $"光标偏移：{state.CursorDeltaX:F1} / {state.CursorDeltaY:F1}    光标距离：{state.CursorDistance:F1}";
+                PublishDreamscapeControllerJoystickState(state);
             });
             _service.RadialMenuTriggered += source => PostToUi(() =>
             {
@@ -637,8 +641,9 @@ namespace PcDs4Server
             bool showGamepad = page == ReceiverPage.Gamepad;
             _overviewCards.Visible = showOverview;
             _overviewOutput.Visible = showOverview;
-            _gamepadMonitor.Visible = showGamepad;
-            _joystickDebugSection.Visible = showGamepad;
+            bool showWebController = SetDreamscapeControllerVisibility(showGamepad);
+            _gamepadMonitor.Visible = showGamepad && !showWebController;
+            _joystickDebugSection.Visible = showGamepad && !showWebController;
             bool showWebSettings = SetDreamscapeSettingsVisibility(page == ReceiverPage.Settings);
             _settingsPage.Visible = page == ReceiverPage.Settings && !showWebSettings;
             _logSection.Visible = page == ReceiverPage.Log;
@@ -862,6 +867,7 @@ namespace PcDs4Server
             base.OnShown(e);
             InitializeDreamscapeOverviewRuntime();
             InitializeDreamscapeSettingsRuntime();
+            InitializeDreamscapeControllerRuntime();
             BeginInvoke(AutoStartDirectDs4Once);
         }
 
