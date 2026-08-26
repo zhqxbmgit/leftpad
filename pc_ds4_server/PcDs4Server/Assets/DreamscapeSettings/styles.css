@@ -6,50 +6,10 @@
   --focus: rgba(83, 181, 218, .62);
 }
 
-* { box-sizing: border-box; }
-html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; user-select: none; }
-body { background: #263772; }
 button, select, input { font: inherit; }
 
-#viewport { position: fixed; inset: 0; overflow: hidden; background: #263772; }
-#design-root {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 1672px;
-  height: 941px;
-  transform-origin: 0 0;
-  overflow: hidden;
-  border-radius: 22px;
-  color: var(--navy);
-  background: #bcc8ec;
-}
+#design-root { color: var(--navy); background: #bcc8ec; }
 .scene-art { position: absolute; inset: 0; width: 1672px; height: 941px; pointer-events: none; }
-
-.brand { position: absolute; left: 49px; top: 158px; width: 200px; color: #fbf9ff; text-shadow: 0 1px 2px rgba(35,43,99,.38); }
-.brand-name { font: 350 41px/1.05 "Segoe UI", "Noto Sans SC", sans-serif; letter-spacing: -.8px; }
-.brand-subtitle { margin-top: 6px; color: #e1e5fa; font-size: 27px; font-weight: 350; letter-spacing: .7px; }
-
-.nav-command {
-  position: absolute; left: 22px; top: var(--y); width: 225px; height: 58px;
-  padding: 0; border: 0; outline: 0; background: transparent; color: #f6f6ff;
-  cursor: pointer; text-align: left; transition: filter 140ms ease, transform 100ms ease;
-}
-.nav-command.selected { left: 10px; width: 242px; height: 62px; }
-.nav-command::before {
-  content: ""; position: absolute; inset: -3px -8px; opacity: 0; z-index: -1;
-  border: 1px solid rgba(224,244,255,.4);
-  background: linear-gradient(105deg, rgba(137,226,224,.13), rgba(207,186,255,.19));
-  clip-path: polygon(6% 0,94% 0,100% 50%,94% 100%,6% 100%,0 50%);
-  transition: opacity 140ms ease;
-}
-.nav-command.selected::before { opacity: .2; }
-.nav-command:hover::before, .nav-command:focus-visible::before { opacity: .72; }
-.nav-command:hover { filter: brightness(1.08); }
-.nav-command:active { transform: translateY(1px); }
-.nav-command:focus-visible { outline: 2px solid rgba(191,237,255,.78); outline-offset: 3px; }
-.nav-command span { position: absolute; left: 67px; top: 9px; font-size: 25px; font-weight: 450; line-height: 39px; white-space: nowrap; text-shadow: 0 1px 2px rgba(34,45,99,.42); }
-.nav-command.selected span { left: 80px; top: 10px; font-size: 27px; }
 
 .page-title {
   position: absolute; left: 350px; top: 62px; width: 190px; height: 82px;
@@ -311,12 +271,5 @@ html[data-mapping-slots="6"] #mapping-detail { top: 598px; }
 .action-button.apply { left: 852px; width: 221px; }
 .action-button.restore { left: 1119px; width: 201px; }
 
-#window-drag-zone { position: absolute; left: 267px; top: 0; width: 1240px; height: 67px; }
-.window-button { position: absolute; top: 18px; width: 52px; height: 52px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #19276b; cursor: pointer; font: 200 39px/46px "Segoe UI",sans-serif; transition: background 120ms ease,transform 100ms ease; }
-.window-button.minimize { left: 1537px; font-size: 31px; line-height: 32px; }
-.window-button.close { left: 1598px; }
-.window-button:hover, .window-button:focus-visible { background: rgba(255,255,255,.18); }
-.window-button:active { transform: scale(.93); }
-.window-button:focus-visible { outline: 2px solid rgba(39,83,151,.52); outline-offset: -5px; }
 #status-message { position: absolute; left: 650px; top: 748px; width: 360px; text-align: center; color: #9b4161; font-size: 15px; opacity: 0; transition: opacity 160ms ease; }
 #status-message.visible { opacity: 1; }

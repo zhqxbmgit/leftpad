@@ -38,12 +38,7 @@ public partial class MainForm
             });
         };
         _dreamscapeSettingsHost.FrontendReady += RunDreamscapeSettingsSmokeIfRequested;
-        _dreamscapeSettingsHost.Dock = DockStyle.None;
-        _dreamscapeSettingsHost.Bounds = ClientRectangle;
-        _dreamscapeSettingsHost.Anchor =
-            AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-        _dreamscapeSettingsHost.Visible = false;
-        Controls.Add(_dreamscapeSettingsHost);
+        DreamscapeShellMetrics.AttachHost(this, _dreamscapeSettingsHost, visible: false);
     }
 
     private void InitializeDreamscapeSettingsRuntime() =>
@@ -457,7 +452,7 @@ public partial class MainForm
             ShowMainForm();
             await Task.Delay(150);
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
-                "document.querySelector('.window-button.close').click(); true");
+                "document.querySelector('.dreamscape-window-button.close').click(); true");
             await Task.Delay(250);
             bool closeToTrayRoundTrip = !Visible && _notifyIcon is { Visible: true };
             ShowMainForm();

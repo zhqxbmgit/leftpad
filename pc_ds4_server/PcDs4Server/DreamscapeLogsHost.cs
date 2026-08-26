@@ -3,7 +3,7 @@ using Microsoft.Web.WebView2.WinForms;
 
 namespace PcDs4Server;
 
-internal sealed class DreamscapeLogsHost : UserControl
+internal sealed class DreamscapeLogsHost : UserControl, IDreamscapeShellHost
 {
     private const string VirtualHost = "leftpad-logs.local";
     private readonly WebView2 _webView;
@@ -78,6 +78,12 @@ internal sealed class DreamscapeLogsHost : UserControl
             InitializationFailed?.Invoke(assetError);
             return;
         }
+        if (!DreamscapeShellMetrics.ValidateAssets(out assetError))
+        {
+            _log($"[WebView2 Logs] {assetError}");
+            InitializationFailed?.Invoke(assetError);
+            return;
+        }
 
         try
         {
@@ -99,6 +105,7 @@ internal sealed class DreamscapeLogsHost : UserControl
                 VirtualHost,
                 _assetDirectory,
                 CoreWebView2HostResourceAccessKind.DenyCors);
+            DreamscapeShellMetrics.MapAssets(core);
             core.WebMessageReceived += HandleWebMessageReceived;
             core.NavigationCompleted += HandleNavigationCompleted;
             core.Navigate($"https://{VirtualHost}/index.html");
@@ -163,7 +170,7 @@ internal sealed class DreamscapeLogsHost : UserControl
             stream);
     }
 
-    private void HandleNavigationCompleted(
+    private async void HandleNavigationCompleted(
         object? sender,
         CoreWebView2NavigationCompletedEventArgs eventArgs)
     {
@@ -175,6 +182,7 @@ internal sealed class DreamscapeLogsHost : UserControl
             return;
         }
 
+        await DreamscapeShellMetrics.PublishHostMetricsAsync(_webView);
         _frontendReady = true;
         PostSnapshot();
         FrontendReady?.Invoke();

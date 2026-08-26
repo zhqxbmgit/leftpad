@@ -30,12 +30,7 @@ public partial class MainForm
             });
         };
         _dreamscapeControllerHost.FrontendReady += RunDreamscapeControllerSmokeIfRequested;
-        _dreamscapeControllerHost.Dock = DockStyle.None;
-        _dreamscapeControllerHost.Bounds = ClientRectangle;
-        _dreamscapeControllerHost.Anchor =
-            AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-        _dreamscapeControllerHost.Visible = false;
-        Controls.Add(_dreamscapeControllerHost);
+        DreamscapeShellMetrics.AttachHost(this, _dreamscapeControllerHost, visible: false);
     }
 
     private void InitializeDreamscapeControllerRuntime() =>
@@ -237,7 +232,7 @@ public partial class MainForm
             await Task.Delay(150);
 
             await _dreamscapeControllerHost.ExecuteScriptAsync(
-                "document.querySelector('.window-button.close').click(); true");
+                "document.querySelector('.dreamscape-window-button.close').click(); true");
             await Task.Delay(250);
             bool closeToTrayRoundTrip = !Visible && _notifyIcon is { Visible: true };
             ShowMainForm();

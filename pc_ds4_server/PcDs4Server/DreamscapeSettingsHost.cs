@@ -3,7 +3,7 @@ using Microsoft.Web.WebView2.WinForms;
 
 namespace PcDs4Server;
 
-internal sealed class DreamscapeSettingsHost : UserControl
+internal sealed class DreamscapeSettingsHost : UserControl, IDreamscapeShellHost
 {
     private const string VirtualHost = "leftpad-settings.local";
     private readonly WebView2 _webView;
@@ -75,6 +75,12 @@ internal sealed class DreamscapeSettingsHost : UserControl
             InitializationFailed?.Invoke(assetError);
             return;
         }
+        if (!DreamscapeShellMetrics.ValidateAssets(out assetError))
+        {
+            _log($"[WebView2 Settings] {assetError}");
+            InitializationFailed?.Invoke(assetError);
+            return;
+        }
 
         try
         {
@@ -96,6 +102,7 @@ internal sealed class DreamscapeSettingsHost : UserControl
                 VirtualHost,
                 _assetDirectory,
                 CoreWebView2HostResourceAccessKind.DenyCors);
+            DreamscapeShellMetrics.MapAssets(core);
             core.WebMessageReceived += HandleWebMessageReceived;
             core.NavigationCompleted += HandleNavigationCompleted;
             core.Navigate($"https://{VirtualHost}/index.html");
@@ -139,7 +146,7 @@ internal sealed class DreamscapeSettingsHost : UserControl
             stream);
     }
 
-    private void HandleNavigationCompleted(
+    private async void HandleNavigationCompleted(
         object? sender,
         CoreWebView2NavigationCompletedEventArgs eventArgs)
     {
@@ -150,6 +157,7 @@ internal sealed class DreamscapeSettingsHost : UserControl
             InitializationFailed?.Invoke(message);
             return;
         }
+        await DreamscapeShellMetrics.PublishHostMetricsAsync(_webView);
         PostState();
         FrontendReady?.Invoke();
         _log("[WebView2 Settings] Frontend ready; C# state posted.");

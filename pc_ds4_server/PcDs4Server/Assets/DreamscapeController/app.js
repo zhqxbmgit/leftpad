@@ -1,9 +1,6 @@
 (() => {
   'use strict';
 
-  const REFERENCE_WIDTH = 1672;
-  const REFERENCE_HEIGHT = 941;
-  const root = document.getElementById('design-root');
   const staticArt = document.getElementById('static-art');
   let lastState = null;
   let bridgeMessagesSent = 0;
@@ -13,20 +10,6 @@
 
   if (!staticArt.complete) {
     staticArt.addEventListener('load', () => { staticArtLoadCount += 1; }, { once: true });
-  }
-
-  function calculateScale(viewportWidth, viewportHeight) {
-    return Math.min(viewportWidth / REFERENCE_WIDTH, viewportHeight / REFERENCE_HEIGHT);
-  }
-
-  function fitCanvas() {
-    const scale = calculateScale(window.innerWidth, window.innerHeight);
-    const left = (window.innerWidth - REFERENCE_WIDTH * scale) / 2;
-    const top = (window.innerHeight - REFERENCE_HEIGHT * scale) / 2;
-    root.style.transform = `translate(${left}px, ${top}px) scale(${scale})`;
-    root.dataset.scale = scale.toFixed(6);
-    root.dataset.originX = left.toFixed(3);
-    root.dataset.originY = top.toFixed(3);
   }
 
   function postCommand(command) {
@@ -76,24 +59,18 @@
     document.documentElement.dataset.stateReceived = 'true';
   }
 
-  document.querySelectorAll('[data-command]').forEach(element => {
-    element.addEventListener('click', () => postCommand(element.dataset.command));
-  });
-  document.getElementById('window-drag-zone').addEventListener('pointerdown', event => {
-    if (event.button === 0) postCommand('beginDrag');
-  });
-  window.addEventListener('resize', fitCanvas);
   window.chrome?.webview?.addEventListener('message', event => applyState(event.data));
 
-  fitCanvas();
   document.documentElement.dataset.frontendReady = 'true';
   postCommand('controllerRequestState');
 
   window.leftpadController = Object.freeze({
-    calculateScale,
+    calculateScale: window.leftpadShell.calculateScale,
     postCommand,
     applyState,
-    diagnostics: () => ({
+    diagnostics: () => {
+      const shell = window.leftpadShell.diagnostics();
+      return {
       frontendReady: document.documentElement.dataset.frontendReady === 'true',
       stateReceived: document.documentElement.dataset.stateReceived === 'true',
       bridgeMessagesSent,
@@ -104,12 +81,14 @@
       diagnosticFields: document.querySelectorAll('.field').length,
       pressedButtons: [...document.querySelectorAll('[data-button][data-pressed="true"]')]
         .map(element => element.dataset.button),
-      scale: Number(root.dataset.scale),
-      originX: Number(root.dataset.originX),
-      originY: Number(root.dataset.originY),
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-      reference: { width: REFERENCE_WIDTH, height: REFERENCE_HEIGHT },
+      scale: shell.scale,
+      originX: shell.origin.x,
+      originY: shell.origin.y,
+      viewport: shell.viewport,
+      reference: shell.design,
+      shell,
       lastState
-    })
+      };
+    }
   });
 })();

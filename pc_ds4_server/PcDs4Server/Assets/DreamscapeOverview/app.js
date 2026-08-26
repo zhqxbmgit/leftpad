@@ -1,44 +1,27 @@
 (() => {
   'use strict';
 
-  const REFERENCE_WIDTH = 1672;
-  const REFERENCE_HEIGHT = 941;
   const mappingLayout = [
-    ['CR', 932, 564, 1005],
-    ['SQ', 932, 619, 1005],
-    ['L1', 932, 674, 1005],
-    ['L2', 932, 729, 1005],
-    ['L3', 932, 784, 1005],
-    ['CIR', 1281, 564, 1357],
-    ['TRI', 1281, 619, 1357],
-    ['R1', 1281, 674, 1357],
-    ['R2', 1281, 729, 1357],
-    ['R3', 1281, 784, 1357]
+    ['CR', 932, 564, 1005, 'cross'],
+    ['SQ', 932, 619, 1005, 'square'],
+    ['L1', 932, 674, 1005, 'l1'],
+    ['L2', 932, 729, 1005, 'l2'],
+    ['L3', 932, 784, 1005, 'l3'],
+    ['CIR', 1281, 564, 1357, 'circle'],
+    ['TRI', 1281, 619, 1357, 'triangle'],
+    ['R1', 1281, 674, 1357, 'r1'],
+    ['R2', 1281, 729, 1357, 'r2'],
+    ['R3', 1281, 784, 1357, 'r3']
   ];
   let lastState = null;
   let bridgeMessagesSent = 0;
 
-  const root = document.getElementById('design-root');
   const mappingRoot = document.getElementById('mapping-values');
 
-  function calculateScale(viewportWidth, viewportHeight) {
-    return Math.min(viewportWidth / REFERENCE_WIDTH, viewportHeight / REFERENCE_HEIGHT);
-  }
-
-  function fitCanvas() {
-    const scale = calculateScale(window.innerWidth, window.innerHeight);
-    const left = (window.innerWidth - REFERENCE_WIDTH * scale) / 2;
-    const top = (window.innerHeight - REFERENCE_HEIGHT * scale) / 2;
-    root.style.transform = `translate(${left}px, ${top}px) scale(${scale})`;
-    root.dataset.scale = scale.toFixed(6);
-    root.dataset.originX = left.toFixed(3);
-    root.dataset.originY = top.toFixed(3);
-  }
-
-  function postCommand(command) {
+  function postCommand(command, payload = {}) {
     bridgeMessagesSent += 1;
     if (window.chrome?.webview) {
-      window.chrome.webview.postMessage({ command });
+      window.chrome.webview.postMessage({ command, ...payload });
     }
   }
 
@@ -58,21 +41,36 @@
     if (dot) dot.dataset.tone = tone;
   }
 
-  function setSelectValue(select, value) {
-    const normalized = value ?? 'None';
-    let option = select.options[0];
-    if (!option) {
-      option = document.createElement('option');
-      select.append(option);
+  function catalogSignature(options) {
+    return (options ?? [])
+      .map(option => `${option.value}\u0000${option.label}`)
+      .join('\u0001');
+  }
+
+  function syncSelectOptions(select, options, selectedValue, editable) {
+    const normalizedOptions = Array.isArray(options) ? options : [];
+    const signature = catalogSignature(normalizedOptions);
+    if (select.dataset.catalogSignature !== signature) {
+      const fragment = document.createDocumentFragment();
+      normalizedOptions.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.value;
+        option.textContent = item.label;
+        fragment.append(option);
+      });
+      select.replaceChildren(fragment);
+      select.dataset.catalogSignature = signature;
     }
-    option.value = normalized;
-    option.textContent = normalized;
-    select.value = normalized;
-    select.disabled = value == null;
+
+    if (selectedValue != null && select.value !== selectedValue) {
+      select.value = selectedValue;
+    }
+    const disabled = !editable;
+    if (select.disabled !== disabled) select.disabled = disabled;
   }
 
   function initializeMappings() {
-    mappingLayout.forEach(([name, labelX, y, valueX]) => {
+    mappingLayout.forEach(([name, labelX, y, valueX, action]) => {
       const label = document.createElement('span');
       label.className = 'mapping-label';
       label.style.left = `${labelX}px`;
@@ -85,14 +83,23 @@
       select.style.left = `${valueX - 15}px`;
       select.style.top = `${y}px`;
       select.setAttribute('aria-label', `${name} 映射`);
-      setSelectValue(select, null);
+      select.dataset.action = action;
+      select.disabled = true;
+      select.addEventListener('change', () => postCommand('setKeyboardMapping', {
+        action: select.dataset.action,
+        key: select.value
+      }));
       mappingRoot.append(label, select);
     });
   }
 
-  function renderMappings(mappings) {
+  function renderMappings(mappings, options, editable) {
     mappingRoot.querySelectorAll('[data-mapping]').forEach(select => {
-      setSelectValue(select, mappings?.[select.dataset.mapping]);
+      syncSelectOptions(
+        select,
+        options,
+        mappings?.[select.dataset.mapping],
+        editable);
     });
   }
 
@@ -103,46 +110,55 @@
     document.getElementById('virtual-ds4-status').textContent = state.virtualDs4Status;
     document.getElementById('phone-status').textContent = state.phoneStatus;
     document.getElementById('port-status').textContent = String(state.port);
-    setSelectValue(document.getElementById('output-mode'), state.outputMode);
+    syncSelectOptions(
+      document.getElementById('output-mode'),
+      state.outputModeOptions,
+      state.outputModeValue,
+      state.outputModeEditable);
     document.getElementById('start-stop-label').textContent = state.startStopLabel;
     document.getElementById('start-stop').dataset.mode =
-      state.startStopLabel === '停止' ? 'running' : 'stopped';
+      state.serviceRunning ? 'running' : 'stopped';
     updateStatus('vigem-card', 'vigem-dot', state.vigemStatus);
     updateStatus('virtual-ds4-card', 'virtual-ds4-dot', state.virtualDs4Status);
     updateStatus('phone-card', 'phone-dot', state.phoneStatus);
     updateStatus('port-card', 'port-dot', String(state.port));
-    renderMappings(state.mappings);
+    renderMappings(
+      state.mappings,
+      state.keyboardKeyOptions,
+      state.keyboardMappingsEditable);
     document.documentElement.dataset.stateReceived = 'true';
   }
 
   document.querySelectorAll('[data-command]').forEach(element => {
     element.addEventListener('click', () => postCommand(element.dataset.command));
   });
-  document.getElementById('window-drag-zone').addEventListener('pointerdown', event => {
-    if (event.button === 0) postCommand('beginDrag');
+  document.getElementById('output-mode').addEventListener('change', event => {
+    postCommand('setOutputMode', { value: event.currentTarget.value });
   });
-  window.addEventListener('resize', fitCanvas);
   window.chrome?.webview?.addEventListener('message', event => applyState(event.data));
 
   initializeMappings();
-  fitCanvas();
   document.documentElement.dataset.frontendReady = 'true';
   postCommand('requestState');
   window.setInterval(() => postCommand('requestState'), 1000);
 
   window.leftpadSpike = Object.freeze({
-    calculateScale,
+    calculateScale: window.leftpadShell.calculateScale,
     postCommand,
-    diagnostics: () => ({
+    diagnostics: () => {
+      const shell = window.leftpadShell.diagnostics();
+      return {
       frontendReady: document.documentElement.dataset.frontendReady === 'true',
       stateReceived: document.documentElement.dataset.stateReceived === 'true',
       bridgeMessagesSent,
-      scale: Number(root.dataset.scale),
-      originX: Number(root.dataset.originX),
-      originY: Number(root.dataset.originY),
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-      reference: { width: REFERENCE_WIDTH, height: REFERENCE_HEIGHT },
+      scale: shell.scale,
+      originX: shell.origin.x,
+      originY: shell.origin.y,
+      viewport: shell.viewport,
+      reference: shell.design,
+      shell,
       lastState
-    })
+      };
+    }
   });
 })();

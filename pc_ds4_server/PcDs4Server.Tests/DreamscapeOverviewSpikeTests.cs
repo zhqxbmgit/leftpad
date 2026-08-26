@@ -33,6 +33,12 @@ public sealed class DreamscapeOverviewSpikeTests
             "等待连接",
             8888,
             "Direct DS4",
+            "DirectDs4",
+            ReceiverOverviewCatalog.OutputModeOptions,
+            ReceiverOverviewCatalog.KeyboardKeyOptions,
+            true,
+            false,
+            false,
             "停止",
             new Dictionary<string, string> { ["CR"] = "None" });
 
@@ -45,6 +51,10 @@ public sealed class DreamscapeOverviewSpikeTests
         Assert.Equal("等待连接", root.GetProperty("phoneStatus").GetString());
         Assert.Equal(8888, root.GetProperty("port").GetInt32());
         Assert.Equal("Direct DS4", root.GetProperty("outputMode").GetString());
+        Assert.Equal("DirectDs4", root.GetProperty("outputModeValue").GetString());
+        Assert.True(root.GetProperty("outputModeEditable").GetBoolean());
+        Assert.False(root.GetProperty("keyboardMappingsEditable").GetBoolean());
+        Assert.False(root.GetProperty("serviceRunning").GetBoolean());
         Assert.Equal("None", root.GetProperty("mappings").GetProperty("CR").GetString());
     }
 
@@ -60,11 +70,11 @@ public sealed class DreamscapeOverviewSpikeTests
     {
         bool accepted = ReceiverOverviewCommandAllowList.TryParse(
             JsonSerializer.Serialize(new { command = name }),
-            out ReceiverOverviewCommand command,
+            out ReceiverOverviewCommandRequest request,
             out string reason);
 
         Assert.True(accepted, reason);
-        Assert.Equal(expected, command.ToString());
+        Assert.Equal(expected, request.Command.ToString());
         Assert.Contains(name, ReceiverOverviewCommandAllowList.AllowedNames);
     }
 
@@ -148,6 +158,12 @@ public sealed class DreamscapeOverviewSpikeTests
                     "等待连接",
                     8888,
                     "Direct DS4",
+                    "DirectDs4",
+                    ReceiverOverviewCatalog.OutputModeOptions,
+                    ReceiverOverviewCatalog.KeyboardKeyOptions,
+                    true,
+                    false,
+                    false,
                     "启动",
                     new Dictionary<string, string>()),
                 _ => { },

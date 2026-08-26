@@ -1,8 +1,6 @@
 (() => {
   'use strict';
 
-  const REFERENCE_WIDTH = 1672;
-  const REFERENCE_HEIGHT = 941;
   const propertyByField = Object.freeze({
     overallSizePercent: 'overallSizePercent',
     doubleTapWindowMs: 'doubleTapWindowMs',
@@ -23,26 +21,11 @@
   });
   let lastState = null;
   let bridgeMessagesSent = 0;
-  const root = document.getElementById('design-root');
   const form = document.getElementById('settings-form');
   const advancedForm = document.getElementById('advanced-form');
   const mappingSection = document.getElementById('mapping-section');
   const mappingGrid = document.getElementById('mapping-grid');
   const mappingDetail = document.getElementById('mapping-detail');
-
-  function calculateScale(width, height) {
-    return Math.min(width / REFERENCE_WIDTH, height / REFERENCE_HEIGHT);
-  }
-
-  function fitCanvas() {
-    const scale = calculateScale(window.innerWidth, window.innerHeight);
-    const left = (window.innerWidth - REFERENCE_WIDTH * scale) / 2;
-    const top = (window.innerHeight - REFERENCE_HEIGHT * scale) / 2;
-    root.style.transform = `translate(${left}px, ${top}px) scale(${scale})`;
-    root.dataset.scale = scale.toFixed(6);
-    root.dataset.originX = left.toFixed(3);
-    root.dataset.originY = top.toFixed(3);
-  }
 
   function postMessage(message) {
     bridgeMessagesSent += 1;
@@ -341,25 +324,22 @@
       postAdvancedChange(input.dataset.advancedField, Number(input.value));
     });
   });
-  document.getElementById('window-drag-zone').addEventListener('pointerdown', event => {
-    if (event.button === 0) postCommand('beginDrag');
-  });
-  window.addEventListener('resize', fitCanvas);
   window.chrome?.webview?.addEventListener('message', event => applyState(event.data));
 
-  fitCanvas();
   document.documentElement.dataset.frontendReady = 'true';
   postCommand('settingsRequestState');
   window.setInterval(() => postCommand('settingsRequestState'), 1000);
 
   window.leftpadSettings = Object.freeze({
-    calculateScale,
+    calculateScale: window.leftpadShell.calculateScale,
     postCommand,
     postChange,
     postAdvancedChange,
     postMappingSelection,
     postMappingChange,
-    diagnostics: () => ({
+    diagnostics: () => {
+      const shell = window.leftpadShell.diagnostics();
+      return {
       frontendReady: document.documentElement.dataset.frontendReady === 'true',
       stateReceived: document.documentElement.dataset.stateReceived === 'true',
       bridgeMessagesSent,
@@ -380,12 +360,14 @@
       mappingOverflow: mappingSection.scrollHeight > mappingSection.clientHeight ||
         mappingSection.scrollWidth > mappingSection.clientWidth,
       activeSection: document.documentElement.dataset.section,
-      scale: Number(root.dataset.scale),
-      originX: Number(root.dataset.originX),
-      originY: Number(root.dataset.originY),
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-      reference: { width: REFERENCE_WIDTH, height: REFERENCE_HEIGHT },
+      scale: shell.scale,
+      originX: shell.origin.x,
+      originY: shell.origin.y,
+      viewport: shell.viewport,
+      reference: shell.design,
+      shell,
       lastState
-    })
+      };
+    }
   });
 })();

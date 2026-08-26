@@ -1,11 +1,8 @@
 (() => {
   'use strict';
 
-  const REFERENCE_WIDTH = 1672;
-  const REFERENCE_HEIGHT = 941;
   const MAX_ENTRIES = 300;
   const NEAR_BOTTOM_PX = 24;
-  const root = document.getElementById('design-root');
   const view = document.getElementById('log-view');
   const latestMarker = document.getElementById('latest-marker');
   const staticArt = document.getElementById('static-art');
@@ -18,20 +15,6 @@
 
   if (!staticArt.complete) {
     staticArt.addEventListener('load', () => { staticArtLoadCount += 1; }, { once: true });
-  }
-
-  function calculateScale(viewportWidth, viewportHeight) {
-    return Math.min(viewportWidth / REFERENCE_WIDTH, viewportHeight / REFERENCE_HEIGHT);
-  }
-
-  function fitCanvas() {
-    const scale = calculateScale(window.innerWidth, window.innerHeight);
-    const left = (window.innerWidth - REFERENCE_WIDTH * scale) / 2;
-    const top = (window.innerHeight - REFERENCE_HEIGHT * scale) / 2;
-    root.style.transform = `translate(${left}px, ${top}px) scale(${scale})`;
-    root.dataset.scale = scale.toFixed(6);
-    root.dataset.originX = left.toFixed(3);
-    root.dataset.originY = top.toFixed(3);
   }
 
   function postCommand(command) {
@@ -109,22 +92,14 @@
     updateLatestIndicator();
   });
   latestMarker.addEventListener('click', returnToBottom);
-  document.querySelectorAll('[data-command]').forEach(element => {
-    element.addEventListener('click', () => postCommand(element.dataset.command));
-  });
-  document.getElementById('window-drag-zone').addEventListener('pointerdown', event => {
-    if (event.button === 0) postCommand('beginDrag');
-  });
-  window.addEventListener('resize', fitCanvas);
   window.chrome?.webview?.addEventListener('message', event => applyMessage(event.data));
 
-  fitCanvas();
   updateLatestIndicator();
   document.documentElement.dataset.frontendReady = 'true';
   postCommand('logsRequestSnapshot');
 
   window.leftpadLogs = Object.freeze({
-    calculateScale,
+    calculateScale: window.leftpadShell.calculateScale,
     postCommand,
     applyMessage,
     returnToBottom,
@@ -133,7 +108,9 @@
       userAwayFromBottom = true;
       updateLatestIndicator();
     },
-    diagnostics: () => ({
+    diagnostics: () => {
+      const shell = window.leftpadShell.diagnostics();
+      return {
       frontendReady: document.documentElement.dataset.frontendReady === 'true',
       snapshotReceived: document.documentElement.dataset.snapshotReceived === 'true',
       bridgeMessagesSent,
@@ -153,11 +130,13 @@
       staticArtElements: document.querySelectorAll('#static-art').length,
       categories: [...view.children].map(row => row.className),
       lastRawText: view.lastElementChild?.textContent ?? null,
-      scale: Number(root.dataset.scale),
-      originX: Number(root.dataset.originX),
-      originY: Number(root.dataset.originY),
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-      reference: { width: REFERENCE_WIDTH, height: REFERENCE_HEIGHT }
-    })
+      scale: shell.scale,
+      originX: shell.origin.x,
+      originY: shell.origin.y,
+      viewport: shell.viewport,
+      reference: shell.design,
+      shell
+      };
+    }
   });
 })();

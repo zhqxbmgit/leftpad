@@ -5,23 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>LeftPad Dreamscape Overview Spike</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://leftpad-shared.local/shell.css">
 </head>
 <body>
   <div id="viewport" aria-label="Dreamscape Overview viewport">
     <main id="design-root" aria-label="LeftPad DS4 接收器总览">
       <img class="scene-art" src="static-art.png" alt="纪念碑谷建筑场景">
-
-      <section class="brand" aria-label="品牌">
-        <div class="brand-name">LeftPad</div>
-        <div class="brand-subtitle">DS4 接收器</div>
-      </section>
-
-      <nav class="nav-rail" aria-label="主导航">
-        <button class="nav-command selected" data-command="requestState" style="--y:292px"><span>总览</span></button>
-        <button class="nav-command" data-command="showGamepad" style="--y:389px"><span>手柄状态</span></button>
-        <button class="nav-command" data-command="showSettings" style="--y:469px"><span>设置</span></button>
-        <button class="nav-command" data-command="showLogs" style="--y:548px"><span>日志</span></button>
-      </nav>
+      <div id="dreamscape-shell" data-active-page="overview"></div>
 
       <header class="page-title">控制中心</header>
 
@@ -48,9 +38,7 @@
 
       <section class="output-dynamic" aria-label="输出控制">
         <div class="output-heading">输出模式</div>
-        <select id="output-mode" class="output-mode premium-select" aria-label="输出模式">
-          <option>DirectDS4</option>
-        </select>
+        <select id="output-mode" class="output-mode premium-select" aria-label="输出模式" disabled></select>
         <button id="start-stop" class="start-stop" data-command="startStop">
           <img class="stop-glyph" src="button-stop.svg" alt=""><span id="start-stop-label">停止</span>
         </button>
@@ -58,12 +46,9 @@
 
       <section id="mapping-values" aria-label="动作映射"></section>
 
-      <div id="window-drag-zone" aria-hidden="true"></div>
-      <button class="window-button minimize" data-command="minimize" aria-label="最小化">—</button>
-      <button class="window-button close" data-command="closeWindow" aria-label="关闭">×</button>
-
     </main>
   </div>
+  <script src="https://leftpad-shared.local/shell.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

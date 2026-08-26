@@ -5,23 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>LeftPad Dreamscape Settings</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://leftpad-shared.local/shell.css">
 </head>
 <body>
   <div id="viewport">
     <main id="design-root" aria-label="LeftPad DS4 接收器设置页面">
       <img class="scene-art" src="static-art.png" alt="梦境建筑设置场景">
-
-      <section class="brand" aria-label="品牌">
-        <div class="brand-name">LeftPad</div>
-        <div class="brand-subtitle">DS4 接收器</div>
-      </section>
-
-      <nav aria-label="主导航">
-        <button class="nav-command" data-command="showOverview" style="--y:286px"><span>总览</span></button>
-        <button class="nav-command" data-command="showGamepad" style="--y:352px"><span>手柄状态</span></button>
-        <button class="nav-command selected" data-command="settingsRequestState" style="--y:423px"><span>设置</span></button>
-        <button class="nav-command" data-command="showLogs" style="--y:496px"><span>日志</span></button>
-      </nav>
+      <div id="dreamscape-shell" data-active-page="settings"></div>
 
       <header class="page-title">设置</header>
       <div class="connection-pill" aria-live="polite">
@@ -163,12 +153,10 @@
         </button>
       </section>
 
-      <div id="window-drag-zone" aria-hidden="true"></div>
-      <button class="window-button minimize" data-command="minimize" aria-label="最小化">—</button>
-      <button class="window-button close" data-command="closeWindow" aria-label="关闭">×</button>
       <output id="status-message" aria-live="polite"></output>
     </main>
   </div>
+  <script src="https://leftpad-shared.local/shell.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

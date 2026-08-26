@@ -30,12 +30,8 @@ public partial class MainForm
             });
         };
         _dreamscapeLogsHost.FrontendReady += RunDreamscapeLogsSmokeIfRequested;
-        _dreamscapeLogsHost.Dock = DockStyle.None;
-        _dreamscapeLogsHost.Bounds = ClientRectangle;
-        _dreamscapeLogsHost.Anchor =
-            AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-        _dreamscapeLogsHost.Visible = false;
-        Controls.Add(_dreamscapeLogsHost);
+        _dreamscapeLogsHost.FrontendReady += RunDreamscapeShellQuickSmokeIfRequested;
+        DreamscapeShellMetrics.AttachHost(this, _dreamscapeLogsHost, visible: false);
     }
 
     private void InitializeDreamscapeLogsRuntime() =>
@@ -118,8 +114,30 @@ public partial class MainForm
         }
 
         _dreamscapeLogsSmokeStarted = true;
+        RadialMenuSettings originalSettings = _radialMenu.ActiveSettings;
+        int requestedScale = int.TryParse(
+            Environment.GetEnvironmentVariable("LEFTPAD_DREAMSCAPE_SHELL_SCALE"),
+            out int parsedScale) && ReceiverUiScaling.IsPreset(parsedScale)
+                ? parsedScale
+                : originalSettings.ReceiverUiScalePercent;
         try
         {
+            if (requestedScale != originalSettings.ReceiverUiScalePercent)
+            {
+                ApplyRadialMenuSettings(originalSettings with
+                {
+                    ReceiverUiScalePercent = requestedScale
+                });
+            }
+            if (int.TryParse(
+                    Environment.GetEnvironmentVariable("LEFTPAD_DREAMSCAPE_SHELL_SMOKE_CLIENT_WIDTH"),
+                    out int smokeClientWidth) && smokeClientWidth > 0 &&
+                int.TryParse(
+                    Environment.GetEnvironmentVariable("LEFTPAD_DREAMSCAPE_SHELL_SMOKE_CLIENT_HEIGHT"),
+                    out int smokeClientHeight) && smokeClientHeight > 0)
+            {
+                ClientSize = new Size(smokeClientWidth, smokeClientHeight);
+            }
             await Task.Delay(750);
             NavigateTo(ReceiverPage.Log);
             await Task.Delay(350);
@@ -166,9 +184,10 @@ public partial class MainForm
                 "JSON.stringify(window.leftpadLogs.diagnostics())");
 
             await _dreamscapeLogsHost.ExecuteScriptAsync(
-                "window.leftpadLogs.postCommand('showOverview'); true");
+                "document.querySelector('[data-shell-page=\"overview\"]').click(); true");
             await Task.Delay(350);
             bool logsToOverview = _currentPage == ReceiverPage.Overview;
+            string? overviewDiagnostics = null;
             string? overviewCapture = Environment.GetEnvironmentVariable(
                 "LEFTPAD_WEBVIEW2_LOGS_OVERVIEW_CAPTURE");
             if (!string.IsNullOrWhiteSpace(overviewCapture) &&
@@ -176,22 +195,30 @@ public partial class MainForm
             {
                 _dreamscapeOverviewHost.PostState();
                 await Task.Delay(150);
+                overviewDiagnostics = await _dreamscapeOverviewHost.ExecuteScriptAsync(
+                    "JSON.stringify(window.leftpadSpike.diagnostics())");
                 await _dreamscapeOverviewHost.CapturePreviewAsync(overviewCapture);
+            }
+            else if (_dreamscapeOverviewHost is { IsInitialized: true })
+            {
+                overviewDiagnostics = await _dreamscapeOverviewHost.ExecuteScriptAsync(
+                    "JSON.stringify(window.leftpadSpike.diagnostics())");
             }
 
             bool overviewToLogs = false;
             if (_dreamscapeOverviewHost is { IsInitialized: true })
             {
                 await _dreamscapeOverviewHost.ExecuteScriptAsync(
-                    "window.leftpadSpike.postCommand('showLogs'); true");
+                    "document.querySelector('[data-shell-page=\"logs\"]').click(); true");
                 await Task.Delay(350);
                 overviewToLogs = _currentPage == ReceiverPage.Log;
             }
 
             await _dreamscapeLogsHost.ExecuteScriptAsync(
-                "window.leftpadLogs.postCommand('showController'); true");
+                "document.querySelector('[data-shell-page=\"controller\"]').click(); true");
             await Task.Delay(350);
             bool logsToController = _currentPage == ReceiverPage.Gamepad;
+            string? controllerDiagnostics = null;
             string? controllerCapture = Environment.GetEnvironmentVariable(
                 "LEFTPAD_WEBVIEW2_LOGS_CONTROLLER_CAPTURE");
             if (!string.IsNullOrWhiteSpace(controllerCapture) &&
@@ -199,22 +226,30 @@ public partial class MainForm
             {
                 _dreamscapeControllerHost.PostState();
                 await Task.Delay(150);
+                controllerDiagnostics = await _dreamscapeControllerHost.ExecuteScriptAsync(
+                    "JSON.stringify(window.leftpadController.diagnostics())");
                 await _dreamscapeControllerHost.CapturePreviewAsync(controllerCapture);
+            }
+            else if (_dreamscapeControllerHost is { IsInitialized: true })
+            {
+                controllerDiagnostics = await _dreamscapeControllerHost.ExecuteScriptAsync(
+                    "JSON.stringify(window.leftpadController.diagnostics())");
             }
 
             bool controllerToLogs = false;
             if (_dreamscapeControllerHost is { IsInitialized: true })
             {
                 await _dreamscapeControllerHost.ExecuteScriptAsync(
-                    "window.leftpadController.postCommand('showLogs'); true");
+                    "document.querySelector('[data-shell-page=\"logs\"]').click(); true");
                 await Task.Delay(350);
                 controllerToLogs = _currentPage == ReceiverPage.Log;
             }
 
             await _dreamscapeLogsHost.ExecuteScriptAsync(
-                "window.leftpadLogs.postCommand('showSettings'); true");
+                "document.querySelector('[data-shell-page=\"settings\"]').click(); true");
             await Task.Delay(350);
             bool logsToSettings = _currentPage == ReceiverPage.Settings;
+            string? settingsDiagnostics = null;
             string? settingsCapture = Environment.GetEnvironmentVariable(
                 "LEFTPAD_WEBVIEW2_LOGS_SETTINGS_CAPTURE");
             if (!string.IsNullOrWhiteSpace(settingsCapture) &&
@@ -222,27 +257,37 @@ public partial class MainForm
             {
                 _dreamscapeSettingsHost.PostState();
                 await Task.Delay(150);
+                await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                    "window.leftpadSettings.postCommand('showSettingsMappings'); true");
+                await Task.Delay(250);
+                settingsDiagnostics = await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                    "JSON.stringify(window.leftpadSettings.diagnostics())");
                 await _dreamscapeSettingsHost.CapturePreviewAsync(settingsCapture);
+            }
+            else if (_dreamscapeSettingsHost is { IsInitialized: true })
+            {
+                settingsDiagnostics = await _dreamscapeSettingsHost.ExecuteScriptAsync(
+                    "JSON.stringify(window.leftpadSettings.diagnostics())");
             }
 
             bool settingsToLogs = false;
             if (_dreamscapeSettingsHost is { IsInitialized: true })
             {
                 await _dreamscapeSettingsHost.ExecuteScriptAsync(
-                    "window.leftpadSettings.postCommand('showLogs'); true");
+                    "document.querySelector('[data-shell-page=\"logs\"]').click(); true");
                 await Task.Delay(350);
                 settingsToLogs = _currentPage == ReceiverPage.Log;
             }
 
             await _dreamscapeLogsHost.ExecuteScriptAsync(
-                "window.leftpadLogs.postCommand('minimize'); true");
+                "document.querySelector('[data-shell-command=\"minimize\"]').click(); true");
             await Task.Delay(250);
             bool minimizeRoundTrip = WindowState == FormWindowState.Minimized;
             WindowState = FormWindowState.Normal;
             await Task.Delay(150);
 
             await _dreamscapeLogsHost.ExecuteScriptAsync(
-                "document.querySelector('.window-button.close').click(); true");
+                "document.querySelector('.dreamscape-window-button.close').click(); true");
             await Task.Delay(250);
             bool closeToTrayRoundTrip = !Visible && _notifyIcon is { Visible: true };
             ShowMainForm();
@@ -267,7 +312,12 @@ public partial class MainForm
                 overviewCapture,
                 controllerCapture,
                 settingsCapture,
+                receiverUiScalePercent = requestedScale,
+                clientSize = new { width = ClientSize.Width, height = ClientSize.Height },
                 existing = DecodeScriptJson(existingDiagnostics),
+                overview = DecodeScriptJson(overviewDiagnostics),
+                controller = DecodeScriptJson(controllerDiagnostics),
+                settings = DecodeScriptJson(settingsDiagnostics),
                 categories = DecodeScriptJson(categoryDiagnostics),
                 scrolled = DecodeScriptJson(scrolledDiagnostics),
                 returned = DecodeScriptJson(returnedDiagnostics),
@@ -308,6 +358,11 @@ public partial class MainForm
         catch (Exception exception)
         {
             AppendLog($"[{DateTime.Now:HH:mm:ss}] [WebView2 Logs] Smoke failed: {exception.Message}");
+        }
+        finally
+        {
+            if (!IsDisposed && requestedScale != originalSettings.ReceiverUiScalePercent)
+                ApplyRadialMenuSettings(originalSettings);
         }
     }
 }

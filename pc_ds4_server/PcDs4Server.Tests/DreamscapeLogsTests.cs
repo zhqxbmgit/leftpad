@@ -249,11 +249,13 @@ public sealed class DreamscapeLogsTests
     public void Navigation_ContainsOverviewControllerAndSettingsTargets()
     {
         string html = ReadAsset("index.html");
+        string shell = File.ReadAllText(Path.Combine(DreamscapeShellMetrics.AssetDirectory, "shell.js"));
 
-        Assert.Contains("data-command=\"showOverview\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-command=\"showController\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-command=\"showSettings\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-command=\"logsRequestSnapshot\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-active-page=\"logs\"", html, StringComparison.Ordinal);
+        Assert.Contains("logs: Object.freeze({ overview: 'showOverview'", shell, StringComparison.Ordinal);
+        Assert.Contains("controller: 'showController'", shell, StringComparison.Ordinal);
+        Assert.Contains("settings: 'showSettings'", shell, StringComparison.Ordinal);
+        Assert.Contains("logs: 'logsRequestSnapshot'", shell, StringComparison.Ordinal);
     }
 
     [Fact]

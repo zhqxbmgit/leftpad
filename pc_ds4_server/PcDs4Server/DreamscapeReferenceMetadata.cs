@@ -11,8 +11,8 @@ internal sealed record DreamscapeReferenceElement(
 
 internal static class DreamscapeReferenceMetadata
 {
-    public const int ReferenceWidth = 1672;
-    public const int ReferenceHeight = 941;
+    public const int ReferenceWidth = DreamscapeShellMetrics.DesignWidth;
+    public const int ReferenceHeight = DreamscapeShellMetrics.DesignHeight;
     public const string ReferenceSha256 =
         "4E7D2A19E2FBFEC7E11D7D9E2B396F5EF36644ED2EFF56695261AAAA10265938";
 

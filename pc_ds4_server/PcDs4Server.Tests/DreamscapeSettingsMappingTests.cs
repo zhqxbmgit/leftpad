@@ -17,7 +17,8 @@ public sealed class DreamscapeSettingsMappingTests
 
         string html = Frontend("index.html");
         string script = Frontend("app.js");
-        string styles = Frontend("styles.css");
+        string styles = Frontend("styles.css") + File.ReadAllText(
+            Path.Combine(DreamscapeShellMetrics.AssetDirectory, "shell.css"));
         Assert.Contains("id=\"mapping-detail\"", html);
         Assert.Contains("showSettingsMappings", html);
         Assert.Contains("renderMappingDetail", script);
@@ -231,7 +232,8 @@ public sealed class DreamscapeSettingsMappingTests
     public void Frontend_HasStableGridSelectedFeedbackAndNoScrolling()
     {
         string script = Frontend("app.js");
-        string styles = Frontend("styles.css");
+        string styles = Frontend("styles.css") + File.ReadAllText(
+            Path.Combine(DreamscapeShellMetrics.AssetDirectory, "shell.css"));
 
         Assert.Contains("state.mappingSplitIndex", script);
         Assert.Contains("Slot ${mapping.slotId}", script);

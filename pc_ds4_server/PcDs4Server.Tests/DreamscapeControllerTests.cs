@@ -259,9 +259,11 @@ public sealed class DreamscapeControllerTests
         Assert.NotNull(typeof(MainForm).GetMethod("ShowNativeControllerPage", privateInstance));
         Assert.NotNull(typeof(MainForm).GetMethod("HandleDreamscapeControllerCommand", privateInstance));
         string html = ReadAsset("index.html");
-        Assert.Contains("data-command=\"showOverview\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-command=\"showSettings\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-command=\"showLogs\"", html, StringComparison.Ordinal);
+        string shell = File.ReadAllText(Path.Combine(DreamscapeShellMetrics.AssetDirectory, "shell.js"));
+        Assert.Contains("data-active-page=\"controller\"", html, StringComparison.Ordinal);
+        Assert.Contains("controller: Object.freeze({ overview: 'showOverview'", shell, StringComparison.Ordinal);
+        Assert.Contains("settings: 'showSettings'", shell, StringComparison.Ordinal);
+        Assert.Contains("logs: 'showLogs'", shell, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -1,0 +1,268 @@
+:root {
+  --dreamscape-design-width: 1672px;
+  --dreamscape-design-height: 941px;
+  --dreamscape-sidebar-width: 307px;
+  --dreamscape-shell-ink: #f8f7ff;
+  --dreamscape-shell-muted: #e8e3f4;
+  --dreamscape-shell-focus: rgba(191, 237, 255, .78);
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+body { background: #273a78; }
+
+#viewport {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #273a78;
+}
+
+#design-root {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--dreamscape-design-width);
+  height: var(--dreamscape-design-height);
+  overflow: hidden;
+  transform-origin: 0 0;
+  border-radius: 22px;
+}
+
+#dreamscape-shell {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  color: var(--dreamscape-shell-ink);
+  font-family: "Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+.dreamscape-sidebar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--dreamscape-sidebar-width);
+  height: var(--dreamscape-design-height);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 36px 756px, rgba(157, 221, 220, .24), transparent 112px),
+    radial-gradient(circle at 262px 88px, rgba(238, 201, 234, .22), transparent 150px),
+    radial-gradient(circle at 238px 575px, rgba(166, 161, 222, .19), transparent 145px),
+    linear-gradient(164deg, #30488b 0%, #405a9f 48%, #324a8e 100%);
+  box-shadow: inset -1px 0 rgba(241, 239, 255, .19), 10px 0 26px rgba(36, 47, 105, .06);
+  pointer-events: auto;
+}
+
+.dreamscape-sidebar::before,
+.dreamscape-sidebar::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.dreamscape-sidebar::before {
+  inset: 0;
+  opacity: .33;
+  background: center bottom / 307px 342px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 307 342'%3E%3Cg fill='none' stroke='%23e7edf9' stroke-width='1.2' opacity='.52'%3E%3Cpath d='M-12 339h331M10 339v-71l30-25 31 25v71M24 339v-45h31v45M99 339V222l28-30 28 30v117M116 339v-88h22v88M178 339v-57l24-21 24 21v57M239 339V193l25-31 25 31v146M254 339V220h20v119'/%3E%3Cpath d='M18 268h45M106 222h42M185 282h34M246 193h36'/%3E%3C/g%3E%3Cg fill='%23fff5e8'%3E%3Cpath opacity='.62' d='M73 239h2v15h-2zM67 245h15v2H67z'/%3E%3Cpath opacity='.48' d='M283 112h2v11h-2zM279 116h11v2h-11z'/%3E%3C/g%3E%3Cg fill='%23d8d9ff' opacity='.46'%3E%3Cpath d='m36 182 7 13-7 13-7-13zM202 216l6 11-6 12-6-12zM264 149l5 9-5 10-5-10z'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.dreamscape-sidebar::after {
+  left: 20px;
+  top: 27px;
+  width: 266px;
+  height: 700px;
+  opacity: .55;
+  background:
+    radial-gradient(circle, rgba(255, 248, 231, .85) 0 1px, transparent 1.8px) 20px 0 / 86px 92px,
+    radial-gradient(circle, rgba(220, 230, 255, .72) 0 1px, transparent 1.8px) 62px 19px / 103px 118px;
+}
+
+.dreamscape-logo {
+  position: absolute;
+  left: 78px;
+  top: 38px;
+  width: 127px;
+  height: 136px;
+  object-fit: contain;
+  filter: drop-shadow(0 9px 12px rgba(20, 30, 82, .24));
+}
+
+.dreamscape-brand {
+  position: absolute;
+  left: 63px;
+  top: 169px;
+  width: 214px;
+  height: 82px;
+  color: #fbf9ff;
+  text-shadow: 0 1px 2px rgba(35, 43, 99, .38);
+}
+
+.dreamscape-brand-name {
+  font: 350 40px/1.05 "Segoe UI", "Noto Sans SC", sans-serif;
+  letter-spacing: -.8px;
+}
+
+.dreamscape-brand-subtitle {
+  margin-top: 6px;
+  color: var(--dreamscape-shell-muted);
+  font-size: 26px;
+  font-weight: 350;
+  letter-spacing: .8px;
+}
+
+.dreamscape-nav {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--dreamscape-sidebar-width);
+  height: var(--dreamscape-design-height);
+}
+
+.dreamscape-nav-command {
+  position: absolute;
+  left: 15px;
+  top: var(--shell-nav-y);
+  width: 276px;
+  height: 72px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f5f5ff;
+  cursor: pointer;
+  text-align: left;
+  isolation: isolate;
+  transition: filter 140ms ease, transform 100ms ease;
+}
+
+.dreamscape-nav-command::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 4px 4px;
+  opacity: 0;
+  border: 1px solid rgba(239, 249, 255, .66);
+  background: linear-gradient(105deg, rgba(139, 229, 223, .44), rgba(206, 188, 250, .55));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), 0 8px 18px rgba(28, 38, 92, .08);
+  clip-path: polygon(6% 0, 94% 0, 100% 50%, 94% 100%, 6% 100%, 0 50%);
+  transition: opacity 140ms ease, background 140ms ease;
+}
+
+.dreamscape-nav-command::after {
+  content: "\2726";
+  position: absolute;
+  right: 24px;
+  top: 17px;
+  color: #fff8e8;
+  font: 23px/36px Georgia, serif;
+  opacity: 0;
+  text-shadow: 0 1px 5px rgba(46, 46, 111, .28);
+  transition: opacity 140ms ease;
+}
+
+.dreamscape-nav-command[aria-current="page"]::before { opacity: .86; }
+.dreamscape-nav-command[aria-current="page"]::after { opacity: .9; }
+.dreamscape-nav-command:hover::before,
+.dreamscape-nav-command:focus-visible::before { opacity: .72; }
+.dreamscape-nav-command:hover { filter: brightness(1.08); }
+.dreamscape-nav-command:active { transform: translateY(1px); }
+.dreamscape-nav-command:focus-visible {
+  outline: 2px solid var(--dreamscape-shell-focus);
+  outline-offset: -5px;
+}
+
+.dreamscape-nav-icon {
+  position: absolute;
+  left: 28px;
+  top: 18px;
+  width: 36px;
+  height: 36px;
+  color: #fff9ef;
+  fill: currentColor;
+  stroke: rgba(255, 255, 255, .72);
+  stroke-width: .7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .97;
+  filter: drop-shadow(0 2px 2px rgba(31, 47, 111, .38));
+}
+
+.dreamscape-nav-icon .icon-cut { fill: #7d93cc; stroke: none; }
+.dreamscape-nav-icon .icon-detail { fill: #d9d7ef; stroke: none; }
+
+.dreamscape-nav-command span {
+  position: absolute;
+  left: 88px;
+  top: 15px;
+  font-size: 27px;
+  font-weight: 450;
+  line-height: 42px;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(34, 45, 99, .42);
+}
+
+.dreamscape-window-surface {
+  position: absolute;
+  left: 1512px;
+  top: 0;
+  width: 160px;
+  height: 82px;
+  background:
+    radial-gradient(circle at 46px 42px, rgba(246, 242, 252, .40) 0 25px, rgba(209, 216, 241, .20) 27px, transparent 43px),
+    radial-gradient(circle at 108px 42px, rgba(246, 242, 252, .40) 0 25px, rgba(209, 216, 241, .20) 27px, transparent 43px);
+  pointer-events: none;
+}
+
+.dreamscape-window-drag-zone {
+  position: absolute;
+  left: var(--dreamscape-sidebar-width);
+  top: 0;
+  width: 1205px;
+  height: 68px;
+  pointer-events: auto;
+}
+
+.dreamscape-window-button {
+  position: absolute;
+  top: 16px;
+  width: 52px;
+  height: 52px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  outline: 0;
+  color: #34467f;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  font: 300 34px/46px "Segoe UI", sans-serif;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, .6);
+  transition: background 120ms ease, transform 100ms ease;
+}
+
+.dreamscape-window-button.minimize {
+  left: 1532px;
+  font-size: 28px;
+  line-height: 32px;
+}
+
+.dreamscape-window-button.close { left: 1592px; }
+.dreamscape-window-button:hover,
+.dreamscape-window-button:focus-visible { background: rgba(255, 255, 255, .24); }
+.dreamscape-window-button:active { transform: scale(.93); }
+.dreamscape-window-button:focus-visible {
+  outline: 2px solid rgba(39, 83, 151, .52);
+  outline-offset: -5px;
+}

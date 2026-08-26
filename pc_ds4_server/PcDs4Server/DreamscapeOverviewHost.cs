@@ -3,19 +3,19 @@ using Microsoft.Web.WebView2.WinForms;
 
 namespace PcDs4Server;
 
-internal sealed class DreamscapeOverviewHost : UserControl
+internal sealed class DreamscapeOverviewHost : UserControl, IDreamscapeShellHost
 {
     private const string VirtualHost = "leftpad-overview.local";
     private readonly WebView2 _webView;
     private readonly Func<ReceiverOverviewState> _stateProvider;
-    private readonly Action<ReceiverOverviewCommand> _commandHandler;
+    private readonly Action<ReceiverOverviewCommandRequest> _commandHandler;
     private readonly Action<string> _log;
     private readonly string _assetDirectory;
     private bool _initializationStarted;
 
     public DreamscapeOverviewHost(
         Func<ReceiverOverviewState> stateProvider,
-        Action<ReceiverOverviewCommand> commandHandler,
+        Action<ReceiverOverviewCommandRequest> commandHandler,
         Action<string> log,
         string? assetDirectory = null)
     {
@@ -78,6 +78,12 @@ internal sealed class DreamscapeOverviewHost : UserControl
             InitializationFailed?.Invoke(assetError);
             return;
         }
+        if (!DreamscapeShellMetrics.ValidateAssets(out assetError))
+        {
+            _log($"[WebView2 Spike] {assetError}");
+            InitializationFailed?.Invoke(assetError);
+            return;
+        }
 
         try
         {
@@ -99,6 +105,7 @@ internal sealed class DreamscapeOverviewHost : UserControl
                 VirtualHost,
                 _assetDirectory,
                 CoreWebView2HostResourceAccessKind.DenyCors);
+            DreamscapeShellMetrics.MapAssets(core);
             core.WebMessageReceived += HandleWebMessageReceived;
             core.NavigationCompleted += HandleNavigationCompleted;
             core.Navigate($"https://{VirtualHost}/index.html");
@@ -130,6 +137,24 @@ internal sealed class DreamscapeOverviewHost : UserControl
         return await _webView.CoreWebView2.ExecuteScriptAsync(script);
     }
 
+    public async Task<bool> FocusSelectAsync(string selector)
+    {
+        if (_webView.CoreWebView2 == null)
+            return false;
+        SetFocus(_webView.Handle);
+        bool webViewFocused = GetFocus() != IntPtr.Zero;
+        string selectorJson = System.Text.Json.JsonSerializer.Serialize(selector);
+        await _webView.CoreWebView2.ExecuteScriptAsync(
+            $"document.querySelector({selectorJson}).focus(); true");
+        return webViewFocused;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr SetFocus(IntPtr windowHandle);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr GetFocus();
+
     public async Task CapturePreviewAsync(string path)
     {
         if (_webView.CoreWebView2 == null)
@@ -143,7 +168,7 @@ internal sealed class DreamscapeOverviewHost : UserControl
             stream);
     }
 
-    private void HandleNavigationCompleted(
+    private async void HandleNavigationCompleted(
         object? sender,
         CoreWebView2NavigationCompletedEventArgs eventArgs)
     {
@@ -155,6 +180,7 @@ internal sealed class DreamscapeOverviewHost : UserControl
             return;
         }
 
+        await DreamscapeShellMetrics.PublishHostMetricsAsync(_webView);
         PostState();
         FrontendReady?.Invoke();
         _log("[WebView2 Spike] Frontend ready; initial C# state posted.");
@@ -165,7 +191,7 @@ internal sealed class DreamscapeOverviewHost : UserControl
         string json = eventArgs.WebMessageAsJson;
         if (!ReceiverOverviewCommandAllowList.TryParse(
             json,
-            out ReceiverOverviewCommand command,
+            out ReceiverOverviewCommandRequest command,
             out string rejectionReason))
         {
             _log($"[WebView2 Spike] Rejected command: {rejectionReason}");
