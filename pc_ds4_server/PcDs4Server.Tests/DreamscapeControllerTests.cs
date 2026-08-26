@@ -38,12 +38,14 @@ public sealed class DreamscapeControllerTests
     }
 
     [Theory]
-    [InlineData(null, false)]
+    [InlineData(null, true)]
     [InlineData("0", false)]
+    [InlineData("off", false)]
     [InlineData("1", true)]
     [InlineData("true", true)]
     [InlineData("yes", true)]
-    public void FeatureFlag_DefaultsOffAndRequiresExplicitOptIn(string? value, bool expected)
+    [InlineData("on", true)]
+    public void FeatureFlag_DefaultsToDreamscapeAndAllowsExplicitOverride(string? value, bool expected)
     {
         Assert.Equal(expected, DreamscapeControllerFeature.IsEnabledValue(value));
         Assert.NotEqual(
