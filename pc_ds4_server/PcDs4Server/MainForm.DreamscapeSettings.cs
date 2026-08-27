@@ -33,6 +33,7 @@ public partial class MainForm
             BeginInvoke(() =>
             {
                 _dreamscapeSettingsHost.Visible = false;
+                SynchronizeDreamscapePageActivation();
                 if (_currentPage == ReceiverPage.Settings)
                     ShowNativeSettingsTab(0);
             });

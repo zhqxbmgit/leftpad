@@ -110,6 +110,7 @@ namespace PcDs4Server
             InitializeDreamscapeSettingsFeature();
             InitializeDreamscapeControllerFeature();
             InitializeDreamscapeLogsFeature();
+            InitializeDreamscapePageActivation();
             _radialSelectionTimer = new System.Windows.Forms.Timer
             {
                 Interval = radialSettings.Settings.SelectionPollIntervalMs
@@ -698,6 +699,7 @@ namespace PcDs4Server
                 _settingsPage.RefreshFromRuntime();
             SetSelectedNavigation(_pageNavigation[page]);
             SetDreamscapeOverviewVisibility(showOverview);
+            SynchronizeDreamscapePageActivation();
         }
 
         internal RadialMenuSettingsControl SettingsControl => _settingsPage;

@@ -22,6 +22,7 @@ public partial class MainForm
         {
             AppendLog($"[{DateTime.Now:HH:mm:ss}] {message}");
             _dreamscapeOverviewHost.Visible = false;
+            SynchronizeDreamscapePageActivation();
         };
         _dreamscapeOverviewHost.FrontendReady += RunDreamscapeSmokeReportIfRequested;
         DreamscapeShellMetrics.AttachHost(this, _dreamscapeOverviewHost, visible: true);

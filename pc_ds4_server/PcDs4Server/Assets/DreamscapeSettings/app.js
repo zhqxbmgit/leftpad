@@ -21,6 +21,11 @@
   });
   let lastState = null;
   let bridgeMessagesSent = 0;
+  let stateRequestsSent = 0;
+  let pageActive = false;
+  let pollingTimer = null;
+  let pollingTimerStarts = 0;
+  let pollingTimerStops = 0;
   let statusTimer = null;
   const form = document.getElementById('settings-form');
   const advancedForm = document.getElementById('advanced-form');
@@ -35,6 +40,37 @@
 
   function postCommand(command) {
     postMessage({ command });
+  }
+
+  function requestState() {
+    if (!pageActive) return;
+    stateRequestsSent += 1;
+    postCommand('settingsRequestState');
+  }
+
+  function startPolling() {
+    if (!pageActive || pollingTimer !== null) return;
+    requestState();
+    pollingTimer = window.setInterval(requestState, 1000);
+    pollingTimerStarts += 1;
+  }
+
+  function stopPolling() {
+    if (pollingTimer === null) return;
+    window.clearInterval(pollingTimer);
+    pollingTimer = null;
+    pollingTimerStops += 1;
+  }
+
+  function applyPageActivation(message) {
+    if (!message || message.type !== 'pageActivation' ||
+        typeof message.active !== 'boolean') return false;
+    if (pageActive === message.active) return true;
+    pageActive = message.active;
+    document.documentElement.dataset.pageActive = String(pageActive);
+    if (pageActive) startPolling();
+    else stopPolling();
+    return true;
   }
 
   function postChange(field, value) {
@@ -336,13 +372,13 @@
     });
   });
   window.chrome?.webview?.addEventListener('message', event => {
+    if (applyPageActivation(event.data)) return;
     if (event.data?.type === 'receiverSettingsStatus') applyStatus(event.data);
     else applyState(event.data);
   });
 
   document.documentElement.dataset.frontendReady = 'true';
-  postCommand('settingsRequestState');
-  window.setInterval(() => postCommand('settingsRequestState'), 1000);
+  document.documentElement.dataset.pageActive = 'false';
 
   window.leftpadSettings = Object.freeze({
     calculateScale: window.leftpadShell.calculateScale,
@@ -357,6 +393,11 @@
       frontendReady: document.documentElement.dataset.frontendReady === 'true',
       stateReceived: document.documentElement.dataset.stateReceived === 'true',
       bridgeMessagesSent,
+      stateRequestsSent,
+      pageActive,
+      polling: pollingTimer !== null,
+      pollingTimerStarts,
+      pollingTimerStops,
       visibleFields: document.documentElement.dataset.section === 'advanced'
         ? advancedForm.querySelectorAll('[data-advanced-field]').length
         : document.documentElement.dataset.section === 'mappings'

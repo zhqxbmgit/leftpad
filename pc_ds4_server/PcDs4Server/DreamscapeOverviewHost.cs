@@ -11,6 +11,7 @@ internal sealed class DreamscapeOverviewHost : UserControl, IDreamscapeShellHost
     private readonly Action<ReceiverOverviewCommandRequest> _commandHandler;
     private readonly Action<string> _log;
     private readonly string _assetDirectory;
+    private readonly DreamscapePageActivationState _pageActivation = new();
     private bool _initializationStarted;
 
     public DreamscapeOverviewHost(
@@ -39,6 +40,7 @@ internal sealed class DreamscapeOverviewHost : UserControl, IDreamscapeShellHost
     }
 
     public bool IsInitialized => _webView.CoreWebView2 != null;
+    internal bool IsPageActive => _pageActivation.PageActive;
     public string RuntimeVersion { get; private set; } = "not initialized";
 
     public static IReadOnlyList<string> RequiredFrontendFiles { get; } =
@@ -107,6 +109,7 @@ internal sealed class DreamscapeOverviewHost : UserControl, IDreamscapeShellHost
                 CoreWebView2HostResourceAccessKind.DenyCors);
             DreamscapeShellMetrics.MapAssets(core);
             core.WebMessageReceived += HandleWebMessageReceived;
+            core.NavigationStarting += HandleNavigationStarting;
             core.NavigationCompleted += HandleNavigationCompleted;
             core.Navigate($"https://{VirtualHost}/index.html");
             _log($"[WebView2 Spike] Runtime {RuntimeVersion} initialized.");
@@ -121,6 +124,15 @@ internal sealed class DreamscapeOverviewHost : UserControl, IDreamscapeShellHost
 
     public event Action<string>? InitializationFailed;
     public event Action? FrontendReady;
+
+    public void SetPageActive(bool active)
+    {
+        if (IsDisposed || Disposing)
+            return;
+
+        _pageActivation.SetPageActive(active);
+        PublishPageActivationIfNeeded();
+    }
 
     public void PostState()
     {
@@ -181,9 +193,27 @@ internal sealed class DreamscapeOverviewHost : UserControl, IDreamscapeShellHost
         }
 
         await DreamscapeShellMetrics.PublishHostMetricsAsync(_webView);
-        PostState();
+        _pageActivation.NavigationCompleted();
+        PublishPageActivationIfNeeded();
         FrontendReady?.Invoke();
-        _log("[WebView2 Spike] Frontend ready; initial C# state posted.");
+        _log("[WebView2 Spike] Frontend ready; page activation synchronized.");
+    }
+
+    private void HandleNavigationStarting(
+        object? sender,
+        CoreWebView2NavigationStartingEventArgs eventArgs) =>
+        _pageActivation.NavigationStarting();
+
+    private void PublishPageActivationIfNeeded()
+    {
+        if (_webView.CoreWebView2 == null ||
+            !_pageActivation.TryTakePending(out bool active))
+        {
+            return;
+        }
+
+        _webView.CoreWebView2.PostWebMessageAsJson(
+            new DreamscapePageActivationMessage(active).ToJson());
     }
 
     private void HandleWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs eventArgs)
@@ -206,6 +236,7 @@ internal sealed class DreamscapeOverviewHost : UserControl, IDreamscapeShellHost
         if (disposing && _webView.CoreWebView2 != null)
         {
             _webView.CoreWebView2.WebMessageReceived -= HandleWebMessageReceived;
+            _webView.CoreWebView2.NavigationStarting -= HandleNavigationStarting;
             _webView.CoreWebView2.NavigationCompleted -= HandleNavigationCompleted;
         }
         base.Dispose(disposing);
