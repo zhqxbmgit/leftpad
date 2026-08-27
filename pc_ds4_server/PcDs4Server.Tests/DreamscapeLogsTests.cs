@@ -298,6 +298,7 @@ public sealed class DreamscapeLogsTests
         Assert.Equal(typeof(string), Assert.Single(appendLog!.GetParameters()).ParameterType);
         Assert.NotNull(buffer);
         Assert.Equal(typeof(string), Assert.Single(buffer!.GetParameters()).ParameterType);
+        Assert.Equal(typeof(ReceiverLogMutation), buffer.ReturnType);
         Assert.NotNull(publish);
         Assert.DoesNotContain(
             typeof(DreamscapeLogsHost).GetFields(BindingFlags.Instance | BindingFlags.NonPublic),

@@ -80,6 +80,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     public event Action<string>? OnConnectionChanged;
     public event Action<string>? OnButtonEvent;
     public event Action<VirtualJoystickSnapshot>? OnJoystickStateChanged;
+    public event Action<Ds4ControlResetReason>? OnInputStateReset;
     public event Action<RadialTriggerSource>? RadialMenuTriggered;
     public event Action<RadialTriggerSource>? RadialMenuConfirmationRequested;
     public event Action? OnStopped;
@@ -603,22 +604,37 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
 
     public void ReleaseAllControls(Ds4ControlResetReason reason)
     {
-        lock (_lock)
+        try
         {
-            ResetRadialRecognizers();
-            _keyboardState.ReleaseAll();
-            lock (_outputLock)
+            lock (_lock)
             {
-                Ds4ControlRelease release = _controlState.ReleaseAll(reason);
-                if (_directDs4 == null) return;
-                foreach (DualShock4Button button in release.DigitalButtons) _directDs4.SetButton(button, false);
-                if (release.ResetDPad) _directDs4.SetDPadDirection(DualShock4DPadDirection.None);
-                if (release.ResetLeftTrigger) _directDs4.SetTrigger(DualShock4Slider.LeftTrigger, 0);
-                if (release.ResetRightTrigger) _directDs4.SetTrigger(DualShock4Slider.RightTrigger, 0);
-                if (release.DigitalButtons.Count > 0 || release.ResetDPad ||
-                    release.ResetLeftTrigger || release.ResetRightTrigger)
-                    _directDs4.SubmitReport();
+                ResetRadialRecognizers();
+                _keyboardState.ReleaseAll();
+                lock (_outputLock)
+                {
+                    Ds4ControlRelease release = _controlState.ReleaseAll(reason);
+                    if (_directDs4 != null)
+                    {
+                        foreach (DualShock4Button button in release.DigitalButtons)
+                            _directDs4.SetButton(button, false);
+                        if (release.ResetDPad)
+                            _directDs4.SetDPadDirection(DualShock4DPadDirection.None);
+                        if (release.ResetLeftTrigger)
+                            _directDs4.SetTrigger(DualShock4Slider.LeftTrigger, 0);
+                        if (release.ResetRightTrigger)
+                            _directDs4.SetTrigger(DualShock4Slider.RightTrigger, 0);
+                        if (release.DigitalButtons.Count > 0 || release.ResetDPad ||
+                            release.ResetLeftTrigger || release.ResetRightTrigger)
+                        {
+                            _directDs4.SubmitReport();
+                        }
+                    }
+                }
             }
+        }
+        finally
+        {
+            OnInputStateReset?.Invoke(reason);
         }
     }
 

@@ -579,6 +579,7 @@ namespace PcDs4Server
                     $"光标偏移：{state.CursorDeltaX:F1} / {state.CursorDeltaY:F1}    光标距离：{state.CursorDistance:F1}";
                 PublishDreamscapeControllerJoystickState(state);
             });
+            _service.OnInputStateReset += _ => PostToUi(ResetControllerPresentationState);
             _service.RadialMenuTriggered += source => PostToUi(() =>
             {
                 _radialMenu.OpenAt(Cursor.Position, source);
@@ -593,12 +594,45 @@ namespace PcDs4Server
         {
             if (this.IsDisposed || _logBox == null) return;
             PostToUi(() => {
-                ReceiverLogEntry webEntry = BufferDreamscapeLog(message);
-                if (_logBox.Lines.Length > 300) _logBox.Clear();
-                _logBox.AppendText(message + Environment.NewLine);
+                ReceiverLogMutation mutation = BufferDreamscapeLog(message);
+                bool renderedFromSnapshot = false;
+                if (mutation.EvictedEntry is ReceiverLogEntry evictedEntry &&
+                    !_logBox.IsHandleCreated)
+                {
+                    _logBox.Text = NativeLogProjection.CreateText(CreateDreamscapeLogsSnapshot());
+                    renderedFromSnapshot = true;
+                }
+                else if (mutation.EvictedEntry is ReceiverLogEntry visibleEvictedEntry)
+                {
+                    int removeLength = Math.Min(
+                        _logBox.TextLength,
+                        NativeLogProjection.GetRichTextCharacterCount(visibleEvictedEntry));
+                    bool wasReadOnly = _logBox.ReadOnly;
+                    try
+                    {
+                        _logBox.ReadOnly = false;
+                        _logBox.Select(0, removeLength);
+                        _logBox.SelectedText = string.Empty;
+                    }
+                    finally
+                    {
+                        _logBox.ReadOnly = wasReadOnly;
+                    }
+                }
+                _logBox.SelectionStart = _logBox.TextLength;
+                if (!renderedFromSnapshot)
+                    _logBox.AppendText(NativeLogProjection.CreateEntryText(mutation.Entry));
                 _logBox.ScrollToCaret();
-                PublishDreamscapeLogAppend(webEntry);
+                PublishDreamscapeLogAppend(mutation.Entry);
             });
+        }
+
+        private void ResetControllerPresentationState()
+        {
+            foreach (string key in _btnStates.Keys.ToArray())
+                _btnStates[key] = false;
+            _contentPanel.Refresh();
+            PublishDreamscapeControllerDisplayState();
         }
 
         private void ApplyRadialMenuSettings(RadialMenuSettings settings)

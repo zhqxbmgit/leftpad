@@ -59,8 +59,8 @@ public partial class MainForm
     private ReceiverLogSnapshot CreateDreamscapeLogsSnapshot() =>
         _receiverLogBuffer.CreateSnapshot(_cardPhone.Value);
 
-    private ReceiverLogEntry BufferDreamscapeLog(string message) =>
-        _receiverLogBuffer.Append(message);
+    private ReceiverLogMutation BufferDreamscapeLog(string message) =>
+        _receiverLogBuffer.AppendWithEviction(message);
 
     private void PublishDreamscapeLogAppend(ReceiverLogEntry entry) =>
         _dreamscapeLogsHost?.PostAppend(entry);

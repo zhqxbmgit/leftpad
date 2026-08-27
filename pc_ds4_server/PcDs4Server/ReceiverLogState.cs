@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -27,6 +28,10 @@ internal sealed record ReceiverLogAppend(
     public string ToJson() => JsonSerializer.Serialize(this);
 }
 
+internal sealed record ReceiverLogMutation(
+    ReceiverLogEntry Entry,
+    ReceiverLogEntry? EvictedEntry);
+
 internal sealed record ReceiverLogConnectionState(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("connectionState")] string ConnectionState)
@@ -45,6 +50,9 @@ internal sealed class ReceiverLogBuffer
     private long _nextSequenceId = 1;
 
     public ReceiverLogEntry Append(string rawText)
+        => AppendWithEviction(rawText).Entry;
+
+    public ReceiverLogMutation AppendWithEviction(string rawText)
     {
         ArgumentNullException.ThrowIfNull(rawText);
 
@@ -54,10 +62,14 @@ internal sealed class ReceiverLogBuffer
                 _nextSequenceId++,
                 rawText,
                 ReceiverLogCategory.Classify(rawText));
+            ReceiverLogEntry? evictedEntry = null;
             if (_entries.Count == MaximumEntries)
+            {
+                evictedEntry = _entries[0];
                 _entries.RemoveAt(0);
+            }
             _entries.Add(entry);
-            return entry;
+            return new ReceiverLogMutation(entry, evictedEntry);
         }
     }
 
@@ -71,6 +83,32 @@ internal sealed class ReceiverLogBuffer
                 string.IsNullOrWhiteSpace(connectionState) ? "等待连接" : connectionState);
         }
     }
+}
+
+internal static class NativeLogProjection
+{
+    public static string CreateEntryText(ReceiverLogEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return entry.RawText + Environment.NewLine;
+    }
+
+    public static string CreateText(ReceiverLogSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Entries.Count == 0) return string.Empty;
+
+        var text = new StringBuilder();
+        foreach (ReceiverLogEntry entry in snapshot.Entries)
+            text.Append(CreateEntryText(entry));
+        return text.ToString();
+    }
+
+    public static int GetRichTextCharacterCount(ReceiverLogEntry entry) =>
+        CreateEntryText(entry)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Length;
 }
 
 internal static class ReceiverLogCategory
