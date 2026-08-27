@@ -79,6 +79,7 @@ namespace PcDs4Server
         private const int HtBottom = 15;
         private const int HtBottomLeft = 16;
         private const int HtBottomRight = 17;
+        internal const int ActivateExistingInstanceMessage = 0x8000 + 0x51;
 
         public MainForm(Ds4Service service, RadialMenuSettingsStore? radialSettingsStore = null)
         {
@@ -447,6 +448,12 @@ namespace PcDs4Server
 
         protected override void WndProc(ref Message message)
         {
+            if (message.Msg == ActivateExistingInstanceMessage)
+            {
+                message.Result = ActivateExistingInstance() ? (IntPtr)1 : IntPtr.Zero;
+                return;
+            }
+
             base.WndProc(ref message);
             if (message.Msg != WmNcHitTest ||
                 message.Result != (IntPtr)HtClient ||
@@ -885,7 +892,38 @@ namespace PcDs4Server
             }
         }
 
-        private void ShowMainForm() { this.Show(); this.WindowState = FormWindowState.Normal; this.BringToFront(); }
+        private void ShowMainForm()
+        {
+            if (IsDisposed || Disposing) return;
+            if (!Visible) Show();
+            if (WindowState == FormWindowState.Minimized)
+                WindowState = FormWindowState.Normal;
+            Activate();
+            BringToFront();
+            if (IsHandleCreated)
+                WindowsForegroundActivation.TrySetForegroundWindow(Handle);
+        }
+
+        internal bool ActivateExistingInstance()
+        {
+            if (IsDisposed || Disposing) return false;
+            ShowMainForm();
+            return Visible && WindowState != FormWindowState.Minimized;
+        }
+
+        internal Task<bool> RequestExistingInstanceActivationAsync(
+            CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested ||
+                IsDisposed || Disposing || !IsHandleCreated)
+            {
+                return Task.FromResult(false);
+            }
+
+            return Task.FromResult(WindowsForegroundActivation.SendActivationMessage(
+                Handle,
+                ActivateExistingInstanceMessage));
+        }
 
         private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
         {

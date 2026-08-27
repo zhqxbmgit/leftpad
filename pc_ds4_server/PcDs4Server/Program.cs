@@ -1,15 +1,12 @@
 using System;
-using System.Threading;
 using System.Windows.Forms;
 
 namespace PcDs4Server
 {
     internal static class Program
     {
-        private static Mutex? _mutex;
-
         [STAThread]
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
             Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
 
@@ -17,18 +14,19 @@ namespace PcDs4Server
             {
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                Environment.ExitCode = KeyboardSmokeTest.Run();
-                return;
+                return KeyboardSmokeTest.Run();
             }
 
-            // 单实例运行控制
-            const string mutexName = "Global\\LeftPadDs4Receiver_Mutex";
-            _mutex = new Mutex(true, mutexName, out bool createdNew);
-
-            if (!createdNew)
+            using var coordinator = SingleInstanceCoordinator.Acquire(
+                SingleInstanceIdentity.MutexName);
+            if (!coordinator.IsPrimaryInstance)
             {
-                MessageBox.Show("LeftPad DS4 接收器已在运行。", "LeftPad DS4 接收器", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
+                var client = new SingleInstanceActivationClient(
+                    SingleInstanceIdentity.ActivationPipeName);
+                SingleInstanceActivationResult activation = client.TryActivateAsync()
+                    .GetAwaiter()
+                    .GetResult();
+                return activation == SingleInstanceActivationResult.Activated ? 0 : 1;
             }
 
             Application.EnableVisualStyles();
@@ -36,15 +34,25 @@ namespace PcDs4Server
 
             var service = new Ds4Service();
             var mainForm = new MainForm(service);
+            SingleInstanceActivationServer? activationServer = null;
+            mainForm.Shown += (_, _) =>
+            {
+                if (activationServer != null) return;
+                activationServer = new SingleInstanceActivationServer(
+                    SingleInstanceIdentity.ActivationPipeName,
+                    mainForm.RequestExistingInstanceActivationAsync);
+                activationServer.Start();
+            };
 
             try
             {
                 Application.Run(mainForm);
+                return 0;
             }
             finally
             {
+                activationServer?.Dispose();
                 service.Stop();
-                _mutex.ReleaseMutex();
             }
         }
     }
