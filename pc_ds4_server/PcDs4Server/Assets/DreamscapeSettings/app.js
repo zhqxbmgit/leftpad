@@ -21,6 +21,7 @@
   });
   let lastState = null;
   let bridgeMessagesSent = 0;
+  let statusTimer = null;
   const form = document.getElementById('settings-form');
   const advancedForm = document.getElementById('advanced-form');
   const mappingSection = document.getElementById('mapping-section');
@@ -57,6 +58,16 @@
       shift: Boolean(mapping.shift), win: Boolean(mapping.win),
       ds4Action: mapping.ds4Action ?? null
     });
+  }
+
+  function applyStatus(status) {
+    if (!status || status.type !== 'receiverSettingsStatus') return;
+    const output = document.getElementById('status-message');
+    output.textContent = status.message;
+    output.dataset.tone = status.tone;
+    output.classList.add('visible');
+    window.clearTimeout(statusTimer);
+    statusTimer = window.setTimeout(() => output.classList.remove('visible'), 3200);
   }
 
   function populateSelect(select, options, value, optionValue, optionText) {
@@ -183,7 +194,7 @@
       selector.className = 'slot-selector';
       selector.disabled = !state.enabled;
       selector.setAttribute('aria-label', `编辑 Slot ${mapping.slotId}`);
-      selector.innerHTML = `<span class="slot-orb">${mapping.slotId}</span><strong>Slot ${mapping.slotId}</strong><small>ACTION TYPE</small>`;
+      selector.innerHTML = `<span class="slot-orb">${mapping.slotId}</span><strong>Slot ${mapping.slotId}</strong><small>${mapping.summary || 'ACTION TYPE'}</small>`;
       selector.addEventListener('click', () =>
         postMappingSelection(state.mappingProfileId, mapping.slotId));
 
@@ -324,7 +335,10 @@
       postAdvancedChange(input.dataset.advancedField, Number(input.value));
     });
   });
-  window.chrome?.webview?.addEventListener('message', event => applyState(event.data));
+  window.chrome?.webview?.addEventListener('message', event => {
+    if (event.data?.type === 'receiverSettingsStatus') applyStatus(event.data);
+    else applyState(event.data);
+  });
 
   document.documentElement.dataset.frontendReady = 'true';
   postCommand('settingsRequestState');

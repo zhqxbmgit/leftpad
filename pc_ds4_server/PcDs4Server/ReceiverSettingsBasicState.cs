@@ -33,7 +33,24 @@ internal sealed record SettingsMappingSlotState(
     [property: JsonPropertyName("alt")] bool Alt,
     [property: JsonPropertyName("shift")] bool Shift,
     [property: JsonPropertyName("win")] bool Win,
-    [property: JsonPropertyName("ds4Action")] string? Ds4Action);
+    [property: JsonPropertyName("ds4Action")] string? Ds4Action,
+    [property: JsonPropertyName("summary")] string Summary);
+
+internal sealed record ReceiverSettingsStatusMessage(
+    [property: JsonPropertyName("type")] string Type,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("tone")] string Tone)
+{
+    public const string MessageType = "receiverSettingsStatus";
+
+    public static ReceiverSettingsStatusMessage Saved() =>
+        new(MessageType, "设置已保存", "success");
+
+    public static ReceiverSettingsStatusMessage SaveFailed(string error) =>
+        new(MessageType, $"保存失败：{error}", "error");
+
+    public string ToJson() => JsonSerializer.Serialize(this);
+}
 
 internal sealed record ReceiverSettingsBasicState(
     [property: JsonPropertyName("type")] string Type,
@@ -113,6 +130,32 @@ internal static class SettingsMappingCatalogs
             _ => (RadialActionKind)(-1)
         };
         return Enum.IsDefined(kind);
+    }
+
+    public static string Summary(RadialSlotMapping mapping)
+    {
+        ArgumentNullException.ThrowIfNull(mapping);
+        return mapping.Kind switch
+        {
+            RadialActionKind.None => string.Empty,
+            RadialActionKind.KeyboardKey => mapping.Key?.ToString() ?? string.Empty,
+            RadialActionKind.KeyboardShortcut => string.Join(" + ", ShortcutParts(mapping)),
+            RadialActionKind.Ds4Button => RadialDs4ActionCatalog.TryGet(
+                mapping.Ds4Button,
+                out RadialDs4ActionMapping action)
+                    ? action.DisplayName
+                    : string.Empty,
+            _ => string.Empty
+        };
+    }
+
+    private static IEnumerable<string> ShortcutParts(RadialSlotMapping mapping)
+    {
+        if (mapping.Ctrl) yield return "Ctrl";
+        if (mapping.Alt) yield return "Alt";
+        if (mapping.Shift) yield return "Shift";
+        if (mapping.Win) yield return "Win";
+        if (mapping.Key is KeyboardKey key) yield return key.ToString();
     }
 
     private static string KindName(RadialActionKind kind) => kind switch

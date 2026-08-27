@@ -250,6 +250,33 @@ body { background: #273a78; }
   font: 300 34px/46px "Segoe UI", sans-serif;
   text-shadow: 0 1px 1px rgba(255, 255, 255, .6);
   transition: background 120ms ease, transform 100ms ease;
+  isolation: isolate;
+}
+
+.dreamscape-window-button::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(145deg, #e1e5f3 0%, #c2d0ea 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, .66),
+    0 4px 10px rgba(58, 72, 137, .08);
+  pointer-events: none;
+}
+
+#dreamscape-shell[data-active-page="logs"] .dreamscape-window-button.minimize::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 100%;
+  top: 25px;
+  width: 6px;
+  height: 7px;
+  border-radius: 0 4px 4px 0;
+  background: #96a4e0;
+  pointer-events: none;
 }
 
 .dreamscape-window-button.minimize {
@@ -261,7 +288,7 @@ body { background: #273a78; }
 .dreamscape-window-button.close { left: 1592px; }
 .dreamscape-window-button:hover,
 .dreamscape-window-button:focus-visible { background: rgba(255, 255, 255, .24); }
-.dreamscape-window-button:active { transform: scale(.93); }
+.dreamscape-window-button:active { background: rgba(255, 255, 255, .14); }
 .dreamscape-window-button:focus-visible {
   outline: 2px solid rgba(39, 83, 151, .52);
   outline-offset: -5px;

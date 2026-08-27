@@ -1,5 +1,7 @@
+using System.Drawing;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Xunit;
 
@@ -259,6 +261,32 @@ public sealed class DreamscapeLogsTests
     }
 
     [Fact]
+    public void ConnectionPill_UsesLogsSpecificStaticPlateGeometryAndStaysInBounds()
+    {
+        string styles = ReadAsset("styles.css");
+        Match rule = Regex.Match(
+            styles,
+            @"\.connection-pill\s*\{(?<body>[^}]*)\}",
+            RegexOptions.CultureInvariant);
+
+        Assert.True(rule.Success);
+        string body = rule.Groups["body"].Value;
+        int left = CssPixels(body, "left");
+        int top = CssPixels(body, "top");
+        int width = CssPixels(body, "width");
+        int height = CssPixels(body, "height");
+        var pill = new Rectangle(left, top, width, height);
+        var logsTitleFrame = new Rectangle(377, 112, 1141, 703);
+        var windowChrome = new Rectangle(1512, 0, 160, 82);
+        var designCanvas = new Rectangle(0, 0, DreamscapeShellMetrics.DesignWidth, DreamscapeShellMetrics.DesignHeight);
+
+        Assert.Equal(new Rectangle(1277, 163, 190, 57), pill);
+        Assert.True(logsTitleFrame.Contains(pill));
+        Assert.False(pill.IntersectsWith(windowChrome));
+        Assert.True(designCanvas.Contains(pill));
+    }
+
+    [Fact]
     public void MainForm_ReusesAppendLogAndDoesNotOwnASecondLogger()
     {
         const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -335,6 +363,16 @@ public sealed class DreamscapeLogsTests
 
     private static string ReadAsset(string file) =>
         File.ReadAllText(Path.Combine(DreamscapeLogsFeature.AssetDirectory, file));
+
+    private static int CssPixels(string ruleBody, string property)
+    {
+        Match match = Regex.Match(
+            ruleBody,
+            $@"(?:^|\s){Regex.Escape(property)}:\s*(?<value>\d+)px\s*;",
+            RegexOptions.CultureInvariant);
+        Assert.True(match.Success, $"Missing {property} in connection pill rule.");
+        return int.Parse(match.Groups["value"].Value, System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     private static void RunInSta(Action action)
     {

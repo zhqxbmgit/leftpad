@@ -96,8 +96,12 @@ public partial class MainForm
                 _dreamscapeSettingsHost.PostState();
                 break;
             case ReceiverSettingsCommand.ApplySave:
-                if (!_dreamscapeSettingsSession.ApplyAndSave(out string saveError))
+                bool saved = _dreamscapeSettingsSession.ApplyAndSave(out string saveError);
+                if (!saved)
                     AppendLog($"[WebView2 Settings] Apply/save failed: {saveError}");
+                _dreamscapeSettingsHost.PostStatus(saved
+                    ? ReceiverSettingsStatusMessage.Saved()
+                    : ReceiverSettingsStatusMessage.SaveFailed(saveError));
                 _dreamscapeSettingsHost.PostState();
                 break;
             case ReceiverSettingsCommand.RestoreDefault:

@@ -20,27 +20,27 @@ button { font: inherit; }
 
 .connection-pill {
   position: absolute;
-  left: 1290px;
-  top: 174px;
-  width: 222px;
-  height: 62px;
+  left: 1277px;
+  top: 163px;
+  width: 190px;
+  height: 57px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 18px;
+  gap: 12px;
   border: 1px solid rgba(218,151,105,.28);
   border-radius: 31px;
   color: #a76828;
   background: linear-gradient(145deg,#fff8e9,#ffe9d6);
   box-shadow: 0 0 0 7px #fff2ed,inset 0 2px 0 rgba(255,255,255,.75),0 5px 13px 8px rgba(142,86,71,.10);
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 #connection-dot {
-  width: 21px;
-  height: 21px;
+  width: 19px;
+  height: 19px;
   border: 1.5px solid #c98724;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%,#fff0a6 0 12%,#ffc353 34%,#f29b2f 72%,#d87d27 100%);

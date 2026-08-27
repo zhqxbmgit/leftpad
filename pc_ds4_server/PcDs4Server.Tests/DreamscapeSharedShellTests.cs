@@ -78,6 +78,42 @@ public sealed class DreamscapeSharedShellTests
     }
 
     [Fact]
+    public void WindowChrome_HasOneGlyphPerCommandAndAnOpaquePerButtonUnderlay()
+    {
+        string script = File.ReadAllText(Path.Combine(DreamscapeShellMetrics.AssetDirectory, "shell.js"));
+        string css = File.ReadAllText(Path.Combine(DreamscapeShellMetrics.AssetDirectory, "shell.css"));
+
+        Assert.Single(Regex.Matches(script, @">—</button>").Cast<Match>());
+        Assert.Single(Regex.Matches(script, @">×</button>").Cast<Match>());
+        Assert.Single(Regex.Matches(script, @"data-shell-command=""minimize""").Cast<Match>());
+        Assert.Single(Regex.Matches(script, @"data-shell-command=""closeWindow""").Cast<Match>());
+
+        Match underlayRule = Regex.Match(
+            css,
+            @"\.dreamscape-window-button::before\s*\{(?<body>[^}]*)\}",
+            RegexOptions.CultureInvariant);
+        Assert.True(underlayRule.Success);
+        string body = underlayRule.Groups["body"].Value;
+        Assert.Contains("content: \"\"", body, StringComparison.Ordinal);
+        Assert.Contains("inset: 0", body, StringComparison.Ordinal);
+        Assert.Contains("border-radius: inherit", body, StringComparison.Ordinal);
+        Assert.Contains("linear-gradient(145deg, #e1e5f3 0%, #c2d0ea 100%)", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("width: 160px", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("height: 82px", body, StringComparison.Ordinal);
+
+        Match logsMaskRule = Regex.Match(
+            css,
+            @"#dreamscape-shell\[data-active-page=""logs""\] \.dreamscape-window-button\.minimize::after\s*\{(?<body>[^}]*)\}",
+            RegexOptions.CultureInvariant);
+        Assert.True(logsMaskRule.Success);
+        string logsMask = logsMaskRule.Groups["body"].Value;
+        Assert.Contains("width: 6px", logsMask, StringComparison.Ordinal);
+        Assert.Contains("height: 7px", logsMask, StringComparison.Ordinal);
+        Assert.DoesNotContain("160px", logsMask, StringComparison.Ordinal);
+        Assert.DoesNotContain("82px", logsMask, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SelectedState_DoesNotChangeNavigationBounds()
     {
         string css = File.ReadAllText(Path.Combine(DreamscapeShellMetrics.AssetDirectory, "shell.css"));
@@ -92,6 +128,19 @@ public sealed class DreamscapeSharedShellTests
         Assert.DoesNotContain("top:", body, StringComparison.Ordinal);
         Assert.DoesNotContain("width:", body, StringComparison.Ordinal);
         Assert.DoesNotContain("height:", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PointerNavigation_ClearsStaleFocusWhileKeyboardFocusRemainsVisible()
+    {
+        string script = File.ReadAllText(Path.Combine(DreamscapeShellMetrics.AssetDirectory, "shell.js"));
+        string css = File.ReadAllText(Path.Combine(DreamscapeShellMetrics.AssetDirectory, "shell.css"));
+
+        Assert.Contains("element.addEventListener('click'", script, StringComparison.Ordinal);
+        Assert.Contains("element.blur()", script, StringComparison.Ordinal);
+        Assert.Contains("window.addEventListener('blur', clearNavigationFocus)", script, StringComparison.Ordinal);
+        Assert.Contains(".dreamscape-nav-command:focus-visible", css, StringComparison.Ordinal);
+        Assert.Contains("outline: 2px solid var(--dreamscape-shell-focus)", css, StringComparison.Ordinal);
     }
 
     [Fact]

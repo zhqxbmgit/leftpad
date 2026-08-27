@@ -56,6 +56,11 @@
     if (command) window.chrome?.webview?.postMessage({ command });
   }
 
+  function clearNavigationFocus() {
+    const focused = document.activeElement;
+    if (focused?.matches('.dreamscape-nav-command')) focused.blur();
+  }
+
   function navButton(page) {
     const selected = page === activePage;
     const rect = metrics.nav[page];
@@ -75,7 +80,10 @@
       '<button class="dreamscape-window-button close" data-shell-command="closeWindow" aria-label="关闭">×</button>';
 
     shell.querySelectorAll('[data-shell-page]').forEach(element => {
-      element.addEventListener('click', () => postCommand(commandMaps[activePage][element.dataset.shellPage]));
+      element.addEventListener('click', () => {
+        postCommand(commandMaps[activePage][element.dataset.shellPage]);
+        element.blur();
+      });
     });
     shell.querySelectorAll('[data-shell-command]').forEach(element => {
       element.addEventListener('click', () => postCommand(element.dataset.shellCommand));
@@ -123,6 +131,7 @@
 
   renderShell();
   fitCanvas();
+  window.addEventListener('blur', clearNavigationFocus);
   window.addEventListener('resize', fitCanvas);
   window.leftpadShell = Object.freeze({
     metrics,

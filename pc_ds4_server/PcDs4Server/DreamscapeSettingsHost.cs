@@ -126,6 +126,14 @@ internal sealed class DreamscapeSettingsHost : UserControl, IDreamscapeShellHost
         _webView.CoreWebView2.PostWebMessageAsJson(_stateProvider().ToJson());
     }
 
+    public void PostStatus(ReceiverSettingsStatusMessage status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        if (_webView.CoreWebView2 == null)
+            return;
+        _webView.CoreWebView2.PostWebMessageAsJson(status.ToJson());
+    }
+
     public async Task<string?> ExecuteScriptAsync(string script)
     {
         if (_webView.CoreWebView2 == null)

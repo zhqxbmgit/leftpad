@@ -373,7 +373,8 @@ internal sealed class DreamscapeSettingsBasicSession
             mapping.Alt,
             mapping.Shift,
             mapping.Win,
-            mapping.Ds4Button)).ToArray();
+            mapping.Ds4Button,
+            SettingsMappingCatalogs.Summary(mapping))).ToArray();
     }
 
     private void ClosePreview()
