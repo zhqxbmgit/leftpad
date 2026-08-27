@@ -118,6 +118,7 @@ namespace PcDs4Server
             _service.SetRadialDoubleTapWindow(radialSettings.Settings.DoubleTapWindowMs);
             _service.ConfigureVirtualJoystick(_joystickOverlay, new WindowsCursorPositionProvider());
             SetupServiceEvents();
+            LogKeyboardBindingLoad(_service.KeyboardBindingLoadResult);
             LogRadialSettingsLoad(radialSettings);
         }
 
@@ -699,6 +700,18 @@ namespace PcDs4Server
             LogRadialMessage(message);
         }
 
+        private void LogKeyboardBindingLoad(KeyboardBindingLoadResult result)
+        {
+            if (result.Status is KeyboardBindingLoadStatus.Loaded or KeyboardBindingLoadStatus.Missing)
+                return;
+
+            AppendLog(
+                $"[{DateTime.Now:HH:mm:ss}] [配置持久化] operation=load " +
+                $"pathCategory={result.PathCategory} " +
+                $"errorType={result.ErrorType ?? result.Status.ToString()}；" +
+                $"键盘映射加载失败，已安全使用默认值：{result.Error}");
+        }
+
         private static bool MappingIsConfigured(RadialSlotMapping mapping) =>
             mapping.Kind != RadialActionKind.None;
 
@@ -725,7 +738,8 @@ namespace PcDs4Server
             {
                 if (editor.SelectedItem is KeyboardKey key) bindings.Set(action, key);
             }
-            _service.TryUpdateKeyboardBindings(bindings);
+            if (!_service.TryUpdateKeyboardBindings(bindings, out string error))
+                AppendLog($"[{DateTime.Now:HH:mm:ss}] [键盘映射] 保存失败：{error}");
         }
 
         private void ToggleServer()

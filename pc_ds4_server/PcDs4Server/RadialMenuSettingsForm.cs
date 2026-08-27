@@ -289,11 +289,14 @@ public sealed class RadialMenuSettingsControl : UserControl
         _log!($"[环形菜单] 设置保存失败：{error}");
         if (showDialog)
         {
-            MessageBox.Show(this, $"设置已在本次运行中应用，但保存失败，请查看日志。\n\n{error}",
+            MessageBox.Show(this, CreateSaveFailureMessage(error),
                 "环形菜单", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         return false;
     }
+
+    internal static string CreateSaveFailureMessage(string error) =>
+        $"保存失败，设置未应用。请查看日志。\n\n{error}";
 
     internal bool TryReadSettingsForTesting(out RadialMenuSettings settings) =>
         TryReadSettings(out settings, showDialog: false);

@@ -25,26 +25,36 @@ public sealed class RadialMenuSettingsStore
     };
 
     private readonly string _path;
+    private readonly IAtomicFileOperations _files;
 
     public RadialMenuSettingsStore(string? path = null)
+        : this(
+            path ?? System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "LeftPad",
+                "radial-menu-settings.json"),
+            SystemAtomicFileOperations.Instance)
     {
-        _path = path ?? System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LeftPad",
-            "radial-menu-settings.json");
+    }
+
+    internal RadialMenuSettingsStore(string path, IAtomicFileOperations files)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        _path = path;
+        _files = files ?? throw new ArgumentNullException(nameof(files));
     }
 
     public string Path => _path;
 
     public RadialMenuSettingsLoadResult Load()
     {
-        if (!File.Exists(_path))
+        if (!_files.FileExists(_path))
             return new RadialMenuSettingsLoadResult(RadialMenuSettings.Default, RadialMenuSettingsLoadStatus.Missing);
 
         try
         {
             RadialMenuSettings? settings = JsonSerializer.Deserialize<RadialMenuSettings>(
-                File.ReadAllText(_path),
+                _files.ReadAllText(_path),
                 JsonOptions);
             if (settings == null)
             {
@@ -87,27 +97,47 @@ public sealed class RadialMenuSettingsStore
 
     public bool TrySave(RadialMenuSettings settings, out string error)
     {
-        ArgumentNullException.ThrowIfNull(settings);
-        if (!settings.TryValidate(out error)) return false;
+        if (!TryBeginSave(
+                settings,
+                retainOriginalForRollback: false,
+                out AtomicFileWriteTransaction? transaction,
+                out error))
+            return false;
 
-        string temporaryPath = _path + ".tmp";
+        transaction!.Commit();
+        return true;
+    }
+
+    internal bool TryBeginSave(
+        RadialMenuSettings settings,
+        bool retainOriginalForRollback,
+        out AtomicFileWriteTransaction? transaction,
+        out string error)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        RadialMenuSettings candidate = settings.NormalizeMappings();
+        if (!candidate.TryValidate(out error))
+        {
+            transaction = null;
+            return false;
+        }
+
         try
         {
-            string? directory = System.IO.Path.GetDirectoryName(_path);
-            if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(settings, JsonOptions));
-            File.Move(temporaryPath, _path, overwrite: true);
-            error = string.Empty;
-            return true;
+            byte[] content = JsonSerializer.SerializeToUtf8Bytes(candidate, JsonOptions);
+            return AtomicFilePersistence.TryWrite(
+                _path,
+                content,
+                _files,
+                retainOriginalForRollback,
+                out transaction,
+                out error,
+                out _);
         }
         catch (Exception ex)
         {
+            transaction = null;
             error = ex.Message;
-            try
-            {
-                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
-            }
-            catch { /* Best-effort cleanup must not mask the original save failure. */ }
             return false;
         }
     }
@@ -127,7 +157,49 @@ public static class RadialMenuSettingsPersistence
         ArgumentNullException.ThrowIfNull(temporarySettings);
         ArgumentNullException.ThrowIfNull(applySettings);
 
-        applySettings(temporarySettings);
-        return store.TrySave(controller.ActiveSettings, out error);
+        RadialMenuSettings candidate = temporarySettings.NormalizeMappings();
+        if (!candidate.TryValidate(out error)) return false;
+
+        RadialMenuSettings runtimeSnapshot = controller.ActiveSettings.NormalizeMappings();
+        if (!store.TryBeginSave(
+                candidate,
+                retainOriginalForRollback: true,
+                out AtomicFileWriteTransaction? transaction,
+                out error))
+            return false;
+
+        try
+        {
+            applySettings(candidate);
+            if (controller.ActiveSettings.NormalizeMappings() != candidate)
+            {
+                throw new InvalidOperationException(
+                    "Runtime settings did not match the persisted candidate after apply.");
+            }
+
+            transaction!.Commit();
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception applyException)
+        {
+            string? runtimeRollbackError = null;
+            try
+            {
+                applySettings(runtimeSnapshot);
+            }
+            catch (Exception rollbackException)
+            {
+                runtimeRollbackError = rollbackException.Message;
+            }
+
+            bool diskRestored = transaction!.TryRollback(out string diskRollbackError);
+            error = $"运行时应用失败：{applyException.Message}";
+            if (runtimeRollbackError != null)
+                error += $"；运行时恢复失败：{runtimeRollbackError}";
+            if (!diskRestored)
+                error += $"；磁盘恢复失败：{diskRollbackError}";
+            return false;
+        }
     }
 }

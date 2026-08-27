@@ -22,6 +22,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     private readonly Func<TimeSpan>? _inputTimestampProvider;
     private readonly ActionDoubleTapRecognizer _actionDoubleTapRecognizer;
     private readonly MoveTapRecognizer _moveTapRecognizer;
+    private readonly KeyboardBindingLoadResult _keyboardBindingLoadResult;
     private readonly object _lock = new();
     private readonly object _outputLock = new();
     private IDirectDs4Session? _directDs4;
@@ -52,7 +53,17 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         _radialKeyboardActionExecutor = new RadialKeyboardActionExecutor(_keyboardState);
         _radialDs4Delay = radialDs4Delay ?? Thread.Sleep;
         _bindingStore = bindingStore ?? new JsonKeyboardBindingStore();
-        _keyboardBindings = _bindingStore.Load();
+        try
+        {
+            _keyboardBindingLoadResult = _bindingStore.LoadWithStatus();
+        }
+        catch (Exception ex)
+        {
+            _keyboardBindingLoadResult = KeyboardBindingLoadResult.FromException(
+                ex,
+                KeyboardBindingPathCategories.InjectedStore);
+        }
+        _keyboardBindings = _keyboardBindingLoadResult.Bindings.Clone();
         TimeSpan initialDoubleTapWindow = doubleTapWindow ??
             TimeSpan.FromMilliseconds(RadialMenuSettings.Default.DoubleTapWindowMs);
         int initialDoubleTapWindowMs = checked((int)initialDoubleTapWindow.TotalMilliseconds);
@@ -76,6 +87,8 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     public bool IsRunning { get; private set; }
     public OutputMode OutputMode => _outputMode;
     public KeyboardBindings KeyboardBindings => _keyboardBindings.Clone();
+    public KeyboardBindingLoadResult KeyboardBindingLoadResult =>
+        _keyboardBindingLoadResult with { Bindings = _keyboardBindingLoadResult.Bindings.Clone() };
     public string LocalIp { get; private set; }
     public int Port { get; } = 8888;
     public int RadialDoubleTapWindowMs => Volatile.Read(ref _radialDoubleTapWindowMs);
@@ -207,14 +220,46 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         }
     }
 
-    public bool TryUpdateKeyboardBindings(KeyboardBindings bindings)
+    public bool TryUpdateKeyboardBindings(KeyboardBindings bindings) =>
+        TryUpdateKeyboardBindings(bindings, out _);
+
+    public bool TryUpdateKeyboardBindings(KeyboardBindings bindings, out string error)
     {
         ArgumentNullException.ThrowIfNull(bindings);
         lock (_lock)
         {
-            if (IsRunning) return false;
-            _keyboardBindings = bindings.Clone();
-            _bindingStore.Save(_keyboardBindings);
+            if (IsRunning)
+            {
+                error = "服务运行时不能修改键盘映射。";
+                return false;
+            }
+
+            KeyboardBindings candidate = bindings.Clone();
+            KeyboardBindingSaveResult saveResult;
+            try
+            {
+                saveResult = _bindingStore.TrySave(candidate);
+            }
+            catch (Exception ex)
+            {
+                saveResult = KeyboardBindingSaveResult.Failed(
+                    ex,
+                    KeyboardBindingPathCategories.InjectedStore);
+            }
+
+            if (!saveResult.Success)
+            {
+                error = saveResult.Error ?? "键盘映射无法写入配置文件。";
+                Log(
+                    "[配置持久化] operation=save " +
+                    $"pathCategory={saveResult.PathCategory} " +
+                    $"errorType={saveResult.ErrorType ?? "UnknownError"}；" +
+                    $"键盘映射保存失败：{error}");
+                return false;
+            }
+
+            _keyboardBindings = candidate;
+            error = string.Empty;
             return true;
         }
     }

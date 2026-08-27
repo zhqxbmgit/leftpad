@@ -160,9 +160,9 @@ public partial class MainForm
 
         KeyboardBindings bindings = _service.KeyboardBindings;
         bindings.Set(action, key);
-        if (!_service.TryUpdateKeyboardBindings(bindings))
+        if (!_service.TryUpdateKeyboardBindings(bindings, out string error))
         {
-            AppendLog($"[{DateTime.Now:HH:mm:ss}] [WebView2 Spike] Keyboard mapping update was rejected by the service.");
+            AppendLog($"[{DateTime.Now:HH:mm:ss}] [WebView2 Overview] 键盘映射保存失败：{error}");
         }
         else if (_bindingEditors.TryGetValue(action, out ComboBox? editor))
         {
