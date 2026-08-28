@@ -27,10 +27,15 @@ from validate_visual_pack import PROFILE_CONTRACTS  # noqa: E402
 
 EXAMPLE_PATH = TOOLS_DIRECTORY / "examples" / "reference-theme-v2.example.json"
 PROTOCOL_PATH = TOOLS_DIRECTORY / "THEME_RUNTIME_PROTOCOL_V2.md"
+DECOMPOSITION_PATH = TOOLS_DIRECTORY / "REFERENCE_THEME_DECOMPOSITION_SPEC.md"
 
 
 def _example() -> dict[str, object]:
     return json.loads(EXAMPLE_PATH.read_text(encoding="utf-8"))
+
+
+def _normalized_document(path: Path) -> str:
+    return " ".join(path.read_text(encoding="utf-8").split())
 
 
 def _radial_8() -> dict[str, object]:
@@ -102,6 +107,140 @@ class ThemeV2ValidatorTests(unittest.TestCase):
                     walk(nested)
 
         walk(schema)
+
+    def test_rotation_range_remains_closed(self) -> None:
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        rotation = schema["$defs"]["anchor"]["properties"]["rotation"]
+
+        self.assertEqual((-360, 360), (rotation["minimum"], rotation["maximum"]))
+
+    def test_protocol_defines_positive_rotation_as_clockwise(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Positive `rotation` is clockwise", protocol)
+
+    def test_protocol_defines_anchor_center_rotation(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("The rotation center is the geometric center of the anchor bounds", protocol)
+        self.assertIn("centerX = anchor.x + anchor.width / 2", protocol)
+        self.assertIn("centerY = anchor.y + anchor.height / 2", protocol)
+
+    def test_protocol_aligns_before_rotation(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Alignment occurs before rotation", protocol)
+
+    def test_protocol_evaluates_fit_after_rotation(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Fit is evaluated after rotation", protocol)
+
+    def test_protocol_uses_reference_space_for_fit(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Reference Space continuous geometry is the semantic fit authority", protocol)
+        self.assertIn("Physical anti-aliased pixel extents are not", protocol)
+
+    def test_protocol_makes_overflow_decisions_dpi_independent(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "DPI MUST NOT change the chosen scale, ellipsized content, or show/hide decision",
+            protocol,
+        )
+
+    def test_protocol_hides_exhausted_shrink(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "If `minimumScale` still does not fit, the entire dynamic element is hidden",
+            protocol,
+        )
+
+    def test_protocol_forbids_shrink_ellipsis_fallback(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("`shrink` MUST NOT fall back to ellipsis", protocol)
+
+    def test_protocol_forbids_shrink_clip_fallback(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("`shrink` MUST NOT fall back to clip", protocol)
+
+    def test_protocol_hide_uses_authored_size_only(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "`hide` tests authored size only and MUST NOT shrink or ellipsize",
+            protocol,
+        )
+
+    def test_protocol_ellipsis_uses_authored_size_only(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("`ellipsis` uses authored size and MUST NOT shrink", protocol)
+
+    def test_protocol_hides_when_ellipsis_marker_cannot_fit(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "If even the ellipsis marker cannot fit, the entire dynamic element is hidden",
+            protocol,
+        )
+
+    def test_protocol_clip_permits_rotated_geometry_outside_anchor(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "`clip` is the only policy that permits rotated semantic geometry outside the anchor",
+            protocol,
+        )
+
+    def test_protocol_max_lines_participates_in_dynamic_layout(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("When present, `maxLines` participates in layout for every policy", protocol)
+        self.assertIn("When `maxLines` is absent there is no independent line-count limit", protocol)
+        self.assertIn("Each `shrink` candidate is laid out and wrapped again", protocol)
+
+    def test_mapping_overflow_does_not_invalidate_theme(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Mapping-derived overflow MUST NOT invalidate the Theme", protocol)
+
+    def test_empty_content_is_no_draw_not_overflow(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Empty content is nothing to render", protocol)
+        self.assertIn("produces no pixels and does not enter fit or overflow processing", protocol)
+
+    def test_schema_describes_global_rotation_and_overflow_semantics(self) -> None:
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        properties = schema["$defs"]["anchor"]["properties"]
+        overflow = properties["overflowPolicy"]
+        minimum_scale = properties["minimumScale"]
+        rotation = properties["rotation"]
+        max_lines = properties["maxLines"]
+
+        self.assertEqual(["ellipsis", "shrink", "clip", "hide"], overflow["enum"])
+        self.assertIn("post-rotation fit", overflow["description"])
+        self.assertEqual((0, 1), (minimum_scale["exclusiveMinimum"], minimum_scale["maximum"]))
+        self.assertIn("dynamic element is hidden", minimum_scale["description"])
+        self.assertIn("Clockwise degrees", rotation["description"])
+        self.assertIn("geometric center of the anchor bounds", rotation["description"])
+        self.assertIn("When absent, there is no independent line-count limit", max_lines["description"])
+
+    def test_decomposition_guides_rotated_overflow_authoring(self) -> None:
+        decomposition = _normalized_document(DECOMPOSITION_PATH)
+
+        for required_text in (
+            "Authors MUST reserve enough anchor area",
+            "`shrink` may make the entire element disappear",
+            "Choose `clip` only when cropped output",
+            "authors MUST select `ellipsis` or `clip`, not `shrink`",
+        ):
+            self.assertIn(required_text, decomposition)
 
     def test_valid_radial_6_example_passes(self) -> None:
         report = validate_theme_v2_document(_example())

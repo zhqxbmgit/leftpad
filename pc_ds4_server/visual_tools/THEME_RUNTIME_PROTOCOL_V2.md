@@ -305,9 +305,118 @@ alignment, `overflowPolicy`, `minimumScale`, `rotation`, `visibleStates`, and
 safe-surface mask. Text anchors bind `dynamicText` layers and glyph anchors bind
 `dynamicGlyph` layers.
 
-Overflow is explicit: `ellipsis`, `shrink`, `clip`, or `hide`. `maxLines`
-constrains the authored line box. Runtime MUST apply the declared policy and
-MUST NOT invent an unbounded resize.
+Overflow is explicit: `ellipsis`, `shrink`, `clip`, or `hide`. Runtime MUST
+apply the declared policy and MUST NOT invent an unbounded resize.
+
+### 7.1 Dynamic layout, rotation, and overflow semantics
+
+Empty content is nothing to render: it produces no pixels and does not enter
+fit or overflow processing. After non-empty dynamic content, style, glyph
+source, and a stable Runtime-session font fallback have been resolved, the
+normative pipeline is:
+
+1. choose a candidate scale;
+2. perform layout and wrapping at that scale;
+3. enforce `maxLines` during line generation when it is present;
+4. compute the unrotated layout box;
+5. apply horizontal and vertical alignment inside the anchor;
+6. rotate the aligned geometry around the anchor center;
+7. compute the final rotated continuous geometry bounds;
+8. apply the overflow-policy fit decision in Reference Space;
+9. transform Reference Space to Logical and Physical Space;
+10. rasterize and apply the final anchor clip.
+
+Alignment occurs before rotation. The horizontal and vertical alignment values
+position the unrotated layout box inside the anchor; Runtime MUST NOT translate,
+nudge, recenter, or snap the geometry back inside after rotation. The rotation
+center is the geometric center of the anchor bounds:
+
+```text
+centerX = anchor.x + anchor.width / 2
+centerY = anchor.y + anchor.height / 2
+```
+
+`rotation` is measured in degrees in screen coordinates (`+x` right, `+y`
+down). Zero means no rotation. Positive `rotation` is clockwise and negative
+`rotation` is counter-clockwise. Text, runtime symbols, and theme-asset glyphs
+all use this same anchor-center contract.
+
+Fit is evaluated after rotation. Reference Space continuous geometry is the
+semantic fit authority; Physical anti-aliased pixel extents are not. A layout
+fully fits only when its line count is no greater than `maxLines` when that
+field is present, it needs neither ellipsis nor clipping to make the original
+semantic content legal, and its final rotated continuous geometry bounds are
+completely contained by the anchor bounds. An ellipsized representation is not
+a complete fit of the original content; it is eligible for rendering only when
+the truncated representation itself satisfies the declared line limit and
+post-rotation geometry containment. Dynamic geometry containment uses a
+deterministic absolute tolerance of `1e-9` Reference units. The tolerance does
+not move or resize the geometry.
+
+The same Theme, mapping content, and resolved font role MUST produce the same
+chosen scale, ellipsized content, and show/hide decision at 96, 120, 144, 168,
+and 192 DPI. DPI MUST NOT change the chosen scale, ellipsized content, or
+show/hide decision; DPI changes only the final Physical raster size. Font
+fallback MUST remain stable across states and DPIs within one Runtime session.
+
+When present, `maxLines` participates in layout for every policy. It
+participates in fit for `ellipsis`, `shrink`, and `hide`; `clip` still limits
+line generation to the declared number of lines, without adding an ellipsis
+marker, but does not require the rotated geometry to fit. When `maxLines` is
+absent there is no independent line-count limit; anchor bounds and the selected
+overflow policy still apply. Each `shrink` candidate is laid out and wrapped
+again because its line breaks may change.
+
+| Policy | Resize | Ellipsis | Post-rotation fit required | Terminal behavior |
+| --- | --- | --- | --- | --- |
+| `ellipsis` | No; authored style size | Yes | Yes | Render the longest fitting ellipsized representation, or hide if even the marker cannot fit |
+| `shrink` | Yes, from `1.0` down to `minimumScale` | No | Yes | Render at the largest fitting representable scale, or hide if `minimumScale` cannot fit |
+| `clip` | No; authored style size | No | No | Render semantic geometry and strictly clip final pixels to the anchor |
+| `hide` | No; authored style size | No | Yes | Render only if the authored-size content fits; otherwise hide |
+
+`ellipsis` uses authored size and MUST NOT shrink. If the original content does
+not fit, Runtime selects the longest leading sequence of Unicode text elements
+that, followed by one U+2026 ellipsis marker, satisfies `maxLines` and the
+post-rotation fit requirement. The layout, alignment, and rotation are repeated
+for each candidate. If even the ellipsis marker cannot fit, the entire dynamic
+element is hidden. It MUST NOT be clipped and MUST NOT invalidate the Theme.
+
+`shrink` first tests scale `1.0`. If that does not fit, it searches
+`minimumScale <= scale < 1.0` and selects the largest fitting scale that the
+Runtime can express. Every candidate repeats font sizing, wrapping,
+`maxLines`, alignment, rotation, and final geometry measurement. Scale
+selection MUST be deterministic and monotonic; a Runtime with discrete font or
+scale precision MUST use one fixed Reference-space precision, document and test
+it, and keep it independent of DPI. If `minimumScale` still does not fit, the
+entire dynamic element is hidden. `shrink` MUST NOT fall back to ellipsis.
+`shrink` MUST NOT fall back to clip, overflow the anchor, or invalidate the
+Theme candidate.
+
+`hide` tests authored size only and MUST NOT shrink or ellipsize. It renders the
+element only when authored-size layout, alignment, and rotation fully fit;
+otherwise the entire element is hidden.
+
+`clip` uses authored size, performs normal layout, alignment, and rotation, and
+does not treat geometry outside the anchor as a fit failure. `clip` is the only
+policy that permits rotated semantic geometry outside the anchor before final
+raster clipping. Its final pixels are strictly clipped to the anchor bounds.
+
+All policies apply a final anchor clip as raster safety against anti-alias
+fringes, font hinting, rounding, and graphics overdraw. For `ellipsis`,
+`shrink`, and `hide`, this safety clip MUST NOT make non-fitting semantic
+geometry count as fitting; only the `clip` policy assigns semantic meaning to
+cropped output.
+
+Mapping-derived overflow MUST NOT invalidate the Theme, reject or unload the
+candidate, activate a fallback Theme, reset mappings or selection, or fail the
+associated input/action. An overflow decision affects only that dynamic
+element's pixels in the applicable rendered state.
+
+For example, an anchor measuring `100 x 50` and an aligned layout measuring
+`80 x 30` fit before rotation. At `rotation: 90`, its rotated bounds are
+approximately `30 x 80`, so post-rotation fit fails: `hide` hides it, `shrink`
+must continue until the rotated height fits within `50`, and `clip` draws it
+then clips it. At `rotation: 0`, pre- and post-rotation bounds are identical.
 
 Styles are semantic roles rather than CSS or platform font names:
 

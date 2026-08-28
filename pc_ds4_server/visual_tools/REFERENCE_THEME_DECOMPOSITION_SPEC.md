@@ -100,6 +100,22 @@ For every DYNAMIC element:
 Anchors MUST fit the reference canvas. Safe surfaces and occlusion are authored
 composition data; neither may redefine logical input geometry.
 
+Dynamic rotation is clockwise for positive degrees and always uses the
+geometric center of the anchor bounds. Authors MUST reserve enough anchor area
+for content after alignment and rotation: `ellipsis`, `shrink`, and `hide`
+judge fit from the final rotated continuous geometry in Reference Space, not
+from the unrotated layout box or Physical pixels. Rotation never causes Runtime
+to realign, nudge, or recenter the content inside the anchor.
+
+Choose overflow behavior with extreme Runtime mappings in mind. `shrink` may
+make the entire element disappear when content still cannot fit at
+`minimumScale`; it never falls back to ellipsis or visible clipping. Use
+`ellipsis` when a fitting truncated representation must be attempted. Choose
+`clip` only when cropped output, including cropped rotated output, is visually
+acceptable. `hide` is appropriate when authored-size content should be shown
+whole or not at all. If an element must preserve partial visible content,
+authors MUST select `ellipsis` or `clip`, not `shrink`.
+
 ## 6. Style and glyph extraction
 
 Extract style roles by purpose, not by a specific machine font name. Define
@@ -127,6 +143,8 @@ A decomposition is ready for later compiler/runtime phases only when:
 - all references resolve and all bounds are inside the canvas;
 - STATIC/DYNAMIC/STATE_ASSET ownership has no conflict;
 - required capabilities match every used feature;
+- rotated dynamic content has sufficient anchor area for its selected overflow
+  policy, and intentional cropped output uses `clip`;
 - package paths are safe and the hash set exactly equals referenced assets;
 - the V2 validator passes in both portable mode and the intended runtime
   capability context;
