@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import sys
 import tempfile
 import unittest
@@ -16,6 +17,8 @@ from validate_theme_v2 import (  # noqa: E402
     SCHEMA_PATH,
     ThemeV2ValidationError,
     load_theme_v2_manifest,
+    logical_edge_to_physical,
+    reference_to_logical_transform,
     validate_theme_v2,
     validate_theme_v2_document,
 )
@@ -80,6 +83,12 @@ class ThemeV2ValidatorTests(unittest.TestCase):
             1,
             schema["allOf"][0]["then"]["properties"]["compatibleLayouts"]["maxItems"],
         )
+        self.assertIn("placement", schema["required"])
+        reference_scale = schema["properties"]["referenceScale"]
+        self.assertIn("contentOrigin", reference_scale["required"])
+        self.assertNotIn("origin", reference_scale["properties"])
+        self.assertEqual(4096, reference_scale["properties"]["logicalWidth"]["maximum"])
+        self.assertEqual(4096, reference_scale["properties"]["logicalHeight"]["maximum"])
 
         def walk(value: object) -> None:
             if isinstance(value, dict):
@@ -106,6 +115,143 @@ class ThemeV2ValidatorTests(unittest.TestCase):
 
         self.assertEqual("radial-8", report.layout_profile)
         self.assertEqual(9, report.state_count)
+
+    def test_legacy_origin_field_is_rejected(self) -> None:
+        manifest = _example()
+        reference_scale = manifest["referenceScale"]
+        reference_scale["origin"] = reference_scale.pop("contentOrigin")  # type: ignore[union-attr]
+
+        self.assert_invalid(manifest, "contentOrigin|origin")
+
+    def test_content_origin_is_required(self) -> None:
+        manifest = _example()
+        del manifest["referenceScale"]["contentOrigin"]  # type: ignore[index]
+
+        self.assert_invalid(manifest, "contentOrigin")
+
+    def test_activation_anchor_is_required(self) -> None:
+        manifest = _example()
+        del manifest["placement"]  # type: ignore[arg-type]
+
+        self.assert_invalid(manifest, "placement")
+
+    def test_negative_content_origin_is_rejected(self) -> None:
+        manifest = _example()
+        manifest["referenceScale"]["contentOrigin"]["x"] = -0.01  # type: ignore[index]
+
+        self.assert_invalid(manifest, "contentOrigin|greater than or equal")
+
+    def test_content_overflow_is_rejected(self) -> None:
+        manifest = _example()
+        manifest["referenceScale"]["contentOrigin"]["x"] = 0.01  # type: ignore[index]
+
+        self.assert_invalid(manifest, "content rectangle lies outside Logical Surface")
+
+    def test_negative_activation_anchor_is_rejected(self) -> None:
+        manifest = _example()
+        manifest["placement"]["activationAnchor"]["x"] = -0.01  # type: ignore[index]
+
+        self.assert_invalid(manifest, "activationAnchor|greater than or equal")
+
+    def test_activation_anchor_beyond_logical_surface_is_rejected(self) -> None:
+        manifest = _example()
+        manifest["placement"]["activationAnchor"]["x"] = 400.01  # type: ignore[index]
+
+        self.assert_invalid(manifest, "activationAnchor lies outside Logical Surface")
+
+    def test_non_square_centered_content_is_valid(self) -> None:
+        manifest = _example()
+
+        transform = reference_to_logical_transform(manifest)
+        report = validate_theme_v2_document(manifest)
+
+        self.assertEqual("radial-6", report.layout_profile)
+        self.assertAlmostEqual(0.5, transform.scale)
+        self.assertEqual((0.0, 75.0), (transform.content_x, transform.content_y))
+        self.assertEqual((400.0, 250.0), (transform.content_width, transform.content_height))
+
+    def test_non_square_non_centered_content_is_valid(self) -> None:
+        manifest = _example()
+        manifest["referenceScale"] = {
+            "logicalWidth": 500,
+            "logicalHeight": 300,
+            "fit": "contain",
+            "contentOrigin": {"x": 20, "y": 0},
+        }
+        manifest["placement"] = {"activationAnchor": {"x": 100, "y": 150}}
+
+        validate_theme_v2_document(manifest)
+        transform = reference_to_logical_transform(manifest)
+
+        self.assertAlmostEqual(0.6, transform.scale)
+        self.assertEqual((480.0, 300.0), (transform.content_width, transform.content_height))
+        self.assertEqual((20.0, 0.0), transform.map_point(0, 0))
+        self.assertEqual((500.0, 300.0), transform.map_point(800, 500))
+
+    def test_reference_to_logical_point_mapping_is_exact(self) -> None:
+        transform = reference_to_logical_transform(_example())
+
+        self.assertEqual((0.0, 75.0), transform.map_point(0, 0))
+        self.assertEqual((400.0, 325.0), transform.map_point(800, 500))
+        self.assertEqual((200.0, 200.0), transform.map_point(400, 250))
+
+    def test_logical_surface_bounds_are_explicit(self) -> None:
+        transform = reference_to_logical_transform(_example())
+
+        self.assertEqual(400.0, transform.logical_width)
+        self.assertEqual(400.0, transform.logical_height)
+
+    def test_show_at_activation_anchor_semantics_are_documented(self) -> None:
+        protocol = PROTOCOL_PATH.read_text(encoding="utf-8")
+
+        for required_text in (
+            "hwndLeft = screenPointPhysical.x - LogicalEdgeToPhysical(activationAnchor.x, dpi)",
+            "hwndTop  = screenPointPhysical.y - LogicalEdgeToPhysical(activationAnchor.y, dpi)",
+            "affects visual overlay placement only",
+        ):
+            self.assertIn(required_text, protocol)
+        self.assertRegex(
+            protocol,
+            r"does not define the Visual Surface center or HWND\s+anchor",
+        )
+
+    def test_v1_wheel_center_maps_to_legacy_activation_anchor(self) -> None:
+        legacy_logical_size = 280.0
+        mapped_center = 627.0 * legacy_logical_size / 1254.0
+
+        self.assertEqual(140.0, mapped_center)
+        for dpi, expected in ((96, 140), (120, 175), (144, 210), (168, 245), (192, 280)):
+            self.assertEqual(expected, logical_edge_to_physical(mapped_center, dpi))
+
+    def test_invalid_logical_surface_size_is_rejected(self) -> None:
+        manifest = _example()
+        manifest["referenceScale"]["logicalWidth"] = 4097  # type: ignore[index]
+
+        self.assert_invalid(manifest, "4096|maximum")
+
+    def test_non_finite_coordinate_is_rejected(self) -> None:
+        manifest = _example()
+        manifest["placement"]["activationAnchor"]["x"] = math.nan  # type: ignore[index]
+
+        self.assert_invalid(manifest, "finite|nan")
+
+    def test_dpi_rounding_contract_matches_stable_away_from_zero_rule(self) -> None:
+        protocol = PROTOCOL_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("midpoint = AwayFromZero", protocol)
+        self.assertIn("physical width is `right - left`", protocol)
+        self.assertEqual(1, logical_edge_to_physical(0.4, 120))
+        self.assertEqual(-1, logical_edge_to_physical(-0.4, 120))
+        self.assertEqual(500, logical_edge_to_physical(400, 120))
+
+    def test_content_containment_tolerance_is_deterministic(self) -> None:
+        manifest = _example()
+        manifest["referenceScale"]["contentOrigin"]["x"] = 5e-10  # type: ignore[index]
+
+        validate_theme_v2_document(manifest)
+
+        manifest["referenceScale"]["contentOrigin"]["x"] = 2e-9  # type: ignore[index]
+        self.assert_invalid(manifest, "content rectangle lies outside Logical Surface")
 
     def test_layered_state_manifest_passes(self) -> None:
         manifest = _example()

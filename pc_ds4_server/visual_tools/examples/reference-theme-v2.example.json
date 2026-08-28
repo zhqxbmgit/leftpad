@@ -1,9 +1,9 @@
 {
   "protocolVersion": 2,
-  "packageRevision": 1,
+  "packageRevision": 2,
   "id": "reference-theme-v2-example",
   "name": "Reference Theme V2 Contract Example",
-  "description": "Non-production manifest-only fixture; asset paths and hashes illustrate the contract and are not installed runtime data.",
+  "description": "Non-production non-square coordinate-contract fixture; asset paths and hashes illustrate the contract and are not installed runtime data.",
   "exampleOnly": true,
   "surface": "radial-overlay",
   "renderStrategy": "full-state-frame",
@@ -15,18 +15,24 @@
     "radial-6"
   ],
   "referenceCanvas": {
-    "width": 1254,
-    "height": 1254,
+    "width": 800,
+    "height": 500,
     "colorSpace": "sRGB",
     "alphaMode": "straight"
   },
   "referenceScale": {
-    "logicalWidth": 1254,
-    "logicalHeight": 1254,
+    "logicalWidth": 400,
+    "logicalHeight": 400,
     "fit": "contain",
-    "origin": {
+    "contentOrigin": {
       "x": 0,
-      "y": 0
+      "y": 75
+    }
+  },
+  "placement": {
+    "activationAnchor": {
+      "x": 120,
+      "y": 200
     }
   },
   "states": {
@@ -82,8 +88,8 @@
       "bounds": {
         "x": 0,
         "y": 0,
-        "width": 1254,
-        "height": 1254
+        "width": 800,
+        "height": 500
       },
       "visibleStates": [
         "all"
@@ -98,8 +104,8 @@
       "bounds": {
         "x": 0,
         "y": 0,
-        "width": 1254,
-        "height": 1254
+        "width": 800,
+        "height": 500
       },
       "visibleStates": [
         "all"
@@ -112,10 +118,10 @@
       "kind": "dynamicText",
       "zIndex": 20,
       "bounds": {
-        "x": 477,
-        "y": 810,
+        "x": 250,
+        "y": 350,
         "width": 300,
-        "height": 90
+        "height": 80
       },
       "visibleStates": [
         "all"
@@ -128,8 +134,8 @@
       "kind": "dynamicGlyph",
       "zIndex": 21,
       "bounds": {
-        "x": 567,
-        "y": 515,
+        "x": 340,
+        "y": 180,
         "width": 120,
         "height": 120
       },
@@ -146,10 +152,10 @@
       "layerId": "actionLabelLayer",
       "role": "text",
       "bounds": {
-        "x": 477,
-        "y": 810,
+        "x": 250,
+        "y": 350,
         "width": 300,
-        "height": 90
+        "height": 80
       },
       "horizontalAlignment": "center",
       "verticalAlignment": "center",
@@ -168,8 +174,8 @@
       "layerId": "actionGlyphLayer",
       "role": "glyph",
       "bounds": {
-        "x": 567,
-        "y": 515,
+        "x": 340,
+        "y": 180,
         "width": 120,
         "height": 120
       },
@@ -306,10 +312,10 @@
       "asset": "masks/center-safe.png",
       "purpose": "safeSurface",
       "bounds": {
-        "x": 430,
-        "y": 430,
-        "width": 394,
-        "height": 394
+        "x": 260,
+        "y": 120,
+        "width": 280,
+        "height": 260
       },
       "appliesTo": [
         "actionLabelLayer",

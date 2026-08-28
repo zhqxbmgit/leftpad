@@ -2,8 +2,9 @@
 """Validate a LeftPad UI Theme Package V2 manifest.
 
 This Phase 0 tool is intentionally independent from V1 discovery and runtime
-loading.  It validates the closed JSON shape plus cross-reference, state,
-ownership, capability, path, and hash invariants defined by the V2 protocol.
+loading.  It validates the closed JSON shape plus coordinate, placement,
+cross-reference, state, ownership, capability, path, and hash invariants defined
+by the V2 protocol.
 """
 
 from __future__ import annotations
@@ -56,6 +57,9 @@ IDENTIFIER_RE = re.compile(r"^[A-Za-z][A-Za-z0-9._-]*$")
 PATH_SEGMENT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 HASH_RE = re.compile(r"^[A-Fa-f0-9]{64}$")
 GLYPH_FAMILIES = ("keyboard", "keyboardShortcut", "ds4", "genericAction")
+MAX_LOGICAL_SURFACE_UNITS = 4096.0
+COORDINATE_TOLERANCE = 1e-9
+DEFAULT_DPI = 96
 
 
 class ThemeV2ValidationError(ValueError):
@@ -77,6 +81,61 @@ class ThemeV2ValidationReport:
     anchor_count: int
     asset_count: int
     assets_verified: bool
+
+
+@dataclass(frozen=True)
+class ReferenceToLogicalTransform:
+    """Deterministic V2 Reference-to-Logical contain transform."""
+
+    scale: float
+    content_x: float
+    content_y: float
+    content_width: float
+    content_height: float
+    logical_width: float
+    logical_height: float
+
+    def map_point(self, reference_x: float, reference_y: float) -> tuple[float, float]:
+        return (
+            self.content_x + reference_x * self.scale,
+            self.content_y + reference_y * self.scale,
+        )
+
+
+def reference_to_logical_transform(document: Mapping[str, Any]) -> ReferenceToLogicalTransform:
+    """Compute the frozen contain transform for a shape-validated manifest."""
+
+    canvas = document["referenceCanvas"]
+    reference_scale = document["referenceScale"]
+    logical_width = float(reference_scale["logicalWidth"])
+    logical_height = float(reference_scale["logicalHeight"])
+    scale = min(
+        logical_width / float(canvas["width"]),
+        logical_height / float(canvas["height"]),
+    )
+    content_origin = reference_scale["contentOrigin"]
+    return ReferenceToLogicalTransform(
+        scale=scale,
+        content_x=float(content_origin["x"]),
+        content_y=float(content_origin["y"]),
+        content_width=float(canvas["width"]) * scale,
+        content_height=float(canvas["height"]) * scale,
+        logical_width=logical_width,
+        logical_height=logical_height,
+    )
+
+
+def logical_edge_to_physical(value: float, dpi: int) -> int:
+    """Map one logical edge/anchor with .NET MidpointRounding.AwayFromZero."""
+
+    logical_value = float(value)
+    if not math.isfinite(logical_value):
+        raise ValueError("logical edge must be finite")
+    if dpi <= 0:
+        raise ValueError("dpi must be greater than zero")
+    scaled = logical_value * dpi / DEFAULT_DPI
+    rounded_magnitude = math.floor(abs(scaled) + 0.5)
+    return rounded_magnitude if scaled >= 0 else -rounded_magnitude
 
 
 def _unique_json_object(pairs: Iterable[tuple[str, Any]]) -> dict[str, Any]:
@@ -210,7 +269,7 @@ def _validate_closed_shape(document: dict[str, Any]) -> None:
 
     required = (
         "protocolVersion", "packageRevision", "id", "name", "surface", "renderStrategy", "layoutProfile",
-        "compatibleLayouts", "referenceCanvas", "referenceScale", "states",
+        "compatibleLayouts", "referenceCanvas", "referenceScale", "placement", "states",
         "layers", "dynamicAnchors", "styles", "glyphs", "elementOwnership",
         "masks", "fallback", "capabilities", "transitions", "assetHashes",
     )
@@ -243,25 +302,80 @@ def _validate_closed_shape(document: dict[str, Any]) -> None:
 
     canvas = _object(document["referenceCanvas"], "manifest.referenceCanvas")
     _closed(canvas, "manifest.referenceCanvas", ("width", "height", "colorSpace", "alphaMode"))
-    if _integer(canvas["width"], "manifest.referenceCanvas.width") <= 0:
+    canvas_width = _integer(canvas["width"], "manifest.referenceCanvas.width")
+    canvas_height = _integer(canvas["height"], "manifest.referenceCanvas.height")
+    if canvas_width <= 0:
         _fail("manifest.referenceCanvas.width must be greater than zero")
-    if _integer(canvas["height"], "manifest.referenceCanvas.height") <= 0:
+    if canvas_height <= 0:
         _fail("manifest.referenceCanvas.height must be greater than zero")
+    if canvas_width > 8192 or canvas_height > 8192:
+        _fail("manifest.referenceCanvas dimensions must not exceed 8192")
     if canvas["colorSpace"] != "sRGB" or canvas["alphaMode"] != "straight":
         _fail("referenceCanvas requires sRGB with straight alpha")
 
     scale = _object(document["referenceScale"], "manifest.referenceScale")
-    _closed(scale, "manifest.referenceScale", ("logicalWidth", "logicalHeight", "fit", "origin"))
-    if _number(scale["logicalWidth"], "manifest.referenceScale.logicalWidth") <= 0:
+    _closed(
+        scale,
+        "manifest.referenceScale",
+        ("logicalWidth", "logicalHeight", "fit", "contentOrigin"),
+    )
+    logical_width = _number(scale["logicalWidth"], "manifest.referenceScale.logicalWidth")
+    logical_height = _number(scale["logicalHeight"], "manifest.referenceScale.logicalHeight")
+    if logical_width <= 0:
         _fail("manifest.referenceScale.logicalWidth must be greater than zero")
-    if _number(scale["logicalHeight"], "manifest.referenceScale.logicalHeight") <= 0:
+    if logical_height <= 0:
         _fail("manifest.referenceScale.logicalHeight must be greater than zero")
+    if logical_width > MAX_LOGICAL_SURFACE_UNITS or logical_height > MAX_LOGICAL_SURFACE_UNITS:
+        _fail(
+            "manifest.referenceScale logical dimensions must not exceed "
+            f"{int(MAX_LOGICAL_SURFACE_UNITS)}"
+        )
     if scale["fit"] != "contain":
         _fail("manifest.referenceScale.fit must equal contain")
-    origin = _object(scale["origin"], "manifest.referenceScale.origin")
-    _closed(origin, "manifest.referenceScale.origin", ("x", "y"))
-    _number(origin["x"], "manifest.referenceScale.origin.x")
-    _number(origin["y"], "manifest.referenceScale.origin.y")
+    content_origin = _object(
+        scale["contentOrigin"],
+        "manifest.referenceScale.contentOrigin",
+    )
+    _closed(content_origin, "manifest.referenceScale.contentOrigin", ("x", "y"))
+    content_x = _number(
+        content_origin["x"],
+        "manifest.referenceScale.contentOrigin.x",
+    )
+    content_y = _number(
+        content_origin["y"],
+        "manifest.referenceScale.contentOrigin.y",
+    )
+    if content_x < 0 or content_y < 0:
+        _fail("manifest.referenceScale.contentOrigin must be non-negative")
+
+    transform = reference_to_logical_transform(document)
+    if not math.isfinite(transform.scale) or transform.scale <= 0:
+        _fail("manifest.referenceScale contain scale must be finite and greater than zero")
+    if (
+        transform.content_x + transform.content_width
+        > logical_width + COORDINATE_TOLERANCE
+        or transform.content_y + transform.content_height
+        > logical_height + COORDINATE_TOLERANCE
+    ):
+        _fail("manifest.referenceScale content rectangle lies outside Logical Surface")
+
+    placement = _object(document["placement"], "manifest.placement")
+    _closed(placement, "manifest.placement", ("activationAnchor",))
+    activation_anchor = _object(
+        placement["activationAnchor"],
+        "manifest.placement.activationAnchor",
+    )
+    _closed(activation_anchor, "manifest.placement.activationAnchor", ("x", "y"))
+    activation_x = _number(
+        activation_anchor["x"],
+        "manifest.placement.activationAnchor.x",
+    )
+    activation_y = _number(
+        activation_anchor["y"],
+        "manifest.placement.activationAnchor.y",
+    )
+    if not 0 <= activation_x <= logical_width or not 0 <= activation_y <= logical_height:
+        _fail("manifest.placement.activationAnchor lies outside Logical Surface")
 
     states = _object(document["states"], "manifest.states")
     if not states:

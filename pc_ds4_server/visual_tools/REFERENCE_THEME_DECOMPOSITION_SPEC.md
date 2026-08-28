@@ -9,7 +9,8 @@ design/export contract, not permission to modify production V1 assets.
 Before authoring assets, record:
 
 1. primary `layoutProfile` and all genuinely compatible layouts;
-2. Reference Space canvas, logical scale, and origin;
+2. Reference Space canvas, complete Logical Surface dimensions, explicit
+   `contentOrigin`, and `placement.activationAnchor`;
 3. selected Runtime `renderStrategy`: `full-state-frame` or `layered-state`;
 4. optional authoring provenance: `external-artwork`, `procedural`, or `mixed`;
 5. required state matrix (`idle` and every selected slot);
@@ -21,6 +22,15 @@ Before authoring assets, record:
 11. required capabilities and deterministic fallbacks.
 
 Do not proceed if topology, ownership, or dynamic-safe regions remain ambiguous.
+
+The coordinate record MUST distinguish the complete Logical Surface from the
+contain-scaled artwork. Authors compute `scale` as the smaller logical/reference
+dimension ratio and explicitly write the scaled artwork's top-left as
+`contentOrigin`; there is no implicit centering. The content rectangle remains
+inside the Logical Surface, uncovered letterbox is transparent, and
+`activationAnchor` is the Logical Surface point aligned with the physical
+`ShowAt(screenPoint)`. The activation anchor controls visual placement only and
+does not redefine selection geometry or `LayoutDefinition.WheelCenter`.
 
 ## 2. Classification rules
 

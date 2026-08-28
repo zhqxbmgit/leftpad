@@ -15,6 +15,7 @@
     "compatibleLayouts",
     "referenceCanvas",
     "referenceScale",
+    "placement",
     "states",
     "layers",
     "dynamicAnchors",
@@ -56,17 +57,33 @@
     "referenceCanvas": { "$ref": "#/$defs/canvas" },
     "referenceScale": {
       "type": "object",
-      "required": ["logicalWidth", "logicalHeight", "fit", "origin"],
+      "required": ["logicalWidth", "logicalHeight", "fit", "contentOrigin"],
       "properties": {
-        "logicalWidth": { "type": "number", "exclusiveMinimum": 0 },
-        "logicalHeight": { "type": "number", "exclusiveMinimum": 0 },
+        "logicalWidth": { "type": "number", "exclusiveMinimum": 0, "maximum": 4096 },
+        "logicalHeight": { "type": "number", "exclusiveMinimum": 0, "maximum": 4096 },
         "fit": { "const": "contain" },
-        "origin": {
+        "contentOrigin": {
           "type": "object",
           "required": ["x", "y"],
           "properties": {
-            "x": { "type": "number" },
-            "y": { "type": "number" }
+            "x": { "type": "number", "minimum": 0 },
+            "y": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "placement": {
+      "type": "object",
+      "required": ["activationAnchor"],
+      "properties": {
+        "activationAnchor": {
+          "type": "object",
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "number", "minimum": 0 },
+            "y": { "type": "number", "minimum": 0 }
           },
           "additionalProperties": false
         }

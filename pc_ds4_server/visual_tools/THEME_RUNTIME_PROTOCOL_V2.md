@@ -1,8 +1,9 @@
 # LeftPad UI Theme Package V2 — Normative Protocol
 
-Status: Phase 0 contract. This document, `schemas/ui-theme-v2.schema.json`, and
-`validate_theme_v2.py` define the V2 package boundary. Phase 0 does not add a
-runtime loader, renderer, composer, discovery path, or theme switch.
+Status: Phase 0 contract with the coordinate/placement amendment. This document,
+`schemas/ui-theme-v2.schema.json`, and `validate_theme_v2.py` define the V2
+package boundary. Phase 0 does not add a runtime loader, renderer, composer,
+discovery path, or theme switch.
 
 Normative words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are requirements.
 If prose and schema disagree, the schema owns JSON shape and this document owns
@@ -31,21 +32,150 @@ cross-field semantics. The semantic validator is the executable interpretation.
 - Phase 0 permits only `transitions.mode: "instant"`. No animation timing is
   implied or reserved by arbitrary fields.
 
-## 2. Closed manifest and coordinate system
+## 2. Closed manifest and coordinate/placement system
 
-Unknown fields are rejected at every schema-defined object. All geometry is in
-Reference Space; manifests MUST NOT contain physical DPI sizes or per-monitor
-cache coordinates.
+Unknown fields are rejected at every schema-defined object. Layer, anchor, mask,
+and visual-region authored geometry is in Reference Space; `contentOrigin` and
+`activationAnchor` are the explicitly identified exceptions in Logical Surface
+Space. Manifests MUST NOT contain physical DPI sizes or per-monitor cache
+coordinates.
 
-- `referenceCanvas.width/height` define the authored pixel grid.
+- **Reference Space** is the authored pixel grid defined by
+  `referenceCanvas.width/height`. Its bounds are
+  `[0, referenceWidth) x [0, referenceHeight)`.
 - `referenceCanvas` is `sRGB` with `straight` alpha.
-- `referenceScale.logicalWidth/logicalHeight`, `fit: "contain"`, and `origin`
-  define the mapping from Reference Space to the runtime logical surface.
+- **Logical Surface Space** is the complete logical overlay surface defined by
+  `referenceScale.logicalWidth/logicalHeight`. Its bounds are
+  `[0, logicalWidth) x [0, logicalHeight)`. These dimensions are the future
+  overlay logical bounds, not a content bounding box, an outer contain viewport,
+  or an HWND offset. Each dimension is greater than zero and at most 4096 logical
+  units.
+- `referenceScale.fit` is exactly `contain`. The author MUST explicitly provide
+  `referenceScale.contentOrigin` in Logical Surface units. It is the top-left of
+  the contain-scaled Reference artwork in Logical Surface Space; no implicit
+  centering or other alignment state exists.
 - Bounds use `{x, y, width, height}` and MUST be finite, positive-sized, and
   wholly inside the reference canvas.
-- Runtime implementation in a later phase MUST compute one Reference-to-Logical
-  transform and then the existing Logical-to-Physical DPI transform. It MUST NOT
-  feed Reference Space directly into native window coordinates.
+- `placement.activationAnchor` is a finite point in Logical Surface Space. It is
+  the point within the complete logical surface that `ShowAt(screenPoint)` aligns
+  with `screenPoint`; it affects visual placement only.
+
+The Reference-to-Logical transform is exactly:
+
+```text
+scale = min(logicalWidth / referenceWidth,
+            logicalHeight / referenceHeight)
+contentWidth  = referenceWidth  * scale
+contentHeight = referenceHeight * scale
+logicalX = contentOrigin.x + referenceX * scale
+logicalY = contentOrigin.y + referenceY * scale
+```
+
+`contentOrigin.x/y` MUST be non-negative, and the content rectangle MUST remain
+inside the Logical Surface:
+
+```text
+contentOrigin.x + contentWidth  <= logicalWidth
+contentOrigin.y + contentHeight <= logicalHeight
+```
+
+Semantic validation uses an absolute tolerance of `1e-9` logical units for only
+the two right/bottom containment comparisons. The stored origin is never changed
+or snapped by that tolerance. Negative origins, implicit surface expansion,
+implicit clipping, and content-driven HWND translation are forbidden in V2 MVP.
+Letterbox pixels not covered by authored content are transparent; Runtime MUST
+NOT synthesize black, white, or theme-colored fill.
+
+Runtime implementation in a later phase MUST compute this one
+Reference-to-Logical transform and then the Logical-to-Physical DPI transform.
+It MUST NOT feed Reference Space directly into native window coordinates or
+render a low-resolution logical bitmap and subsequently upscale it. A straight-
+alpha source is normalized to a PArgb master, resampled directly to the final
+Physical content rectangle, and composed into the transparent full Physical
+Surface cache.
+
+### 2.1 Physical Surface and deterministic DPI rounding
+
+**Physical Surface Space** is derived from Logical Surface Space at the current
+monitor DPI. It determines the layered HWND backing-bitmap size and the
+`UpdateLayeredWindow` width and height. `LogicalEdgeToPhysical` is the single
+normative conversion for every surface edge, content edge, and activation-anchor
+coordinate:
+
+```text
+LogicalEdgeToPhysical(value, dpi) =
+    Round(value * dpi / 96, midpoint = AwayFromZero)
+```
+
+All calculations remain continuous logical values until an edge or anchor is
+converted. Surface physical width/height are the converted logical right/bottom
+edges. A content rectangle converts `left`, `top`, `right = x + width`, and
+`bottom = y + height` independently; physical width is `right - left` and
+physical height is `bottom - top`. Runtime MUST NOT round `x` and `width`
+separately and add them, because that can accumulate drift. An activation anchor
+is converted directly with the same function.
+
+For a physical screen point supplied to `ShowAt`, placement is exactly:
+
+```text
+hwndLeft = screenPointPhysical.x - LogicalEdgeToPhysical(activationAnchor.x, dpi)
+hwndTop  = screenPointPhysical.y - LogicalEdgeToPhysical(activationAnchor.y, dpi)
+```
+
+`screenPoint` therefore denotes surface center only when the manifest explicitly
+sets the activation anchor to `(logicalWidth / 2, logicalHeight / 2)`.
+
+### 2.2 Selection authority and WheelCenter isolation
+
+`placement.activationAnchor` affects visual overlay placement only. It MUST NOT
+participate in angle calculation, deadzone, slot boundaries, tie-breaks, or slot
+selection. The existing input/session selection origin and `LayoutDefinition`
+remain the selection authority.
+
+For V2 full-state-frame and layered-state rendering,
+`LayoutDefinition.WheelCenter` does not define the Visual Surface center or HWND
+anchor and need not coincide with Reference Canvas center, Logical Surface
+center, or `activationAnchor`. Full-state-frame rendering does not use
+`WheelCenter` for a visual transform. The value remains layout/profile authority
+for existing logic and legacy rendering that requires layout geometry.
+
+The V1 compatibility mapping remains unchanged: a `1254 x 1254` reference with
+WheelCenter `(627, 627)` mapped into the existing `280 x 280` logical surface
+produces activation anchor `(140, 140)`. V1 adapters derive that value from the
+legacy reference/layout scale; they do not introduce a new hard-coded placement
+constant.
+
+### 2.3 Normative non-square examples
+
+Centered artwork example:
+
+```text
+referenceCanvas = 800 x 500
+logical surface = 400 x 400
+scale = 0.5
+content size = 400 x 250
+contentOrigin = (0, 75)
+activationAnchor = (120, 200)
+Reference (0, 0) -> Logical (0, 75)
+Reference (800, 500) -> Logical (400, 325)
+Reference (400, 250) -> Logical (200, 200)
+```
+
+`ShowAt(screenPoint)` aligns `screenPoint` to Logical `(120, 200)`, not to the
+surface center `(200, 200)`.
+
+Non-centered artwork example:
+
+```text
+referenceCanvas = 800 x 500
+logical surface = 500 x 300
+scale = 0.6
+content size = 480 x 300
+contentOrigin = (20, 0)
+activationAnchor = (100, 150)
+Reference (0, 0) -> Logical (20, 0)
+Reference (800, 500) -> Logical (500, 300)
+```
 
 `layoutProfile` is the primary authoring topology. `compatibleLayouts` is a
 non-empty unique set containing it. V2 initially recognizes `radial-6` and
@@ -75,9 +205,10 @@ or normalized-renderer preparation step owns straight RGBA to PArgb conversion.
 The conversion to premultiplied representation occurs before interpolation so
 transparent-pixel RGB cannot create black/white/color fringes during resampling.
 The normalized premultiplied master is transformed directly to the final
-Physical target determined from Reference Space, logical size, user scale, and
-current DPI. An intermediate low-resolution logical raster that is subsequently
-upscaled is forbidden. Composition remains premultiplied through the final
+Physical content rectangle determined from Reference Space, `contentOrigin`,
+logical surface size, user scale, and current DPI. An intermediate low-resolution
+logical raster that is subsequently upscaled is forbidden. Composition into the
+transparent full Physical Surface remains premultiplied through the final
 layered-window bitmap.
 
 This ordering matches the stable V1 pipeline audited in Phase 0: decode into
