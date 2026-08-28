@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Dreamscape Logs Preview</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="viewport">
+    <main id="design-root" aria-label="LeftPad 日志视觉预览">
+      <img class="reference-art" src="reference.png" alt="纪念碑谷4静态建筑参考">
+      <section class="log-shell" aria-label="接收器运行日志">
+        <div id="log-view" class="log-view" tabindex="0" aria-label="可滚动日志正文">
+          <p class="log-line info"><time>[13:50:22]</time><span class="tag">[Info]</span><span>LeftPad DS4 接收器正在启动。</span></p>
+          <p class="log-line info"><time>[13:50:23]</time><span class="tag">[视觉主题]</span><span>正在发现可用的 radial visual packs。</span></p>
+          <p class="log-line success"><time>[13:50:23]</time><span class="tag">[视觉主题]</span><span>Loaded radial visual pack: radial-v5</span></p>
+          <p class="log-line success"><time>[13:50:23]</time><span class="tag">[环形菜单]</span><span>设置已加载（动作映射：0/6）</span></p>
+          <p class="log-line info"><time>[13:50:24]</time><span class="tag">[Controller]</span><span>虚拟 DualShock 4 已创建并连接。</span></p>
+          <p class="log-line info"><time>[13:50:24]</time><span class="tag">[Network]</span><span>TCP 服务器正在端口 8888 监听，输出模式：DirectDs4。</span></p>
+          <p class="log-line info"><time>[13:50:24]</time><span class="tag">[环形菜单]</span><span>双击窗口：150 ms</span></p>
+          <p class="log-line warning"><time>[13:50:25]</time><span class="tag">[Warning]</span><span>尚未检测到手机连接，接收器继续等待。</span></p>
+          <p class="log-line info"><time>[13:50:26]</time><span class="tag">[Info]</span><span>WebView2 Overview frontend ready。</span></p>
+          <p class="log-line info"><time>[13:50:27]</time><span class="tag">[Info]</span><span>Settings shared draft session initialized。</span></p>
+          <p class="log-line success"><time>[13:50:28]</time><span class="tag">[Controller]</span><span>输入监视已就绪，等待控制器事件。</span></p>
+          <p class="log-line info latest"><time>[13:50:29]</time><span class="tag">[Info]</span><span>Receiver is ready.</span></p>
+        </div>
+        <div class="latest-marker" aria-hidden="true"><i></i><span>最新</span></div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

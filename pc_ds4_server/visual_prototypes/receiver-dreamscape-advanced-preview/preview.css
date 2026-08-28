@@ -1,0 +1,51 @@
+:root { color-scheme: light; font-family: "Noto Sans SC","Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif; --navy:#183879; --focus:#53b5da; }
+* { box-sizing: border-box; }
+html,body { width:100%; height:100%; margin:0; overflow:hidden; user-select:none; }
+body { background:#263772; }
+button,input { font:inherit; }
+#viewport { position:fixed; inset:0; overflow:hidden; background:#263772; }
+#design-root { position:absolute; left:0; top:0; width:1672px; height:941px; transform-origin:0 0; overflow:hidden; border-radius:22px; color:var(--navy); background:#bcc8ec; }
+.scene-art { position:absolute; inset:0; width:1672px; height:941px; pointer-events:none; }
+.brand { position:absolute; left:49px; top:158px; width:200px; color:#fbf9ff; text-shadow:0 1px 2px rgba(35,43,99,.38); }
+.brand-name { font:350 41px/1.05 "Segoe UI",sans-serif; letter-spacing:-.8px; }
+.brand-subtitle { margin-top:6px; color:#e1e5fa; font-size:27px; font-weight:350; letter-spacing:.7px; }
+.nav-command { position:absolute; left:22px; top:var(--y); width:225px; height:58px; padding:0; border:0; background:transparent; color:#f6f6ff; text-align:left; }
+.nav-command.selected { left:10px; width:242px; height:62px; }
+.nav-command span { position:absolute; left:67px; top:9px; font-size:25px; font-weight:450; line-height:39px; white-space:nowrap; text-shadow:0 1px 2px rgba(34,45,99,.42); }
+.nav-command.selected span { left:80px; top:10px; font-size:27px; }
+.page-title { position:absolute; left:350px; top:62px; width:190px; height:82px; font:650 59px/82px "Noto Serif SC","Microsoft YaHei UI",serif; letter-spacing:7px; color:#2b438c; text-shadow:0 2px 0 rgba(255,255,255,.55),1px 3px 3px rgba(69,78,139,.13); }
+.connection-pill { position:absolute; left:1404px; top:105px; width:155px; height:40px; display:flex; align-items:center; gap:17px; font-size:21px; font-weight:600; white-space:nowrap; }
+.connection-dot { width:20px; height:20px; border-radius:50%; border:1.5px solid #c98724; background:radial-gradient(circle at 35% 30%,#fff0a6 0 12%,#ffc353 34%,#f29b2f 72%,#d87d27 100%); box-shadow:inset 0 0 0 1px rgba(255,255,255,.55),0 1px 2px rgba(90,60,27,.25); }
+.basic-indicator-cover { position:absolute; left:392px; top:238px; width:45px; height:23px; background:linear-gradient(#fcf7f3,#fbf5f1); border-top:1px solid rgba(133,112,140,.13); z-index:1; }
+.settings-tab { position:absolute; left:var(--x); top:188px; width:var(--w); height:61px; padding:0; border:0; background:transparent; color:#253f87; font-size:23px; font-weight:550; z-index:2; }
+.settings-tab.active { font-weight:750; }
+.advanced-tab-spark { position:absolute; left:548px; top:237px; width:27px; height:27px; fill:#7368df; z-index:3; filter:drop-shadow(0 1px 0 #fff); }
+.advanced-form { position:absolute; inset:0; }
+.advanced-row { position:absolute; left:var(--x); top:var(--y); width:var(--w); height:72px; }
+.row-icon { position:absolute; left:0; top:0; width:55px; height:55px; display:grid; place-items:center; border:1px solid rgba(110,94,144,.19); border-radius:50%; background:rgba(255,250,248,.94); box-shadow:inset 0 1px 0 #fff,0 2px 5px rgba(70,59,110,.1); }
+.row-icon svg { width:31px; height:31px; fill:#7465d9; filter:drop-shadow(0 1px 0 #fff); }
+.row-icon svg .cut { fill:#fff9f7; }
+.row-icon svg .line { fill:none; stroke:#7465d9; stroke-width:2; }
+.advanced-row label { position:absolute; left:70px; top:0; font-size:22px; line-height:38px; font-weight:600; letter-spacing:.2px; text-shadow:0 1px 0 rgba(255,255,255,.6); }
+.advanced-row output { position:absolute; top:0; height:38px; text-align:right; font-size:22px; line-height:38px; font-weight:600; white-space:nowrap; }
+.left-row output { left:465px; width:80px; }
+.right-row output { left:412px; width:89px; }
+.advanced-row input[type="range"] { position:absolute; left:70px; top:42px; width:470px; height:22px; margin:0; padding:0; appearance:none; -webkit-appearance:none; outline:none; background:transparent; pointer-events:none; }
+.right-row input[type="range"] { width:425px; }
+.advanced-row input[type="range"]::-webkit-slider-runnable-track { height:8px; border-radius:6px; background:linear-gradient(90deg,#6850d8 0%,#bc74d5 var(--fill),#eee8ec var(--fill),#eee8ec 100%); box-shadow:inset 0 1px 2px rgba(71,63,105,.18),0 1px 0 rgba(255,255,255,.8); }
+.advanced-row input[type="range"]::-webkit-slider-thumb { width:29px; height:29px; margin-top:-10px; border-radius:50%; appearance:none; -webkit-appearance:none; border:1px solid rgba(105,91,130,.23); background:linear-gradient(145deg,#fffdfc,#f6eef1); box-shadow:0 2px 6px rgba(73,61,105,.18),inset 0 1px 0 #fff; }
+html[data-option="b"] .advanced-row output { top:-2px; min-width:92px; height:39px; padding:0 13px; border:1px solid rgba(104,90,139,.18); border-radius:12px; background:linear-gradient(145deg,rgba(255,254,252,.96),rgba(247,239,245,.88)); box-shadow:inset 0 1px 0 #fff,0 3px 8px rgba(72,58,110,.09); text-align:center; line-height:37px; color:#304b91; }
+html[data-option="b"] .left-row output { left:447px; }
+html[data-option="b"] .right-row output { left:397px; }
+html[data-option="b"] .advanced-row input[type="range"] { width:443px; }
+html[data-option="b"] .right-row input[type="range"] { width:400px; }
+.action-button { position:absolute; top:786px; height:82px; padding:0; border:0; display:flex; align-items:center; justify-content:center; gap:18px; background:transparent; color:#274382; font-size:23px; font-weight:650; text-shadow:0 1px 0 rgba(255,255,255,.75); }
+.action-button svg { width:34px; height:34px; fill:currentColor; opacity:.73; }
+.action-button.preview { left:351px; width:202px; }
+.action-button.hide { left:593px; width:208px; }
+.action-button.apply { left:852px; width:221px; }
+.action-button.restore { left:1119px; width:201px; }
+.window-drag-zone { position:absolute; left:267px; top:0; width:1240px; height:67px; }
+.window-button { position:absolute; top:18px; width:52px; height:52px; padding:0; border:0; border-radius:50%; background:transparent; color:#19276b; font:200 39px/46px "Segoe UI",sans-serif; }
+.window-button.minimize { left:1537px; font-size:31px; line-height:32px; }
+.window-button.close { left:1598px; }

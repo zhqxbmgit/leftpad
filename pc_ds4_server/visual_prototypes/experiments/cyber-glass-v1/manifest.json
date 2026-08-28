@@ -1,0 +1,11 @@
+{
+  "base": "radial-base.png",
+  "id": "cyber-glass-v1",
+  "layout": "radial-layout.json",
+  "layoutProfile": "radial-6",
+  "name": "Cyber Glass HUD",
+  "selected": "radial-selected-card.png",
+  "selectionAssetMode": "canonical-transform",
+  "slotCount": 6,
+  "version": 1
+}

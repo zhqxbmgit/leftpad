@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN" data-option="a">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dreamscape Settings Advanced Preview</title>
+  <script>document.documentElement.dataset.option = new URLSearchParams(location.search).get('option') === 'b' ? 'b' : 'a';</script>
+  <link rel="stylesheet" href="preview.css">
+</head>
+<body>
+  <div id="viewport">
+    <main id="design-root" aria-label="LeftPad Dreamscape 高级设置视觉预览">
+      <img class="scene-art" src="static-art.png" alt="Dreamscape Settings 建筑场景">
+
+      <section class="brand" aria-label="品牌">
+        <div class="brand-name">LeftPad</div>
+        <div class="brand-subtitle">DS4 接收器</div>
+      </section>
+
+      <nav aria-label="主导航">
+        <button class="nav-command" style="--y:286px"><span>总览</span></button>
+        <button class="nav-command" style="--y:352px"><span>手柄状态</span></button>
+        <button class="nav-command selected" style="--y:423px"><span>设置</span></button>
+        <button class="nav-command" style="--y:496px"><span>日志</span></button>
+      </nav>
+
+      <header class="page-title">设置</header>
+      <div class="connection-pill"><span class="connection-dot"></span><span>等待连接</span></div>
+
+      <div class="basic-indicator-cover" aria-hidden="true"></div>
+      <nav class="settings-tabs" aria-label="设置分类">
+        <button class="settings-tab" style="--x:332px;--w:160px">基础</button>
+        <button class="settings-tab active" style="--x:492px;--w:139px">高级</button>
+        <button class="settings-tab" style="--x:631px;--w:180px">动作映射</button>
+        <svg class="advanced-tab-spark" viewBox="0 0 28 28" aria-hidden="true"><path d="M14 1 18 10 27 14 18 18 14 27 10 18 1 14 10 10Z"/></svg>
+      </nav>
+
+      <section class="advanced-form" aria-label="高级设置视觉 Mock">
+        <div class="advanced-row left-row" style="--x:350px;--y:300px;--w:545px;--fill:62%">
+          <span class="row-icon"><svg viewBox="0 0 32 32"><path d="M6 8V5h7v3H9v5H6V8Zm13-3h7v8h-3V8h-4V5ZM6 19h3v5h4v3H6v-8Zm17 0h3v8h-7v-3h4v-5ZM11 11h10v10H11V11Z"/></svg></span>
+          <label>画布大小</label><output>560 px</output><input type="range" min="320" max="720" value="560" aria-label="画布大小">
+        </div>
+        <div class="advanced-row left-row" style="--x:350px;--y:400px;--w:545px;--fill:42%">
+          <span class="row-icon"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="10"/><circle class="cut" cx="16" cy="16" r="5"/><path d="M15 2h2v5h-2zM15 25h2v5h-2zM2 15h5v2H2zM25 15h5v2h-5z"/></svg></span>
+          <label>中心圆半径</label><output>72 px</output><input type="range" min="30" max="130" value="72" aria-label="中心圆半径">
+        </div>
+        <div class="advanced-row left-row" style="--x:350px;--y:500px;--w:545px;--fill:48%">
+          <span class="row-icon"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="11"/><circle class="cut" cx="16" cy="16" r="7"/><circle class="line" cx="16" cy="16" r="3"/></svg></span>
+          <label>花瓣内半径</label><output>128 px</output><input type="range" min="70" max="190" value="128" aria-label="花瓣内半径">
+        </div>
+        <div class="advanced-row left-row" style="--x:350px;--y:600px;--w:545px;--fill:71%">
+          <span class="row-icon"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="12"/><circle class="cut" cx="16" cy="16" r="9"/><path d="M16 2 19 8 16 10 13 8Z"/></svg></span>
+          <label>花瓣外半径</label><output>250 px</output><input type="range" min="150" max="290" value="250" aria-label="花瓣外半径">
+        </div>
+
+        <div class="advanced-row right-row" style="--x:963px;--y:300px;--w:501px;--fill:58%">
+          <span class="row-icon"><svg viewBox="0 0 32 32"><path d="M7 6h18v4h-7v17h-4V10H7V6Z"/><path d="M25 17a9 9 0 0 1-7 9l-.7-2.5a6.5 6.5 0 0 0 5.2-6.5H19l5-6 5 6h-4Z"/></svg></span>
+          <label>文字位置半径</label><output>185 px</output><input type="range" min="110" max="240" value="185" aria-label="文字位置半径">
+        </div>
+        <div class="advanced-row right-row" style="--x:963px;--y:400px;--w:501px;--fill:50%">
+          <span class="row-icon"><svg viewBox="0 0 32 32"><path d="M16 16 27 9a13 13 0 0 1 1.5 7H16Z"/><path d="M16 16 5 9a13 13 0 0 0-1.5 7H16Z"/><circle class="cut" cx="16" cy="16" r="4"/></svg></span>
+          <label>花瓣间隔角度</label><output>6°</output><input type="range" min="0" max="12" value="6" aria-label="花瓣间隔角度">
+        </div>
+        <div class="advanced-row right-row" style="--x:963px;--y:500px;--w:501px;--fill:60%">
+          <span class="row-icon typography"><svg viewBox="0 0 32 32"><path d="M5 6h22v5h-3V9h-6v18h4v3H10v-3h4V9H8v2H5V6Z"/></svg></span>
+          <label>字体大小</label><output>24 px</output><input type="range" min="12" max="32" value="24" aria-label="字体大小">
+        </div>
+        <div class="advanced-row right-row" style="--x:963px;--y:600px;--w:501px;--fill:38%">
+          <span class="row-icon"><svg viewBox="0 0 32 32"><circle cx="16" cy="18" r="10"/><circle class="cut" cx="16" cy="18" r="7"/><path d="M14 2h4v5h-4zM16 11h2v8h-2zM17 17l5 3-1 2-5-3z"/></svg></span>
+          <label>选择检测间隔</label><output>16 ms</output><input type="range" min="8" max="50" value="16" aria-label="选择检测间隔">
+        </div>
+      </section>
+
+      <section class="settings-actions" aria-label="预览操作">
+        <button class="action-button preview"><svg viewBox="0 0 32 32"><path d="M3 16s5-8 13-8 13 8 13 8-5 8-13 8S3 16 3 16Zm13 5a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"/></svg><span>预览</span></button>
+        <button class="action-button hide"><svg viewBox="0 0 32 32"><path d="m5 4 23 23-2 2-5-5c-1.5.7-3.2 1-5 1C8 25 3 16 3 16a25 25 0 0 1 5-6l-5-4 2-2Zm7 10a5 5 0 0 0 6 6l-6-6Zm4-7c8 0 13 9 13 9a24 24 0 0 1-4 5l-4-4v-1a5 5 0 0 0-5-5h-1l-4-3c1.5-.7 3.2-1 5-1Z"/></svg><span>隐藏预览</span></button>
+        <button class="action-button apply"><svg viewBox="0 0 32 32"><path d="M5 4h19l4 4v20H5V4Zm5 3v8h13V7H10Zm2 13v5h9v-5h-9Z"/></svg><span>应用并保存</span></button>
+        <button class="action-button restore"><svg viewBox="0 0 32 32"><path d="M8 9a12 12 0 1 1-2 14l4-2a8 8 0 1 0 1-9l4 4H4V5l4 4Z"/></svg><span>恢复默认</span></button>
+      </section>
+
+      <div class="window-drag-zone"></div>
+      <button class="window-button minimize" aria-label="最小化">—</button>
+      <button class="window-button close" aria-label="关闭">×</button>
+    </main>
+  </div>
+  <script src="preview.js"></script>
+</body>
+</html>

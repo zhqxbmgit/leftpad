@@ -1,0 +1,176 @@
+{
+  "canvas": {
+    "height": 1254,
+    "mode": "RGBA",
+    "width": 1254
+  },
+  "centerMaterial": {
+    "blueEdge": "#4D7DDE",
+    "border": "#7657E8",
+    "dotted": "#7786D2",
+    "glassHighlight": "#D5DFFF",
+    "inner": "#080919",
+    "marker": "#826EEE",
+    "middle": "#11152D",
+    "outer": "#20264A"
+  },
+  "dynamicContent": "runtime-owned; no text, mappings, numbers, or prompts are baked into assets",
+  "geometry": {
+    "centerInnerRadius": 154,
+    "centerRadius": 182,
+    "cornerRadius": 10,
+    "dottedRingRadius": 132,
+    "gapConstruction": "logical 60-degree boundary plus parallel offset gapPx/2",
+    "gapPx": 16,
+    "innerRadius": 198,
+    "markerRadius": 190,
+    "markerSize": 12,
+    "outerRadius": 450
+  },
+  "internalRender": {
+    "downsample": "Pillow LANCZOS",
+    "height": 5016,
+    "scale": 4,
+    "width": 5016
+  },
+  "normalMaterial": {
+    "alphaInner": 178,
+    "alphaOuter": 218,
+    "blueEdge": "#4D83FF",
+    "blueEdgeAlpha": 178,
+    "blueEdgeWidth": 1.1,
+    "darkBacking": "#050612",
+    "darkBackingAlpha": 150,
+    "darkBackingWidth": 5.0,
+    "glassCore": "#D9E4FF",
+    "glassCoreAlpha": 95,
+    "glassCoreWidth": 0.55,
+    "inner": "#0C0D20",
+    "middle": "#171A38",
+    "outer": "#25294F",
+    "violetEdge": "#7657FF",
+    "violetEdgeAlpha": 192,
+    "violetEdgeWidth": 2.4
+  },
+  "selectedAssetCanonicalSlot": 1,
+  "selectedAssetRotationDegreesClockwise": [
+    0,
+    60,
+    120,
+    180,
+    240,
+    300
+  ],
+  "selectedMaterial": {
+    "alphaInner": 205,
+    "alphaOuter": 238,
+    "blueCore": "#A9C3FF",
+    "blueCoreAlpha": 250,
+    "blueCoreWidth": 1.0,
+    "inner": "#141534",
+    "middle": "#22275A",
+    "outer": "#343B78",
+    "tightHalo": "#4F7DFF",
+    "tightHaloAlpha": 132,
+    "tightHaloRadius": 4.5,
+    "violetEdge": "#9B6CFF",
+    "violetEdgeAlpha": 245,
+    "violetEdgeWidth": 3.0,
+    "wideHalo": "#7154FF",
+    "wideHaloAlpha": 78,
+    "wideHaloRadius": 12.0
+  },
+  "slotAnglesDegrees": [
+    0,
+    60,
+    120,
+    180,
+    240,
+    300
+  ],
+  "slotCount": 6,
+  "slots": [
+    {
+      "angleDegreesClockwiseFromTop": 0,
+      "glyphAnchor": {
+        "x": 627.0,
+        "y": 307.0
+      },
+      "labelAnchor": {
+        "x": 627.0,
+        "y": 262.0
+      },
+      "name": "Top",
+      "slot": 1
+    },
+    {
+      "angleDegreesClockwiseFromTop": 60,
+      "glyphAnchor": {
+        "x": 904.128,
+        "y": 467.0
+      },
+      "labelAnchor": {
+        "x": 943.099,
+        "y": 444.5
+      },
+      "name": "Upper Right",
+      "slot": 2
+    },
+    {
+      "angleDegreesClockwiseFromTop": 120,
+      "glyphAnchor": {
+        "x": 904.128,
+        "y": 787.0
+      },
+      "labelAnchor": {
+        "x": 943.099,
+        "y": 809.5
+      },
+      "name": "Lower Right",
+      "slot": 3
+    },
+    {
+      "angleDegreesClockwiseFromTop": 180,
+      "glyphAnchor": {
+        "x": 627.0,
+        "y": 947.0
+      },
+      "labelAnchor": {
+        "x": 627.0,
+        "y": 992.0
+      },
+      "name": "Bottom",
+      "slot": 4
+    },
+    {
+      "angleDegreesClockwiseFromTop": 240,
+      "glyphAnchor": {
+        "x": 349.872,
+        "y": 787.0
+      },
+      "labelAnchor": {
+        "x": 310.901,
+        "y": 809.5
+      },
+      "name": "Lower Left",
+      "slot": 5
+    },
+    {
+      "angleDegreesClockwiseFromTop": 300,
+      "glyphAnchor": {
+        "x": 349.872,
+        "y": 467.0
+      },
+      "labelAnchor": {
+        "x": 310.901,
+        "y": 444.5
+      },
+      "name": "Upper Left",
+      "slot": 6
+    }
+  ],
+  "wheelCenter": {
+    "x": 627,
+    "y": 627
+  }
+}

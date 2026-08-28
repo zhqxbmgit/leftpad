@@ -1,0 +1,348 @@
+{
+  "result": "PASS",
+  "stateCount": 9,
+  "layerCount": 1,
+  "staticLayerCount": 0,
+  "assetHashClosure": "exact",
+  "selected1OpaqueRgbMaeVsReference": 0.0,
+  "states": {
+    "idle": {
+      "mode": "RGBA",
+      "size": [
+        1254,
+        1254
+      ],
+      "sha256": "D6AD2292889C7E33B4DF9436F71BE2B066FD5F7BC767D7B7232B272C5DFF6271",
+      "alphaMinMax": [
+        0,
+        255
+      ],
+      "transparentPixels": 894213,
+      "partialAlphaPixels": 17616,
+      "alphaZeroRgbResiduePixels": 0,
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ]
+    },
+    "selected-1": {
+      "mode": "RGBA",
+      "size": [
+        1254,
+        1254
+      ],
+      "sha256": "CFB0066C136720A34F3EB19FBD71C6E23E9791C8231B87F64AE8F5A395CDBB39",
+      "alphaMinMax": [
+        0,
+        255
+      ],
+      "transparentPixels": 894213,
+      "partialAlphaPixels": 17616,
+      "alphaZeroRgbResiduePixels": 0,
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ]
+    },
+    "selected-2": {
+      "mode": "RGBA",
+      "size": [
+        1254,
+        1254
+      ],
+      "sha256": "3F77521CB7CA75D3BDF0BECDEBDBF153159CDDDCA060BC07CEA828B10EE70391",
+      "alphaMinMax": [
+        0,
+        255
+      ],
+      "transparentPixels": 894152,
+      "partialAlphaPixels": 17677,
+      "alphaZeroRgbResiduePixels": 0,
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ]
+    },
+    "selected-3": {
+      "mode": "RGBA",
+      "size": [
+        1254,
+        1254
+      ],
+      "sha256": "0A7ABE07903E78C1F8AE4E3E8484A011E321C5A22C25945BB6383A0F3170E0EA",
+      "alphaMinMax": [
+        0,
+        255
+      ],
+      "transparentPixels": 894136,
+      "partialAlphaPixels": 17693,
+      "alphaZeroRgbResiduePixels": 0,
+      "contentBounds": [
+        132,
+        109,
+        1125,
+        1072
+      ]
+    },
+    "selected-4": {
+      "mode": "RGBA",
+      "size": [
+        1254,
+        1254
+      ],
+      "sha256": "62E0F697182C43B118CDFBFAD035C5331460B7CF8F911ECF5309BC234FCF2D6E",
+      "alphaMinMax": [
+        0,
+        255
+      ],
+      "transparentPixels": 894143,
+      "partialAlphaPixels": 17686,
+      "alphaZeroRgbResiduePixels": 0,
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ]
+    },
+    "selected-5": {
+      "mode": "RGBA",
+      "size": [
+        1254,
+        1254
+      ],
+      "sha256": "B4E0200298DCC98D3CA99BF2892603B5AD5DA9CDD9059E961C69E0BCDEF7BD85",
+      "alphaMinMax": [
+        0,
+        255
+      ],
+      "transparentPixels": 894160,
+      "partialAlphaPixels": 17669,
+      "alphaZeroRgbResiduePixels": 0,
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ]
+    },
+    "selected-6": {
+      "mode": "RGBA",
+      "size": [
+        1254,
+        1254
+      ],
+      "sha256": "0109FD8D5D1D84B91E996D085D13E8C203076B939AC9A7608DF96A5B5B0AFFE8",
+      "alphaMinMax": [
+        0,
+        255
+      ],
+      "transparentPixels": 894162,
+      "partialAlphaPixels": 17667,
+      "alphaZeroRgbResiduePixels": 0,
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ]
+    },
+    "selected-7": {
+      "mode": "RGBA",
+      "size": [
+        1254,
+        1254
+      ],
+      "sha256": "7A8EB6C7618FB95C67EF84D8BB61DC1CABC6E61ED92B748DE36D6B6890BFFADB",
+      "alphaMinMax": [
+        0,
+        255
+      ],
+      "transparentPixels": 894136,
+      "partialAlphaPixels": 17693,
+      "alphaZeroRgbResiduePixels": 0,
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ]
+    },
+    "selected-8": {
+      "mode": "RGBA",
+      "size": [
+        1254,
+        1254
+      ],
+      "sha256": "5C4B57CC3EBB73A2DED6CB2C7941A528FD09EE26A3BA2AEE3ED2094B26E90D75",
+      "alphaMinMax": [
+        0,
+        255
+      ],
+      "transparentPixels": 894161,
+      "partialAlphaPixels": 17668,
+      "alphaZeroRgbResiduePixels": 0,
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ]
+    }
+  },
+  "locality": {
+    "selected-1": {
+      "changedPixelsVsIdle": 44011,
+      "changedBoundsVsIdle": [
+        463,
+        115,
+        799,
+        448
+      ],
+      "unchangedPixelsVsIdle": 1528505
+    },
+    "selected-2": {
+      "changedPixelsVsIdle": 14732,
+      "changedBoundsVsIdle": [
+        740,
+        208,
+        1026,
+        479
+      ],
+      "unchangedPixelsVsIdle": 1557784
+    },
+    "selected-3": {
+      "changedPixelsVsIdle": 14769,
+      "changedBoundsVsIdle": [
+        838,
+        456,
+        1125,
+        715
+      ],
+      "unchangedPixelsVsIdle": 1557747
+    },
+    "selected-4": {
+      "changedPixelsVsIdle": 14731,
+      "changedBoundsVsIdle": [
+        744,
+        691,
+        1019,
+        975
+      ],
+      "unchangedPixelsVsIdle": 1557785
+    },
+    "selected-5": {
+      "changedPixelsVsIdle": 14434,
+      "changedBoundsVsIdle": [
+        495,
+        779,
+        752,
+        1072
+      ],
+      "unchangedPixelsVsIdle": 1558082
+    },
+    "selected-6": {
+      "changedPixelsVsIdle": 14863,
+      "changedBoundsVsIdle": [
+        229,
+        693,
+        515,
+        978
+      ],
+      "unchangedPixelsVsIdle": 1557653
+    },
+    "selected-7": {
+      "changedPixelsVsIdle": 14805,
+      "changedBoundsVsIdle": [
+        132,
+        446,
+        419,
+        705
+      ],
+      "unchangedPixelsVsIdle": 1557711
+    },
+    "selected-8": {
+      "changedPixelsVsIdle": 14695,
+      "changedBoundsVsIdle": [
+        230,
+        209,
+        515,
+        481
+      ],
+      "unchangedPixelsVsIdle": 1557821
+    }
+  },
+  "runtime200Percent": {
+    "idle": {
+      "size": [
+        840,
+        840
+      ],
+      "cornerAlpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "sha256": "36F07078E01352B68C5059A8B6C0B30148C11DEABD10EE6BF476273C1A063DE6"
+    },
+    "selected-1": {
+      "size": [
+        840,
+        840
+      ],
+      "cornerAlpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "sha256": "88BF2F7F339CAEA6D305F4633326774F45532DBDB5116BCE23B3AB025496A88E"
+    },
+    "selected-3": {
+      "size": [
+        840,
+        840
+      ],
+      "cornerAlpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "sha256": "6FBEE8E5A1134D8DEB3CC3C90EC3B4FB7E85706251B57E372CDDD50FA2DB2A3E"
+    },
+    "selected-5": {
+      "size": [
+        840,
+        840
+      ],
+      "cornerAlpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "sha256": "46C1613B22EEDDA6E843FD31BBE6C3B510242A8452D16B8D280DBC90028BC720"
+    },
+    "selected-8": {
+      "size": [
+        840,
+        840
+      ],
+      "cornerAlpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "sha256": "70486A4A94137557D57034BC22C1EC8B8722A9A1335E873D12DC447E3171336E"
+    }
+  }
+}

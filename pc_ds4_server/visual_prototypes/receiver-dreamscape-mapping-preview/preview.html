@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Dreamscape Settings Mapping Preview</title>
+  <link rel="stylesheet" href="preview.css">
+</head>
+<body>
+  <div id="viewport">
+    <main id="design-root" aria-label="LeftPad Dreamscape 动作映射视觉预览">
+      <img class="scene-art" src="static-art.png" alt="Dreamscape Settings 建筑场景">
+
+      <section class="brand" aria-label="品牌">
+        <div class="brand-name">LeftPad</div>
+        <div class="brand-subtitle">DS4 接收器</div>
+      </section>
+
+      <nav aria-label="主导航">
+        <button class="nav-command" style="--y:286px"><span>总览</span></button>
+        <button class="nav-command" style="--y:352px"><span>手柄状态</span></button>
+        <button class="nav-command selected" style="--y:423px"><span>设置</span></button>
+        <button class="nav-command" style="--y:496px"><span>日志</span></button>
+      </nav>
+
+      <header class="page-title">设置</header>
+      <div class="connection-pill"><span class="connection-dot"></span><span>等待连接</span></div>
+
+      <div class="basic-indicator-cover" aria-hidden="true"></div>
+      <nav class="settings-tabs" aria-label="设置分类">
+        <button class="settings-tab" style="--x:332px;--w:160px">基础</button>
+        <button class="settings-tab" style="--x:492px;--w:139px">高级</button>
+        <button class="settings-tab active" style="--x:631px;--w:180px">动作映射</button>
+        <svg class="mapping-tab-spark" viewBox="0 0 28 28" aria-hidden="true"><path d="M14 1 18 10 27 14 18 18 14 27 10 18 1 14 10 10Z"/></svg>
+      </nav>
+
+      <div class="content-mask" aria-hidden="true"></div>
+      <section class="mapping-heading" aria-label="映射布局摘要">
+        <span id="layout-badge">RADIAL-8</span>
+        <strong id="mapping-title">动作映射</strong>
+        <small id="mapping-caption">8 个槽位 · 4 + 4 · 全部一次显示</small>
+      </section>
+
+      <section id="mapping-form" aria-label="动作映射槽位"></section>
+      <section id="shared-detail" aria-label="共享详细编辑器"></section>
+
+      <section class="settings-actions" aria-label="预览操作">
+        <button class="action-button preview"><svg viewBox="0 0 32 32"><path d="M3 16s5-8 13-8 13 8 13 8-5 8-13 8S3 16 3 16Zm13 5a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"/></svg><span>预览</span></button>
+        <button class="action-button hide"><svg viewBox="0 0 32 32"><path d="m5 4 23 23-2 2-5-5c-1.5.7-3.2 1-5 1C8 25 3 16 3 16a25 25 0 0 1 5-6l-5-4 2-2Zm7 10a5 5 0 0 0 6 6l-6-6Zm4-7c8 0 13 9 13 9a24 24 0 0 1-4 5l-4-4v-1a5 5 0 0 0-5-5h-1l-4-3c1.5-.7 3.2-1 5-1Z"/></svg><span>隐藏预览</span></button>
+        <button class="action-button apply"><svg viewBox="0 0 32 32"><path d="M5 4h19l4 4v20H5V4Zm5 3v8h13V7H10Zm2 13v5h9v-5h-9Z"/></svg><span>应用并保存</span></button>
+        <button class="action-button restore"><svg viewBox="0 0 32 32"><path d="M8 9a12 12 0 1 1-2 14l4-2a8 8 0 1 0 1-9l4 4H4V5l4 4Z"/></svg><span>恢复默认</span></button>
+      </section>
+
+      <div class="window-drag-zone"></div>
+      <button class="window-button minimize" aria-label="最小化">—</button>
+      <button class="window-button close" aria-label="关闭">×</button>
+    </main>
+  </div>
+  <script src="preview.js"></script>
+</body>
+</html>

@@ -1,0 +1,581 @@
+{
+  "$schema": "../../schemas/theme_package_v2.schema.json",
+  "id": "radial-reference-monument-v1",
+  "displayName": "Monument Path Reference V1",
+  "version": 2,
+  "packageRevision": "1.0.0-review",
+  "surface": "radial-overlay",
+  "layoutProfile": "radial-6",
+  "compatibleLayouts": [
+    "radial-6"
+  ],
+  "renderStrategy": "full-state-frame",
+  "canvas": {
+    "width": 1254,
+    "height": 1254,
+    "mode": "RGBA",
+    "colorSpace": "sRGB",
+    "alphaMode": "straight-on-disk"
+  },
+  "referenceScale": {
+    "logicalWidth": 280,
+    "logicalHeight": 280,
+    "fit": "contain",
+    "anchor": {
+      "x": 627,
+      "y": 627
+    }
+  },
+  "states": {
+    "idle": {
+      "slotId": 0,
+      "assets": {
+        "artwork": "states/idle.png"
+      }
+    },
+    "selected-1": {
+      "slotId": 1,
+      "assets": {
+        "artwork": "states/selected-1.png"
+      }
+    },
+    "selected-2": {
+      "slotId": 2,
+      "assets": {
+        "artwork": "states/selected-2.png"
+      }
+    },
+    "selected-3": {
+      "slotId": 3,
+      "assets": {
+        "artwork": "states/selected-3.png"
+      }
+    },
+    "selected-4": {
+      "slotId": 4,
+      "assets": {
+        "artwork": "states/selected-4.png"
+      }
+    },
+    "selected-5": {
+      "slotId": 5,
+      "assets": {
+        "artwork": "states/selected-5.png"
+      }
+    },
+    "selected-6": {
+      "slotId": 6,
+      "assets": {
+        "artwork": "states/selected-6.png"
+      }
+    }
+  },
+  "layers": [
+    {
+      "id": "artwork",
+      "z": 0,
+      "kind": "stateAsset",
+      "owner": "STATE_ASSET",
+      "composite": "sourceCopy",
+      "required": true
+    },
+    {
+      "id": "theme-decorations",
+      "z": 10,
+      "kind": "staticAsset",
+      "owner": "STATIC",
+      "composite": "sourceOver",
+      "required": false,
+      "asset": "layers/decorations.png"
+    },
+    {
+      "id": "dynamic-underlay",
+      "z": 25,
+      "kind": "staticAsset",
+      "owner": "STATIC",
+      "composite": "sourceOver",
+      "required": true,
+      "asset": "layers/dynamic-underlay.png"
+    },
+    {
+      "id": "slot-glyphs",
+      "z": 30,
+      "kind": "dynamicGlyph",
+      "owner": "DYNAMIC",
+      "composite": "sourceOver",
+      "required": true,
+      "anchorGroup": "slot-glyphs"
+    },
+    {
+      "id": "slot-labels",
+      "z": 40,
+      "kind": "dynamicText",
+      "owner": "DYNAMIC",
+      "composite": "sourceOver",
+      "required": true,
+      "anchorGroup": "slot-labels"
+    },
+    {
+      "id": "foreground-occluder",
+      "z": 45,
+      "kind": "staticAsset",
+      "owner": "STATIC",
+      "composite": "sourceOver",
+      "required": false,
+      "asset": "layers/foreground-occluder.png"
+    },
+    {
+      "id": "runtime-debug",
+      "z": 50,
+      "kind": "runtimeDebug",
+      "owner": "DYNAMIC",
+      "composite": "sourceOver",
+      "required": false,
+      "enabled": false
+    }
+  ],
+  "dynamicAnchors": [
+    {
+      "id": "slot-1-glyph",
+      "group": "slot-glyphs",
+      "content": "slot.1.inputGlyph",
+      "slotId": 1,
+      "x": 574,
+      "y": 196,
+      "width": 106,
+      "height": 82,
+      "horizontalAlign": "center",
+      "verticalAlign": "middle",
+      "typographyRole": null,
+      "glyphRole": "mapping-input",
+      "maxLines": 1,
+      "overflow": "shrink",
+      "minScale": 0.65,
+      "rotationDegrees": 0,
+      "visibleIn": ["all"],
+      "safeSurface": "label-safe-surface"
+    },
+    {
+      "id": "slot-1-label",
+      "group": "slot-labels",
+      "content": "slot.1.actionLabel",
+      "slotId": 1,
+      "x": 520,
+      "y": 278,
+      "width": 214,
+      "height": 72,
+      "horizontalAlign": "center",
+      "verticalAlign": "middle",
+      "typographyRole": "slot-label",
+      "glyphRole": null,
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "minScale": null,
+      "rotationDegrees": 0,
+      "visibleIn": ["all"],
+      "safeSurface": "label-safe-surface"
+    },
+    {
+      "id": "slot-2-glyph",
+      "group": "slot-glyphs",
+      "content": "slot.2.inputGlyph",
+      "slotId": 2,
+      "x": 902,
+      "y": 354,
+      "width": 106,
+      "height": 82,
+      "horizontalAlign": "center",
+      "verticalAlign": "middle",
+      "typographyRole": null,
+      "glyphRole": "mapping-input",
+      "maxLines": 1,
+      "overflow": "shrink",
+      "minScale": 0.65,
+      "rotationDegrees": -8,
+      "visibleIn": ["all"],
+      "safeSurface": "label-safe-surface"
+    },
+    {
+      "id": "slot-2-label",
+      "group": "slot-labels",
+      "content": "slot.2.actionLabel",
+      "slotId": 2,
+      "x": 850,
+      "y": 434,
+      "width": 232,
+      "height": 72,
+      "horizontalAlign": "center",
+      "verticalAlign": "middle",
+      "typographyRole": "slot-label",
+      "glyphRole": null,
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "minScale": null,
+      "rotationDegrees": -8,
+      "visibleIn": ["all"],
+      "safeSurface": "label-safe-surface"
+    },
+    {
+      "id": "slot-3-glyph",
+      "group": "slot-glyphs",
+      "content": "slot.3.inputGlyph",
+      "slotId": 3,
+      "x": 930,
+      "y": 712,
+      "width": 106,
+      "height": 82,
+      "horizontalAlign": "center",
+      "verticalAlign": "middle",
+      "typographyRole": null,
+      "glyphRole": "mapping-input",
+      "maxLines": 1,
+      "overflow": "shrink",
+      "minScale": 0.65,
+      "rotationDegrees": 6,
+      "visibleIn": ["all"],
+      "safeSurface": "label-safe-surface"
+    },
+    {
+      "id": "slot-3-label",
+      "group": "slot-labels",
+      "content": "slot.3.actionLabel",
+      "slotId": 3,
+      "x": 866,
+      "y": 792,
+      "width": 238,
+      "height": 72,
+      "horizontalAlign": "center",
+      "verticalAlign": "middle",
+      "typographyRole": "slot-label",
+      "glyphRole": null,
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "minScale": null,
+      "rotationDegrees": 6,
+      "visibleIn": ["all"],
+      "safeSurface": "label-safe-surface"
+    },
+    {
+      "id": "slot-4-glyph",
+      "group": "slot-glyphs",
+      "content": "slot.4.inputGlyph",
+      "slotId": 4,
+      "x": 574,
+      "y": 920,
+      "width": 106,
+      "height": 82,
+      "horizontalAlign": "center",
+      "verticalAlign": "middle",
+      "typographyRole": null,
+      "glyphRole": "mapping-input",
+      "maxLines": 1,
+      "overflow": "shrink",
+      "minScale": 0.65,
+      "rotationDegrees": 0,
+      "visibleIn": ["all"],
+      "safeSurface": "label-safe-surface"
+    },
+    {
+      "id": "slot-4-label",
+      "group": "slot-labels",
+      "content": "slot.4.actionLabel",
+      "slotId": 4,
+      "x": 520,
+      "y": 1000,
+      "width": 214,
+      "height": 72,
+      "horizontalAlign": "center",
+      "verticalAlign": "middle",
+      "typographyRole": "slot-label",
+      "glyphRole": null,
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "minScale": null,
+      "rotationDegrees": 0,
+      "visibleIn": ["all"],
+      "safeSurface": "label-safe-surface"
+    },
+    {
+      "id": "slot-5-glyph",
+      "group": "slot-glyphs",
+      "content": "slot.5.inputGlyph",
+      "slotId": 5,
+      "x": 246,
+      "y": 712,
+      "width": 106,
+      "height": 82,
+      "horizontalAlign": "center",
+      "verticalAlign": "middle",
+      "typographyRole": null,
+      "glyphRole": "mapping-input",
+      "maxLines": 1,
+      "overflow": "shrink",
+      "minScale": 0.65,
+      "rotationDegrees": -6,
+      "visibleIn": ["all"],
+      "safeSurface": "label-safe-surface"
+    },
+    {
+      "id": "slot-5-label",
+      "group": "slot-labels",
+      "content": "slot.5.actionLabel",
+      "slotId": 5,
+      "x": 176,
+      "y": 792,
+      "width": 238,
+      "height": 72,
+      "horizontalAlign": "center",
+      "verticalAlign": "middle",
+      "typographyRole": "slot-label",
+      "glyphRole": null,
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "minScale": null,
+      "rotationDegrees": -6,
+      "visibleIn": ["all"],
+      "safeSurface": "label-safe-surface"
+    },
+    {
+      "id": "slot-6-glyph",
+      "group": "slot-glyphs",
+      "content": "slot.6.inputGlyph",
+      "slotId": 6,
+      "x": 218,
+      "y": 354,
+      "width": 106,
+      "height": 82,
+      "horizontalAlign": "center",
+      "verticalAlign": "middle",
+      "typographyRole": null,
+      "glyphRole": "mapping-input",
+      "maxLines": 1,
+      "overflow": "shrink",
+      "minScale": 0.65,
+      "rotationDegrees": 8,
+      "visibleIn": ["all"],
+      "safeSurface": "label-safe-surface"
+    },
+    {
+      "id": "slot-6-label",
+      "group": "slot-labels",
+      "content": "slot.6.actionLabel",
+      "slotId": 6,
+      "x": 148,
+      "y": 434,
+      "width": 232,
+      "height": 72,
+      "horizontalAlign": "center",
+      "verticalAlign": "middle",
+      "typographyRole": "slot-label",
+      "glyphRole": null,
+      "maxLines": 1,
+      "overflow": "ellipsis",
+      "minScale": null,
+      "rotationDegrees": 8,
+      "visibleIn": ["all"],
+      "safeSurface": "label-safe-surface"
+    }
+  ],
+  "styles": {
+    "colors": {
+      "label-primary": "#F8F2E8FF",
+      "keycap-text": "#24335FFF",
+      "outline-dark": "#11182ACC",
+      "shadow-soft": "#0A102066"
+    },
+    "typography": {
+      "slot-label": {
+        "fontFamilies": [
+          "Microsoft YaHei UI",
+          "Segoe UI"
+        ],
+        "size": 58,
+        "weight": 650,
+        "lineHeight": 1.1,
+        "colorRole": "label-primary",
+        "outlineRole": "label-outline",
+        "shadowRole": "label-shadow"
+      },
+      "keycap": {
+        "fontFamilies": [
+          "Segoe UI",
+          "Microsoft YaHei UI"
+        ],
+        "size": 48,
+        "weight": 700,
+        "lineHeight": 1.0,
+        "colorRole": "keycap-text",
+        "outlineRole": null,
+        "shadowRole": "label-shadow"
+      }
+    },
+    "outlines": {
+      "label-outline": {
+        "colorRole": "outline-dark",
+        "width": 3
+      }
+    },
+    "shadows": {
+      "label-shadow": {
+        "colorRole": "shadow-soft",
+        "offsetX": 0,
+        "offsetY": 3,
+        "blur": 2,
+        "opacity": 0.8
+      }
+    }
+  },
+  "glyphs": {
+    "mapping-input": {
+      "keyboard": {
+        "mode": "text-keycap",
+        "typographyRole": "keycap",
+        "fallback": "plain-text"
+      },
+      "ds4": {
+        "mode": "asset-map",
+        "assets": {
+          "cross": "glyphs/ds4-cross.png",
+          "square": "glyphs/ds4-square.png",
+          "circle": "glyphs/ds4-circle.png",
+          "triangle": "glyphs/ds4-triangle.png"
+        },
+        "fallback": "runtime-symbol"
+      },
+      "generic": {
+        "mode": "runtime-symbol",
+        "symbolSet": "leftpad-basic",
+        "fallback": "plain-text"
+      }
+    }
+  },
+  "visualRegions": [
+    {
+      "id": "north-tower",
+      "slotId": 1,
+      "label": "Northern tower",
+      "polygon": [[500, 96], [744, 96], [780, 404], [468, 404]]
+    },
+    {
+      "id": "upper-right-staircase",
+      "slotId": 2,
+      "label": "Upper-right staircase",
+      "polygon": [[788, 250], [1118, 288], [1102, 574], [792, 536]]
+    },
+    {
+      "id": "lower-right-garden",
+      "slotId": 3,
+      "label": "Lower-right garden",
+      "polygon": [[800, 620], [1138, 606], [1122, 936], [798, 954]]
+    },
+    {
+      "id": "south-gate",
+      "slotId": 4,
+      "label": "Southern gate",
+      "polygon": [[480, 844], [770, 844], [790, 1164], [456, 1164]]
+    },
+    {
+      "id": "lower-left-bridge",
+      "slotId": 5,
+      "label": "Lower-left bridge",
+      "polygon": [[116, 610], [454, 628], [452, 954], [126, 936]]
+    },
+    {
+      "id": "upper-left-observatory",
+      "slotId": 6,
+      "label": "Upper-left observatory",
+      "polygon": [[136, 282], [466, 248], [454, 542], [150, 574]]
+    }
+  ],
+  "elementOwnership": [
+    {
+      "element": "scene.environment",
+      "owner": "STATE_ASSET",
+      "layer": "artwork"
+    },
+    {
+      "element": "scene.selectionIllumination",
+      "owner": "STATE_ASSET",
+      "layer": "artwork"
+    },
+    {
+      "element": "theme.fixedDecoration",
+      "owner": "STATIC",
+      "layer": "theme-decorations"
+    },
+    {
+      "element": "slot.dynamicSurface",
+      "owner": "STATIC",
+      "layer": "dynamic-underlay"
+    },
+    {
+      "element": "slot.inputGlyph",
+      "owner": "DYNAMIC",
+      "layer": "slot-glyphs",
+      "content": "slot.*.inputGlyph"
+    },
+    {
+      "element": "slot.actionLabel",
+      "owner": "DYNAMIC",
+      "layer": "slot-labels",
+      "content": "slot.*.actionLabel"
+    },
+    {
+      "element": "scene.foregroundOccluder",
+      "owner": "STATIC",
+      "layer": "foreground-occluder"
+    }
+  ],
+  "masks": [
+    {
+      "id": "label-safe-surface",
+      "asset": "masks/label-safe-surface.png",
+      "purpose": "safeSurface",
+      "appliesTo": [
+        "slot-glyphs",
+        "slot-labels"
+      ]
+    }
+  ],
+  "fallback": {
+    "invalidTheme": "retain-active",
+    "startupTheme": "radial-v5",
+    "missingState": "idle",
+    "missingGlyph": "declared-family-fallback",
+    "unsupportedVersion": "retain-active"
+  },
+  "assetHashes": {
+    "states/idle.png": "0000000000000000000000000000000000000000000000000000000000000001",
+    "states/selected-1.png": "1111111111111111111111111111111111111111111111111111111111111111",
+    "states/selected-2.png": "2222222222222222222222222222222222222222222222222222222222222222",
+    "states/selected-3.png": "3333333333333333333333333333333333333333333333333333333333333333",
+    "states/selected-4.png": "4444444444444444444444444444444444444444444444444444444444444444",
+    "states/selected-5.png": "5555555555555555555555555555555555555555555555555555555555555555",
+    "states/selected-6.png": "6666666666666666666666666666666666666666666666666666666666666666",
+    "layers/decorations.png": "7777777777777777777777777777777777777777777777777777777777777777",
+    "layers/dynamic-underlay.png": "8888888888888888888888888888888888888888888888888888888888888888",
+    "layers/foreground-occluder.png": "9999999999999999999999999999999999999999999999999999999999999999",
+    "glyphs/ds4-cross.png": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "glyphs/ds4-square.png": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+    "glyphs/ds4-circle.png": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+    "glyphs/ds4-triangle.png": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+    "masks/label-safe-surface.png": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
+  },
+  "capabilities": {
+    "fullStateFrame": true,
+    "layeredState": true,
+    "proceduralRuntime": false,
+    "dynamicText": true,
+    "dynamicGlyph": true,
+    "visualRegions": true,
+    "masks": true,
+    "directTransitionsOnly": true
+  },
+  "transitions": {
+    "mode": "direct"
+  },
+  "metadata": {
+    "nonProductionExample": true,
+    "referenceFidelityReviewRequired": true
+  }
+}

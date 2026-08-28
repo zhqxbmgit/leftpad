@@ -1,0 +1,203 @@
+{
+  "protocolVersion": 2,
+  "packageRevision": 1,
+  "id": "reference-dark-fantasy-radial8-spike",
+  "name": "Dark Fantasy Radial 8 Spike",
+  "description": "Untracked reference-fidelity spike using isolated and locally edited reference pixels.",
+  "exampleOnly": false,
+  "surface": "radial-overlay",
+  "renderStrategy": "full-state-frame",
+  "authoring": {
+    "method": "mixed"
+  },
+  "layoutProfile": "radial-8",
+  "compatibleLayouts": [
+    "radial-8"
+  ],
+  "referenceCanvas": {
+    "width": 1254,
+    "height": 1254,
+    "colorSpace": "sRGB",
+    "alphaMode": "straight"
+  },
+  "referenceScale": {
+    "logicalWidth": 420,
+    "logicalHeight": 420,
+    "fit": "contain",
+    "contentOrigin": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "placement": {
+    "activationAnchor": {
+      "x": 210,
+      "y": 210
+    }
+  },
+  "states": {
+    "idle": {
+      "slotId": null,
+      "assets": {
+        "stateFrame": "states/idle.png"
+      }
+    },
+    "selected-1": {
+      "slotId": 1,
+      "assets": {
+        "stateFrame": "states/selected-1.png"
+      }
+    },
+    "selected-2": {
+      "slotId": 2,
+      "assets": {
+        "stateFrame": "states/selected-2.png"
+      }
+    },
+    "selected-3": {
+      "slotId": 3,
+      "assets": {
+        "stateFrame": "states/selected-3.png"
+      }
+    },
+    "selected-4": {
+      "slotId": 4,
+      "assets": {
+        "stateFrame": "states/selected-4.png"
+      }
+    },
+    "selected-5": {
+      "slotId": 5,
+      "assets": {
+        "stateFrame": "states/selected-5.png"
+      }
+    },
+    "selected-6": {
+      "slotId": 6,
+      "assets": {
+        "stateFrame": "states/selected-6.png"
+      }
+    },
+    "selected-7": {
+      "slotId": 7,
+      "assets": {
+        "stateFrame": "states/selected-7.png"
+      }
+    },
+    "selected-8": {
+      "slotId": 8,
+      "assets": {
+        "stateFrame": "states/selected-8.png"
+      }
+    }
+  },
+  "layers": [
+    {
+      "id": "stateFrame",
+      "kind": "stateAsset",
+      "zIndex": 0,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1254,
+        "height": 1254
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "STATE_ASSET",
+      "required": true
+    }
+  ],
+  "dynamicAnchors": [],
+  "styles": {
+    "fontRoles": {
+      "interface": "ui"
+    },
+    "colorRoles": {
+      "primaryText": "#FFFFFFFF"
+    },
+    "outlineRoles": {},
+    "shadowRoles": {},
+    "dynamicRoles": {
+      "unusedText": {
+        "fontRole": "interface",
+        "colorRole": "primaryText",
+        "size": 12
+      }
+    }
+  },
+  "glyphs": {
+    "roles": {
+      "unusedAction": {
+        "keyboard": {
+          "sources": [
+            {
+              "type": "text",
+              "styleRole": "unusedText"
+            }
+          ]
+        },
+        "keyboardShortcut": {
+          "sources": [
+            {
+              "type": "text",
+              "styleRole": "unusedText"
+            }
+          ]
+        },
+        "ds4": {
+          "sources": [
+            {
+              "type": "text",
+              "styleRole": "unusedText"
+            }
+          ]
+        },
+        "genericAction": {
+          "sources": [
+            {
+              "type": "text",
+              "styleRole": "unusedText"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "elementOwnership": [
+    {
+      "element": "stateArt",
+      "owner": "STATE_ASSET",
+      "layerId": "stateFrame"
+    }
+  ],
+  "masks": [],
+  "visualRegions": [],
+  "fallback": {
+    "onInvalidCandidate": "retain-active",
+    "onUnsupportedVersion": "retain-active",
+    "startupThemeId": "radial-v5"
+  },
+  "capabilities": {
+    "required": [
+      "fullStateFrame",
+      "instantTransitions"
+    ],
+    "optional": []
+  },
+  "transitions": {
+    "mode": "instant"
+  },
+  "assetHashes": {
+    "states/idle.png": "D6AD2292889C7E33B4DF9436F71BE2B066FD5F7BC767D7B7232B272C5DFF6271",
+    "states/selected-1.png": "CFB0066C136720A34F3EB19FBD71C6E23E9791C8231B87F64AE8F5A395CDBB39",
+    "states/selected-2.png": "3F77521CB7CA75D3BDF0BECDEBDBF153159CDDDCA060BC07CEA828B10EE70391",
+    "states/selected-3.png": "0A7ABE07903E78C1F8AE4E3E8484A011E321C5A22C25945BB6383A0F3170E0EA",
+    "states/selected-4.png": "62E0F697182C43B118CDFBFAD035C5331460B7CF8F911ECF5309BC234FCF2D6E",
+    "states/selected-5.png": "B4E0200298DCC98D3CA99BF2892603B5AD5DA9CDD9059E961C69E0BCDEF7BD85",
+    "states/selected-6.png": "0109FD8D5D1D84B91E996D085D13E8C203076B939AC9A7608DF96A5B5B0AFFE8",
+    "states/selected-7.png": "7A8EB6C7618FB95C67EF84D8BB61DC1CABC6E61ED92B748DE36D6B6890BFFADB",
+    "states/selected-8.png": "5C4B57CC3EBB73A2DED6CB2C7941A528FD09EE26A3BA2AEE3ED2094B26E90D75"
+  }
+}

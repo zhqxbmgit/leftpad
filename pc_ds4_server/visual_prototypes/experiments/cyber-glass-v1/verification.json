@@ -1,0 +1,225 @@
+{
+  "alpha": {
+    "comparison.png": {
+      "alphaBoundingBox": [
+        0,
+        0,
+        1650,
+        426
+      ],
+      "alphaMax": 255,
+      "alphaMin": 255,
+      "alphaZeroRgbResidueComponents": 0,
+      "file": "comparison.png",
+      "mode": "RGBA",
+      "sha256": "F0F2737E916DB0779031D4A3920ADCC6FFE5EB3A62EFF203CA7A55A6F949B33E",
+      "size": [
+        1650,
+        426
+      ],
+      "transparentPixelCount": 0
+    },
+    "radial-base.png": {
+      "alphaBoundingBox": [
+        175,
+        174,
+        1079,
+        1080
+      ],
+      "alphaMax": 255,
+      "alphaMin": 0,
+      "alphaZeroRgbResidueComponents": 0,
+      "file": "radial-base.png",
+      "mode": "RGBA",
+      "sha256": "1EC2723A0A9C571FFA52AF53E8FB48EBA6AE6FF8F4645B790BBFC13BABF41864",
+      "size": [
+        1254,
+        1254
+      ],
+      "transparentPixelCount": 965113
+    },
+    "radial-selected-card.png": {
+      "alphaBoundingBox": [
+        395,
+        147,
+        860,
+        452
+      ],
+      "alphaMax": 255,
+      "alphaMin": 0,
+      "alphaZeroRgbResidueComponents": 0,
+      "file": "radial-selected-card.png",
+      "mode": "RGBA",
+      "sha256": "5C19AC518FDC7DA584F655BBDE8CAD261E4D781EBBBF617F9428B0F49F9A8637",
+      "size": [
+        1254,
+        1254
+      ],
+      "transparentPixelCount": 1475335
+    }
+  },
+  "checks": {
+    "allSlotsFromCanonicalRotation": true,
+    "alphaZeroRgbClean": true,
+    "canvas1254Rgba": true,
+    "centerGeometryMatchesFrozenRadialV5": true,
+    "centerUnchangedInEveryPreview": true,
+    "deterministicRegeneration": true,
+    "dynamicBusinessContentAbsentByConstruction": true,
+    "fourTimesSupersampling": true,
+    "geometryMatchesRadialV5": true,
+    "logicalGapSamplesTransparent": true,
+    "noCheckerboardBaked": true,
+    "otherSlotsUnchangedInEveryPreview": true,
+    "selectedDoesNotAlterCenter": true,
+    "selectedHaloNotCanvasClipped": true,
+    "selectionAssetCanonicalSlot1Only": true,
+    "slot1MaskMatchesFrozenRadialV5": true,
+    "slotAnglesExact": true,
+    "transparentOutsideNoBlackBackdrop": true
+  },
+  "dependencies": [
+    "Pillow 12.3.0",
+    "NumPy 2.3.5"
+  ],
+  "files": {
+    "comparison.png": "F0F2737E916DB0779031D4A3920ADCC6FFE5EB3A62EFF203CA7A55A6F949B33E",
+    "manifest.json": "2C7A21870E6D6F320AF234B130C125E46138A444797914514027D01EEFECDD8B",
+    "radial-base.png": "1EC2723A0A9C571FFA52AF53E8FB48EBA6AE6FF8F4645B790BBFC13BABF41864",
+    "radial-layout.json": "27DEE8B68C06DCBD46819BDEF5701FEAF8585CEBE65F9387BC12404C7C208533",
+    "radial-selected-card.png": "5C19AC518FDC7DA584F655BBDE8CAD261E4D781EBBBF617F9428B0F49F9A8637"
+  },
+  "generator": "generator.py",
+  "geometry": {
+    "centerInnerRadius": 154,
+    "centerRadius": 182,
+    "cornerRadius": 10,
+    "dottedRingRadius": 132,
+    "gapConstruction": "logical 60-degree boundary plus parallel offset gapPx/2",
+    "gapPx": 16,
+    "innerRadius": 198,
+    "markerRadius": 190,
+    "markerSize": 12,
+    "outerRadius": 450
+  },
+  "geometryFreeze": {
+    "centerMaskSha256": "79002A3052A786D2BC28AF31EF8B205D4619CE458E0C6C8B97EE70720121A472",
+    "expectedCenterMaskSha256": "79002A3052A786D2BC28AF31EF8B205D4619CE458E0C6C8B97EE70720121A472",
+    "expectedSlot1MaskSha256": "09D5A6A3B4BFC0CD4A48244364205C50C39EED8FB50AC8DD125B148125959C1E",
+    "slot1MaskSha256": "09D5A6A3B4BFC0CD4A48244364205C50C39EED8FB50AC8DD125B148125959C1E"
+  },
+  "logicalGapSamples": {
+    "count": 1320,
+    "maxAlpha": 0,
+    "minAlpha": 0
+  },
+  "previewIsolation": {
+    "1": {
+      "centerChangedPixels": 0,
+      "otherSlotsChangedPixels": {
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      }
+    },
+    "2": {
+      "centerChangedPixels": 0,
+      "otherSlotsChangedPixels": {
+        "1": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      }
+    },
+    "3": {
+      "centerChangedPixels": 0,
+      "otherSlotsChangedPixels": {
+        "1": 0,
+        "2": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      }
+    },
+    "4": {
+      "centerChangedPixels": 0,
+      "otherSlotsChangedPixels": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "5": 0,
+        "6": 0
+      }
+    },
+    "5": {
+      "centerChangedPixels": 0,
+      "otherSlotsChangedPixels": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "6": 0
+      }
+    },
+    "6": {
+      "centerChangedPixels": 0,
+      "otherSlotsChangedPixels": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 0,
+        "5": 0
+      }
+    }
+  },
+  "reference": {
+    "file": "reference.png",
+    "sha256": "B45428B0C1D68685D9018B5AB89AFB1778A2FCA2477208D9160B83AF3ABDBC14"
+  },
+  "rotationAlignment": {
+    "1": {
+      "aligned": true,
+      "angleDegreesClockwise": 0,
+      "maskPixelsDifferingByMoreThan1": 0
+    },
+    "2": {
+      "aligned": true,
+      "angleDegreesClockwise": 60,
+      "maskPixelsDifferingByMoreThan1": 0
+    },
+    "3": {
+      "aligned": true,
+      "angleDegreesClockwise": 120,
+      "maskPixelsDifferingByMoreThan1": 0
+    },
+    "4": {
+      "aligned": true,
+      "angleDegreesClockwise": 180,
+      "maskPixelsDifferingByMoreThan1": 0
+    },
+    "5": {
+      "aligned": true,
+      "angleDegreesClockwise": 240,
+      "maskPixelsDifferingByMoreThan1": 0
+    },
+    "6": {
+      "aligned": true,
+      "angleDegreesClockwise": 300,
+      "maskPixelsDifferingByMoreThan1": 0
+    }
+  },
+  "selectedOtherSlotPixels": {
+    "2": 0,
+    "3": 0,
+    "4": 0,
+    "5": 0,
+    "6": 0
+  },
+  "theme": {
+    "id": "cyber-glass-v1",
+    "name": "Cyber Glass HUD"
+  }
+}
