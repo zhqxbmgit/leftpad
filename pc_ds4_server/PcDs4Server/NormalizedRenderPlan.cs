@@ -64,6 +64,85 @@ internal sealed record FullStateFrameLayer(string Id, string Kind, int ZIndex, i
 internal sealed record FullStateFrameState(string Name, int? SlotId,
     IReadOnlyDictionary<string, VerifiedThemeAsset> Assets);
 
+internal sealed record NormalizedDynamicAnchor(
+    string Id,
+    string LayerId,
+    string Role,
+    NormalizedReferenceBounds Bounds,
+    string HorizontalAlignment,
+    string VerticalAlignment,
+    string OverflowPolicy,
+    double MinimumScale,
+    double Rotation,
+    int? MaxLines,
+    IReadOnlyList<string> VisibleStates,
+    string StyleRole,
+    string? GlyphRole);
+
+internal readonly record struct NormalizedThemeColor(byte Red, byte Green, byte Blue, byte Alpha)
+{
+    public bool IsVisible => Alpha != 0;
+    public Color ToColor() => Color.FromArgb(Alpha, Red, Green, Blue);
+}
+
+internal sealed record NormalizedOutlineStyle(NormalizedThemeColor Color, double Width);
+internal sealed record NormalizedShadowStyle(
+    NormalizedThemeColor Color, double OffsetX, double OffsetY, double Blur);
+internal sealed record NormalizedDynamicStyle(
+    string FontRole,
+    NormalizedThemeColor Color,
+    double Size,
+    NormalizedOutlineStyle? Outline,
+    NormalizedShadowStyle? Shadow);
+internal sealed record NormalizedGlyphSource(string Type, string? StyleRole, string? SymbolSet);
+
+internal sealed class NormalizedGlyphFamily
+{
+    private readonly ReadOnlyCollection<NormalizedGlyphSource> _sources;
+    public NormalizedGlyphFamily(IEnumerable<NormalizedGlyphSource> sources) =>
+        _sources = Array.AsReadOnly(sources.ToArray());
+    public IReadOnlyList<NormalizedGlyphSource> Sources => _sources;
+}
+
+internal sealed record NormalizedGlyphRole(
+    NormalizedGlyphFamily Keyboard,
+    NormalizedGlyphFamily KeyboardShortcut,
+    NormalizedGlyphFamily Ds4,
+    NormalizedGlyphFamily GenericAction);
+
+internal sealed record NormalizedDynamicOwnership(string Element, string LayerId, string ContentKey);
+
+internal sealed class NormalizedDynamicThemeModel
+{
+    private readonly ReadOnlyCollection<NormalizedDynamicAnchor> _anchors;
+    private readonly ReadOnlyDictionary<string, string> _fontRoles;
+    private readonly ReadOnlyDictionary<string, NormalizedDynamicStyle> _styles;
+    private readonly ReadOnlyDictionary<string, NormalizedGlyphRole> _glyphRoles;
+    private readonly ReadOnlyDictionary<string, NormalizedDynamicOwnership> _ownershipByLayer;
+
+    public NormalizedDynamicThemeModel(
+        IEnumerable<NormalizedDynamicAnchor> anchors,
+        IReadOnlyDictionary<string, string> fontRoles,
+        IReadOnlyDictionary<string, NormalizedDynamicStyle> styles,
+        IReadOnlyDictionary<string, NormalizedGlyphRole> glyphRoles,
+        IEnumerable<NormalizedDynamicOwnership> ownership)
+    {
+        _anchors = Array.AsReadOnly(anchors.ToArray());
+        _fontRoles = new(new Dictionary<string, string>(fontRoles, StringComparer.Ordinal));
+        _styles = new(new Dictionary<string, NormalizedDynamicStyle>(styles, StringComparer.Ordinal));
+        _glyphRoles = new(new Dictionary<string, NormalizedGlyphRole>(glyphRoles, StringComparer.Ordinal));
+        _ownershipByLayer = new(ownership.ToDictionary(x => x.LayerId, StringComparer.Ordinal));
+    }
+
+    public IReadOnlyList<NormalizedDynamicAnchor> Anchors => _anchors;
+    public IReadOnlyDictionary<string, string> FontRoles => _fontRoles;
+    public IReadOnlyDictionary<string, NormalizedDynamicStyle> Styles => _styles;
+    public IReadOnlyDictionary<string, NormalizedGlyphRole> GlyphRoles => _glyphRoles;
+    public IReadOnlyDictionary<string, NormalizedDynamicOwnership> OwnershipByLayer => _ownershipByLayer;
+    public NormalizedDynamicAnchor AnchorForLayer(string layerId) =>
+        _anchors.Single(x => string.Equals(x.LayerId, layerId, StringComparison.Ordinal));
+}
+
 internal abstract record NormalizedRenderModel;
 internal sealed record LegacyCanonicalSelectedPlan(NormalizedStaticLayer BaseLayer,
     string CanonicalSelectedAssetPath, string StateLookupMode) : NormalizedRenderModel
@@ -126,7 +205,8 @@ internal sealed class NormalizedRenderPlan
         IEnumerable<NormalizedGeometryTransform> geometryTransforms,
         NormalizedFallbackMetadata fallback,
         IEnumerable<string> requiredRuntimeCapabilities,
-        NormalizedPlacement? placement = null)
+        NormalizedPlacement? placement = null,
+        NormalizedDynamicThemeModel? dynamicTheme = null)
     {
         if (sourceProtocolVersion <= 0) throw new ArgumentOutOfRangeException(nameof(sourceProtocolVersion));
         ArgumentException.ThrowIfNullOrWhiteSpace(themeId);
@@ -167,6 +247,7 @@ internal sealed class NormalizedRenderPlan
         Fallback = fallback;
         _requiredRuntimeCapabilities = Array.AsReadOnly(capabilities);
         Placement = placement ?? LegacyPlacement(referenceCanvas, referenceScale, layoutDefinition);
+        DynamicTheme = dynamicTheme;
     }
 
     public int SourceProtocolVersion { get; }
@@ -184,6 +265,8 @@ internal sealed class NormalizedRenderPlan
     public NormalizedFallbackMetadata Fallback { get; }
     public IReadOnlyList<string> RequiredRuntimeCapabilities => _requiredRuntimeCapabilities;
     public bool IsFullStateFrame => RenderModel is FullStateFrameRenderPlan;
+    public NormalizedDynamicThemeModel? DynamicTheme { get; }
+    public bool HasV2DynamicContent => DynamicTheme is { Anchors.Count: > 0 };
 
     private static NormalizedPlacement LegacyPlacement(NormalizedReferenceCanvas canvas,
         NormalizedReferenceScale scale, LayoutDefinition layout)

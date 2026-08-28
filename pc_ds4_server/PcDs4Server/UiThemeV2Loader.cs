@@ -48,7 +48,10 @@ internal static class UiThemeV2Loader
     private static readonly HashSet<string> TopOptional = new(StringComparer.Ordinal)
     { "description", "exampleOnly", "authoring", "visualRegions" };
     private static readonly HashSet<string> SupportedRequiredCapabilities = new(StringComparer.Ordinal)
-    { "fullStateFrame", "instantTransitions" };
+    { "fullStateFrame", "instantTransitions", "dynamicAnchors" };
+    private static readonly HashSet<string> SupportedContentKeys = BuildSupportedContentKeys();
+    private static readonly HashSet<string> SupportedSymbolSets = new(StringComparer.Ordinal)
+    { "leftpad-basic", "leftpad-ds4" };
     private static readonly HashSet<string> KnownCapabilities = new(StringComparer.Ordinal)
     {
         "fullStateFrame", "layeredState", "dynamicAnchors", "themeGlyphAssets",
@@ -109,7 +112,6 @@ internal static class UiThemeV2Loader
         NormalizedReferenceCanvas canvas = ParseCanvas(manifest);
         NormalizedReferenceScale scale = ParseScale(manifest, canvas);
         NormalizedPlacement placement = ParsePlacement(manifest, scale);
-        ValidateEmptyArray(manifest, "dynamicAnchors", "dynamicAnchors");
         ValidateEmptyArray(manifest, "masks", "maskAssets");
         if (manifest.TryGetProperty("visualRegions", out JsonElement regions) &&
             (regions.ValueKind != JsonValueKind.Array || regions.GetArrayLength() != 0))
@@ -120,12 +122,16 @@ internal static class UiThemeV2Loader
         ValidateTransitions(manifest);
 
         List<LayerDraft> layerDrafts = ParseLayers(manifest, canvas);
-        ValidateOwnership(manifest, layerDrafts);
+        NormalizedDynamicThemeModel? dynamicTheme = ParseDynamicTheme(
+            manifest, canvas, profile, layerDrafts);
         List<StateDraft> stateDrafts = ParseStates(manifest, layout.SlotCount, layerDrafts);
         HashSet<string> stateNames = stateDrafts.Select(x => x.Name).ToHashSet(StringComparer.Ordinal);
         if (layerDrafts.SelectMany(x => x.VisibleStates).Any(x =>
                 x is not ("all" or "selected") && !stateNames.Contains(x)))
             throw Invalid("A layer visibility selector names a state outside the single layout.");
+        if (dynamicTheme?.Anchors.SelectMany(x => x.VisibleStates).Any(x =>
+                x is not ("all" or "selected") && !stateNames.Contains(x)) == true)
+            throw Invalid("A dynamic anchor visibility selector names a state outside the single layout.");
         IReadOnlyDictionary<string, VerifiedThemeAsset> assets = VerifyAssetClosure(
             root, manifest, layerDrafts, stateDrafts);
 
@@ -142,7 +148,8 @@ internal static class UiThemeV2Loader
             layers.Where(x => x.StaticAsset != null)
                 .Select(x => new NormalizedStaticLayer(x.Id, x.StaticAsset!.PackagePath)),
             new(NormalizedDynamicContentDescriptor.None), Array.Empty<NormalizedGeometryTransform>(),
-            new(RadialVisualPackContract.DefaultVisualPackId, true), capabilities, placement);
+            new(RadialVisualPackContract.DefaultVisualPackId, true), capabilities, placement,
+            dynamicTheme);
         return new UiThemeV2Package(root,
             new UiThemeV2Manifest(2, revision, id, name, "radial-overlay", "full-state-frame", profile),
             plan);
@@ -198,12 +205,13 @@ internal static class UiThemeV2Loader
                 new[] { "asset" });
             string id = RequireIdentifier(layer, "id");
             string kind = RequireString(layer, "kind", 1, 32);
-            if (kind is not ("staticAsset" or "stateAsset"))
+            if (kind is not ("staticAsset" or "stateAsset" or "dynamicText" or "dynamicGlyph"))
                 throw Invalid($"Unsupported V2 layer kind: {kind}");
             int zIndex = RequireInt32(layer, "zIndex", -32768, 32767);
             string ownership = RequireString(layer, "ownership", 1, 32);
             if ((kind == "staticAsset" && ownership != "STATIC") ||
-                (kind == "stateAsset" && ownership != "STATE_ASSET"))
+                (kind == "stateAsset" && ownership != "STATE_ASSET") ||
+                (kind is "dynamicText" or "dynamicGlyph" && ownership != "DYNAMIC"))
                 throw Invalid($"Layer '{id}' has incompatible ownership.");
             if (layer.GetProperty("required").ValueKind is not (JsonValueKind.True or JsonValueKind.False) ||
                 !layer.GetProperty("required").GetBoolean())
@@ -218,7 +226,8 @@ internal static class UiThemeV2Loader
             string[] visible = ParseVisibility(layer, id);
             string? asset = null;
             if (kind == "staticAsset") asset = RequirePackagePath(layer, "asset");
-            else if (layer.TryGetProperty("asset", out _)) throw Invalid("stateAsset layers cannot declare asset.");
+            else if (layer.TryGetProperty("asset", out _))
+                throw Invalid($"{kind} layers cannot declare asset.");
             result.Add(new(id, kind, zIndex, order++, new(x, y, width, height), visible, ownership, asset));
         }
         if (result.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() != result.Count)
@@ -311,19 +320,61 @@ internal static class UiThemeV2Loader
 
     private static void ValidateOwnership(JsonElement manifest, IReadOnlyList<LayerDraft> layers)
     {
+        _ = ValidateOwnership(manifest, layers, Array.Empty<NormalizedDynamicAnchor>(), string.Empty);
+    }
+
+    private static IReadOnlyList<NormalizedDynamicOwnership> ValidateOwnership(
+        JsonElement manifest,
+        IReadOnlyList<LayerDraft> layers,
+        IReadOnlyList<NormalizedDynamicAnchor> anchors,
+        string profile)
+    {
         JsonElement values = RequireArray(manifest, "elementOwnership");
         if (values.GetArrayLength() == 0) throw Invalid("elementOwnership cannot be empty.");
         Dictionary<string, LayerDraft> byId = layers.ToDictionary(x => x.Id, StringComparer.Ordinal);
+        Dictionary<string, NormalizedDynamicAnchor> anchorsById = anchors.ToDictionary(x => x.Id, StringComparer.Ordinal);
+        var dynamic = new List<NormalizedDynamicOwnership>();
+        var seenLayers = new HashSet<string>(StringComparer.Ordinal);
         foreach (JsonElement value in values.EnumerateArray())
         {
             JsonElement item = RequireObject(value, "elementOwnership", new[] { "element", "owner", "layerId" }, new[] { "contentKey" });
-            _ = RequireIdentifier(item, "element");
+            string element = RequireIdentifier(item, "element");
             string owner = RequireString(item, "owner", 1, 32);
             string layerId = RequireIdentifier(item, "layerId");
             if (!byId.TryGetValue(layerId, out LayerDraft? layer) || owner != layer.Ownership)
                 throw Invalid("elementOwnership does not match a supported layer.");
-            if (item.TryGetProperty("contentKey", out _)) throw Invalid("Dynamic element ownership is not supported.");
+            if (!seenLayers.Add(layerId)) throw Invalid("A layer cannot have multiple ownership records.");
+            if (owner == "DYNAMIC")
+            {
+                if (!item.TryGetProperty("contentKey", out JsonElement keyValue) ||
+                    keyValue.ValueKind != JsonValueKind.String)
+                    throw Invalid("Dynamic element ownership requires contentKey.");
+                string contentKey = keyValue.GetString()!;
+                if (!SupportedContentKeys.Contains(contentKey)) throw Invalid($"Unknown dynamic contentKey: {contentKey}");
+                if (!anchorsById.TryGetValue(element, out NormalizedDynamicAnchor? anchor) || anchor.LayerId != layerId)
+                    throw Invalid("Dynamic ownership must match its anchor and layer.");
+                if ((layer.Kind == "dynamicText") != contentKey.EndsWith("Label", StringComparison.Ordinal) ||
+                    (layer.Kind == "dynamicGlyph") != contentKey.EndsWith("Glyph", StringComparison.Ordinal))
+                    throw Invalid("Dynamic contentKey does not match the layer kind.");
+                int slot = ParseSlotContentKey(contentKey);
+                if (profile == LayoutProfileRegistry.Radial6ProfileId && slot > 6)
+                    throw Invalid("radial-6 cannot reference slot7 or slot8 dynamic content.");
+                dynamic.Add(new(element, layerId, contentKey));
+            }
+            else if (item.TryGetProperty("contentKey", out _))
+            {
+                throw Invalid("Only dynamic ownership can declare contentKey.");
+            }
         }
+        if (!seenLayers.SetEquals(byId.Keys)) throw Invalid("Every layer requires exactly one ownership record.");
+        return Array.AsReadOnly(dynamic.ToArray());
+    }
+
+    private static int ParseSlotContentKey(string contentKey)
+    {
+        if (!contentKey.StartsWith("slot", StringComparison.Ordinal)) return 0;
+        int end = contentKey.IndexOf("Action", StringComparison.Ordinal);
+        return int.Parse(contentKey.AsSpan(4, end - 4), System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static string[] ValidateCapabilities(JsonElement manifest)
@@ -340,9 +391,195 @@ internal static class UiThemeV2Loader
             throw Invalid("A capability cannot be both required and optional.");
         if (required.Any(x => !SupportedRequiredCapabilities.Contains(x)))
             throw Invalid("The package requires an unsupported runtime capability.");
-        if (!SupportedRequiredCapabilities.All(required.Contains))
+        if (!required.Contains("fullStateFrame", StringComparer.Ordinal) ||
+            !required.Contains("instantTransitions", StringComparer.Ordinal))
             throw Invalid("fullStateFrame and instantTransitions are required.");
         return required;
+    }
+
+    private static NormalizedDynamicThemeModel? ParseDynamicTheme(
+        JsonElement manifest,
+        NormalizedReferenceCanvas canvas,
+        string profile,
+        IReadOnlyList<LayerDraft> layers)
+    {
+        LayerDraft[] dynamicLayers = layers.Where(x => x.Kind is "dynamicText" or "dynamicGlyph").ToArray();
+        JsonElement anchorValues = RequireArray(manifest, "dynamicAnchors");
+        if (dynamicLayers.Length == 0)
+        {
+            if (anchorValues.GetArrayLength() != 0)
+                throw Invalid("dynamicAnchors require dynamic layers.");
+            if (ParseStringArray(manifest.GetProperty("capabilities"), "required")
+                .Contains("dynamicAnchors", StringComparer.Ordinal))
+                throw Invalid("The dynamicAnchors capability requires dynamic layers and anchors.");
+            ValidateOwnership(manifest, layers);
+            return null;
+        }
+
+        JsonElement capabilities = manifest.GetProperty("capabilities");
+        string[] requiredCapabilities = ParseStringArray(capabilities, "required");
+        if (!requiredCapabilities.Contains("dynamicAnchors", StringComparer.Ordinal))
+            throw Invalid("Dynamic layers require the dynamicAnchors capability.");
+
+        JsonElement stylesValue = manifest.GetProperty("styles");
+        var fonts = RequireNonEmptyRoleObject(stylesValue, "fontRoles").EnumerateObject()
+            .ToDictionary(x => x.Name, x => x.Value.GetString()!, StringComparer.Ordinal);
+        var colors = RequireNonEmptyRoleObject(stylesValue, "colorRoles").EnumerateObject()
+            .ToDictionary(x => x.Name, x => ParseColor(x.Value.GetString()!), StringComparer.Ordinal);
+        var outlines = new Dictionary<string, NormalizedOutlineStyle>(StringComparer.Ordinal);
+        foreach (JsonProperty role in RequireRoleObject(stylesValue, "outlineRoles").EnumerateObject())
+        {
+            string colorRole = RequireIdentifier(role.Value, "colorRole");
+            if (!colors.TryGetValue(colorRole, out NormalizedThemeColor color))
+                throw Invalid($"Outline role '{role.Name}' references an unknown colorRole.");
+            outlines.Add(role.Name, new(color, RequireNumber(role.Value, "width", 0d, 32d)));
+        }
+        var shadows = new Dictionary<string, NormalizedShadowStyle>(StringComparer.Ordinal);
+        foreach (JsonProperty role in RequireRoleObject(stylesValue, "shadowRoles").EnumerateObject())
+        {
+            string colorRole = RequireIdentifier(role.Value, "colorRole");
+            if (!colors.TryGetValue(colorRole, out NormalizedThemeColor color))
+                throw Invalid($"Shadow role '{role.Name}' references an unknown colorRole.");
+            shadows.Add(role.Name, new(color,
+                RequireNumber(role.Value, "offsetX"), RequireNumber(role.Value, "offsetY"),
+                RequireNumber(role.Value, "blur", 0d, 64d)));
+        }
+        var dynamicStyles = new Dictionary<string, NormalizedDynamicStyle>(StringComparer.Ordinal);
+        foreach (JsonProperty role in RequireNonEmptyRoleObject(stylesValue, "dynamicRoles").EnumerateObject())
+        {
+            string fontRole = RequireIdentifier(role.Value, "fontRole");
+            string colorRole = RequireIdentifier(role.Value, "colorRole");
+            if (!fonts.ContainsKey(fontRole)) throw Invalid($"Dynamic role '{role.Name}' references an unknown fontRole.");
+            if (!colors.TryGetValue(colorRole, out NormalizedThemeColor color))
+                throw Invalid($"Dynamic role '{role.Name}' references an unknown colorRole.");
+            NormalizedOutlineStyle? outline = null;
+            if (role.Value.TryGetProperty("outlineRole", out JsonElement outlineValue) &&
+                !outlines.TryGetValue(outlineValue.GetString()!, out outline))
+                throw Invalid($"Dynamic role '{role.Name}' references an unknown outlineRole.");
+            NormalizedShadowStyle? shadow = null;
+            if (role.Value.TryGetProperty("shadowRole", out JsonElement shadowValue) &&
+                !shadows.TryGetValue(shadowValue.GetString()!, out shadow))
+                throw Invalid($"Dynamic role '{role.Name}' references an unknown shadowRole.");
+            dynamicStyles.Add(role.Name, new(fontRole, color,
+                RequireNumber(role.Value, "size", exclusiveMinimum: 0d, maximum: 512d), outline, shadow));
+        }
+
+        var glyphRoles = new Dictionary<string, NormalizedGlyphRole>(StringComparer.Ordinal);
+        JsonElement glyphRoleValues = manifest.GetProperty("glyphs").GetProperty("roles");
+        foreach (JsonProperty role in glyphRoleValues.EnumerateObject())
+        {
+            glyphRoles.Add(role.Name, new(
+                ParseGlyphFamily(role.Value.GetProperty("keyboard"), dynamicStyles),
+                ParseGlyphFamily(role.Value.GetProperty("keyboardShortcut"), dynamicStyles),
+                ParseGlyphFamily(role.Value.GetProperty("ds4"), dynamicStyles),
+                ParseGlyphFamily(role.Value.GetProperty("genericAction"), dynamicStyles)));
+        }
+
+        Dictionary<string, LayerDraft> dynamicById = dynamicLayers.ToDictionary(x => x.Id, StringComparer.Ordinal);
+        var anchors = new List<NormalizedDynamicAnchor>();
+        foreach (JsonElement value in anchorValues.EnumerateArray())
+        {
+            JsonElement anchor = RequireObject(value, "dynamic anchor",
+                new[] { "id", "layerId", "role", "bounds", "horizontalAlignment", "verticalAlignment",
+                    "overflowPolicy", "minimumScale", "rotation", "visibleStates", "styleRole" },
+                new[] { "maxLines", "glyphRole", "safeSurface" });
+            string id = RequireIdentifier(anchor, "id");
+            string layerId = RequireIdentifier(anchor, "layerId");
+            if (!dynamicById.TryGetValue(layerId, out LayerDraft? layer))
+                throw Invalid($"Dynamic anchor '{id}' does not name a dynamic layer.");
+            string role = RequireString(anchor, "role", 1, 16);
+            if ((role == "text" && layer.Kind != "dynamicText") ||
+                (role == "glyph" && layer.Kind != "dynamicGlyph") ||
+                role is not ("text" or "glyph"))
+                throw Invalid($"Dynamic anchor '{id}' role does not match layer '{layerId}'.");
+            JsonElement boundsValue = RequireObject(anchor.GetProperty("bounds"), "anchor bounds",
+                new[] { "x", "y", "width", "height" });
+            double x = RequireNumber(boundsValue, "x", 0d, canvas.Width);
+            double y = RequireNumber(boundsValue, "y", 0d, canvas.Height);
+            double width = RequireNumber(boundsValue, "width", exclusiveMinimum: 0d, maximum: canvas.Width);
+            double height = RequireNumber(boundsValue, "height", exclusiveMinimum: 0d, maximum: canvas.Height);
+            if (x + width > canvas.Width + 0.000001d || y + height > canvas.Height + 0.000001d)
+                throw Invalid($"Dynamic anchor '{id}' escapes the reference canvas.");
+            if (x < layer.Bounds.X - 0.000001d || y < layer.Bounds.Y - 0.000001d ||
+                x + width > layer.Bounds.X + layer.Bounds.Width + 0.000001d ||
+                y + height > layer.Bounds.Y + layer.Bounds.Height + 0.000001d)
+                throw Invalid($"Dynamic anchor '{id}' escapes its dynamic layer bounds.");
+            if (anchor.TryGetProperty("safeSurface", out _))
+                throw Invalid("safeSurface references require the unsupported maskAssets capability.");
+            string horizontal = RequireString(anchor, "horizontalAlignment", 1, 16);
+            string vertical = RequireString(anchor, "verticalAlignment", 1, 16);
+            string overflow = RequireString(anchor, "overflowPolicy", 1, 16);
+            if (horizontal is not ("left" or "center" or "right") ||
+                vertical is not ("top" or "center" or "bottom") ||
+                overflow is not ("ellipsis" or "shrink" or "clip" or "hide"))
+                throw Invalid($"Dynamic anchor '{id}' uses unsupported layout semantics.");
+            string styleRole = RequireIdentifier(anchor, "styleRole");
+            if (!dynamicStyles.ContainsKey(styleRole)) throw Invalid($"Dynamic anchor '{id}' references an unknown styleRole.");
+            string? glyphRole = anchor.TryGetProperty("glyphRole", out JsonElement glyphValue)
+                ? glyphValue.GetString() : null;
+            if (role == "glyph" && (glyphRole == null || !glyphRoles.ContainsKey(glyphRole)))
+                throw Invalid($"Dynamic anchor '{id}' references an unknown glyphRole.");
+            if (role == "text" && glyphRole != null) throw Invalid("Text anchors cannot declare glyphRole.");
+            int? maxLines = anchor.TryGetProperty("maxLines", out _)
+                ? RequireInt32(anchor, "maxLines", 1, 8) : null;
+            anchors.Add(new(id, layerId, role, new(x, y, width, height), horizontal, vertical,
+                overflow, RequireNumber(anchor, "minimumScale", exclusiveMinimum: 0d, maximum: 1d),
+                RequireNumber(anchor, "rotation", -360d, 360d), maxLines,
+                Array.AsReadOnly(ParseVisibility(anchor, id)), styleRole, glyphRole));
+        }
+        if (anchors.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() != anchors.Count ||
+            anchors.Select(x => x.LayerId).Distinct(StringComparer.Ordinal).Count() != anchors.Count ||
+            anchors.Count != dynamicLayers.Length)
+            throw Invalid("Every dynamic layer requires exactly one unique dynamic anchor.");
+
+        IReadOnlyList<NormalizedDynamicOwnership> ownership = ValidateOwnership(manifest, layers, anchors, profile);
+        return new(anchors, fonts, dynamicStyles, glyphRoles, ownership);
+    }
+
+    private static NormalizedGlyphFamily ParseGlyphFamily(JsonElement value,
+        IReadOnlyDictionary<string, NormalizedDynamicStyle> styles)
+    {
+        var result = new List<NormalizedGlyphSource>();
+        foreach (JsonElement raw in value.GetProperty("sources").EnumerateArray())
+        {
+            string type = raw.GetProperty("type").GetString()!;
+            if (type == "text")
+            {
+                string styleRole = raw.GetProperty("styleRole").GetString()!;
+                if (!styles.ContainsKey(styleRole)) throw Invalid("A text glyph source references an unknown styleRole.");
+                result.Add(new(type, styleRole, null));
+            }
+            else
+            {
+                string symbolSet = raw.GetProperty("symbolSet").GetString()!;
+                if (!SupportedSymbolSets.Contains(symbolSet))
+                    throw Invalid($"Unsupported runtime symbol set: {symbolSet}");
+                result.Add(new(type, null, symbolSet));
+            }
+        }
+        return new(result);
+    }
+
+    private static NormalizedThemeColor ParseColor(string value)
+    {
+        const System.Globalization.NumberStyles hex = System.Globalization.NumberStyles.HexNumber;
+        byte red = byte.Parse(value.AsSpan(1, 2), hex, System.Globalization.CultureInfo.InvariantCulture);
+        byte green = byte.Parse(value.AsSpan(3, 2), hex, System.Globalization.CultureInfo.InvariantCulture);
+        byte blue = byte.Parse(value.AsSpan(5, 2), hex, System.Globalization.CultureInfo.InvariantCulture);
+        byte alpha = byte.Parse(value.AsSpan(7, 2), hex, System.Globalization.CultureInfo.InvariantCulture);
+        return new(red, green, blue, alpha);
+    }
+
+    private static HashSet<string> BuildSupportedContentKeys()
+    {
+        var values = new HashSet<string>(StringComparer.Ordinal)
+        { "selectedActionLabel", "selectedActionGlyph" };
+        for (int slot = 1; slot <= 8; slot++)
+        {
+            values.Add($"slot{slot}ActionLabel");
+            values.Add($"slot{slot}ActionGlyph");
+        }
+        return values;
     }
 
     private static void ValidateStylesAndGlyphs(JsonElement manifest)
@@ -421,7 +658,9 @@ internal static class UiThemeV2Loader
                     break;
                 case "runtimeSymbol":
                     _ = RequireObject(raw, "runtime glyph source", new[] { "type", "symbolSet" });
-                    _ = RequireIdentifier(raw, "symbolSet");
+                    string symbolSet = RequireIdentifier(raw, "symbolSet");
+                    if (!SupportedSymbolSets.Contains(symbolSet))
+                        throw Invalid($"Unsupported runtime symbol set: {symbolSet}");
                     break;
                 case "themeAsset":
                     throw Invalid("themeGlyphAssets are not supported by the Phase 2 runtime.");

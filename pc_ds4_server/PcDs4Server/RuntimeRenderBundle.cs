@@ -31,17 +31,28 @@ internal sealed class GdiThemeAssetDecoder : IThemeAssetDecoder
 
 internal sealed class FullStateFrameCache : IDisposable
 {
-    private readonly ReadOnlyDictionary<string, Bitmap> _states;
+    private Dictionary<string, Bitmap> _states;
+    private Dictionary<string, Bitmap> _dynamicLayers = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Bitmap> _authoredLayers = new(StringComparer.Ordinal);
     private readonly FullStateFrameRenderPlan _model;
+    private readonly ThemeFontSession? _fontSession;
+    private readonly Action<ThemeMappingSnapshot>? _mappingBuildProbe;
+    private ThemeMappingSnapshot? _mappingSnapshot;
     private bool _disposed;
 
     public FullStateFrameCache(NormalizedRenderPlan plan, int dpi,
         IThemeAssetDecoder? decoder = null)
+        : this(plan, RadialMenuSettings.Default, dpi, decoder, null) { }
+
+    public FullStateFrameCache(NormalizedRenderPlan plan, RadialMenuSettings settings, int dpi,
+        IThemeAssetDecoder? decoder = null,
+        Action<ThemeMappingSnapshot>? mappingBuildProbe = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
         if (plan.RenderModel is not FullStateFrameRenderPlan model)
             throw new ArgumentException("A full-state plan is required.", nameof(plan));
         Plan = plan;
+        _mappingBuildProbe = mappingBuildProbe;
         Dpi = dpi > 0 ? dpi : RadialDpiScaling.DefaultDpi;
         _model = model;
         PhysicalSurfaceSize = RadialDpiScaling.LogicalSizeToPhysical(
@@ -62,13 +73,26 @@ internal sealed class FullStateFrameCache : IDisposable
                 masters.Add(path, decoder.Decode(asset));
                 DecodedAssetCount++;
             }
-            foreach (FullStateFrameState state in model.States.Values.OrderBy(x => x.SlotId ?? 0))
-                states.Add(state.Name, BuildState(state, masters));
-            _states = new ReadOnlyDictionary<string, Bitmap>(states);
+            if (plan.HasV2DynamicContent)
+            {
+                _fontSession = ThemeFontResolver.Resolve(plan.DynamicTheme!.FontRoles);
+                BuildAuthoredLayerCache(masters);
+                _mappingSnapshot = ThemeMappingSnapshot.Capture(settings, plan.LayoutProfileId);
+                (_dynamicLayers, states) = BuildDynamicCandidate(_mappingSnapshot);
+            }
+            else
+            {
+                foreach (FullStateFrameState state in model.States.Values.OrderBy(x => x.SlotId ?? 0))
+                    states.Add(state.Name, BuildLegacyCompatibleState(state, masters));
+            }
+            _states = states;
         }
         catch
         {
             foreach (Bitmap bitmap in states.Values) bitmap.Dispose();
+            foreach (Bitmap bitmap in _dynamicLayers.Values) bitmap.Dispose();
+            foreach (Bitmap bitmap in _authoredLayers.Values) bitmap.Dispose();
+            _fontSession?.Dispose();
             throw;
         }
         finally
@@ -82,6 +106,10 @@ internal sealed class FullStateFrameCache : IDisposable
     public Size PhysicalSurfaceSize { get; }
     public int DecodedAssetCount { get; }
     public int StateCount => _states.Count;
+    public int DynamicBuildCount { get; private set; }
+    public int MappingRebuildCount { get; private set; }
+    public int HotPathDynamicWorkCount { get; private set; }
+    public int AuthoredLayerCount => _authoredLayers.Count;
 
     public Bitmap GetState(int slot)
     {
@@ -89,14 +117,36 @@ internal sealed class FullStateFrameCache : IDisposable
         return _states[_model.ResolveState(slot).Name];
     }
 
+    public bool EnsureMappings(RadialMenuSettings settings)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!Plan.HasV2DynamicContent) return false;
+        ThemeMappingSnapshot candidateSnapshot = ThemeMappingSnapshot.Capture(settings, Plan.LayoutProfileId);
+        if (candidateSnapshot.Equals(_mappingSnapshot)) return false;
+        (Dictionary<string, Bitmap> dynamic, Dictionary<string, Bitmap> states) =
+            BuildDynamicCandidate(candidateSnapshot);
+        Dictionary<string, Bitmap> previousDynamic = _dynamicLayers;
+        Dictionary<string, Bitmap> previousStates = _states;
+        _dynamicLayers = dynamic;
+        _states = states;
+        _mappingSnapshot = candidateSnapshot;
+        MappingRebuildCount++;
+        foreach (Bitmap bitmap in previousDynamic.Values) bitmap.Dispose();
+        foreach (Bitmap bitmap in previousStates.Values) bitmap.Dispose();
+        return true;
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         foreach (Bitmap bitmap in _states.Values) bitmap.Dispose();
+        foreach (Bitmap bitmap in _dynamicLayers.Values) bitmap.Dispose();
+        foreach (Bitmap bitmap in _authoredLayers.Values) bitmap.Dispose();
+        _fontSession?.Dispose();
     }
 
-    private Bitmap BuildState(FullStateFrameState state, IReadOnlyDictionary<string, Bitmap> masters)
+    private Bitmap BuildLegacyCompatibleState(FullStateFrameState state, IReadOnlyDictionary<string, Bitmap> masters)
     {
         var target = new Bitmap(PhysicalSurfaceSize.Width, PhysicalSurfaceSize.Height,
             PixelFormat.Format32bppPArgb);
@@ -132,6 +182,101 @@ internal sealed class FullStateFrameCache : IDisposable
         }
     }
 
+    private void BuildAuthoredLayerCache(IReadOnlyDictionary<string, Bitmap> masters)
+    {
+        foreach (FullStateFrameState state in _model.States.Values)
+        foreach (FullStateFrameLayer layer in _model.OrderedLayers)
+        {
+            if (layer.Kind is not ("staticAsset" or "stateAsset") || !IsVisible(layer.VisibleStates, state.Name, state.SlotId))
+                continue;
+            VerifiedThemeAsset asset = layer.Kind == "staticAsset" ? layer.StaticAsset! : state.Assets[layer.Id];
+            string key = AuthoredKey(layer.Id, asset.PackagePath);
+            if (_authoredLayers.ContainsKey(key)) continue;
+            var target = new Bitmap(PhysicalSurfaceSize.Width, PhysicalSurfaceSize.Height, PixelFormat.Format32bppPArgb);
+            try
+            {
+                using Graphics graphics = Graphics.FromImage(target);
+                ConfigureGraphics(graphics);
+                using var attributes = new ImageAttributes();
+                attributes.SetWrapMode(WrapMode.TileFlipXY);
+                Bitmap master = masters[asset.PackagePath];
+                Rectangle bounds = ToPhysicalBounds(layer.Bounds);
+                graphics.DrawImage(master, bounds, 0, 0, master.Width, master.Height, GraphicsUnit.Pixel, attributes);
+                _authoredLayers.Add(key, target);
+            }
+            catch { target.Dispose(); throw; }
+        }
+    }
+
+    private (Dictionary<string, Bitmap> Dynamic, Dictionary<string, Bitmap> States)
+        BuildDynamicCandidate(ThemeMappingSnapshot mappings)
+    {
+        _mappingBuildProbe?.Invoke(mappings);
+        var dynamic = new Dictionary<string, Bitmap>(StringComparer.Ordinal);
+        var states = new Dictionary<string, Bitmap>(StringComparer.Ordinal);
+        try
+        {
+            var rasterizer = new ThemeDynamicRasterizer(Plan, _fontSession!);
+            foreach (FullStateFrameState state in _model.States.Values.OrderBy(x => x.SlotId ?? 0))
+            {
+                foreach (FullStateFrameLayer layer in _model.OrderedLayers.Where(x => x.Kind is "dynamicText" or "dynamicGlyph"))
+                {
+                    string key = DynamicKey(state.Name, layer.Id);
+                    Bitmap bitmap = rasterizer.RenderLayer(layer, state, mappings, Dpi, out ThemeDynamicLayoutResult semantic);
+                    semantic.Dispose();
+                    dynamic.Add(key, bitmap);
+                }
+                states.Add(state.Name, ComposeDynamicState(state, dynamic));
+            }
+            DynamicBuildCount++;
+            return (dynamic, states);
+        }
+        catch
+        {
+            foreach (Bitmap bitmap in dynamic.Values) bitmap.Dispose();
+            foreach (Bitmap bitmap in states.Values) bitmap.Dispose();
+            throw;
+        }
+    }
+
+    private Bitmap ComposeDynamicState(FullStateFrameState state, IReadOnlyDictionary<string, Bitmap> dynamic)
+    {
+        var target = new Bitmap(PhysicalSurfaceSize.Width, PhysicalSurfaceSize.Height, PixelFormat.Format32bppPArgb);
+        try
+        {
+            using Graphics graphics = Graphics.FromImage(target);
+            ConfigureGraphics(graphics);
+            foreach (FullStateFrameLayer layer in _model.OrderedLayers)
+            {
+                if (!IsVisible(layer.VisibleStates, state.Name, state.SlotId)) continue;
+                Bitmap source;
+                if (layer.Kind is "dynamicText" or "dynamicGlyph")
+                    source = dynamic[DynamicKey(state.Name, layer.Id)];
+                else
+                {
+                    VerifiedThemeAsset asset = layer.Kind == "staticAsset" ? layer.StaticAsset! : state.Assets[layer.Id];
+                    source = _authoredLayers[AuthoredKey(layer.Id, asset.PackagePath)];
+                }
+                graphics.DrawImageUnscaled(source, 0, 0);
+            }
+            return target;
+        }
+        catch { target.Dispose(); throw; }
+    }
+
+    private static void ConfigureGraphics(Graphics graphics)
+    {
+        graphics.Clear(Color.Transparent);
+        graphics.CompositingMode = CompositingMode.SourceOver;
+        graphics.CompositingQuality = CompositingQuality.HighQuality;
+        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+    }
+
+    private static string AuthoredKey(string layerId, string path) => layerId + "\0" + path;
+    private static string DynamicKey(string state, string layerId) => state + "\0" + layerId;
+
     private Rectangle ToPhysicalBounds(NormalizedReferenceBounds bounds)
     {
         NormalizedReferenceScale scale = Plan.ReferenceScale;
@@ -144,7 +289,7 @@ internal sealed class FullStateFrameCache : IDisposable
         return RadialDpiScaling.LogicalRectToPhysical(left, top, right, bottom, Dpi);
     }
 
-    private static bool IsVisible(IReadOnlyList<string> selectors, string state, int? slot) =>
+    internal static bool IsVisible(IReadOnlyList<string> selectors, string state, int? slot) =>
         selectors.Contains("all", StringComparer.Ordinal) ||
         selectors.Contains(state, StringComparer.Ordinal) ||
         slot.HasValue && selectors.Contains("selected", StringComparer.Ordinal);
@@ -197,7 +342,7 @@ internal sealed class RuntimeRenderBundle : IDisposable
         ArgumentNullException.ThrowIfNull(settings);
         if (legacyTargetSize <= 0) throw new ArgumentOutOfRangeException(nameof(legacyTargetSize));
         if (plan.RenderModel is FullStateFrameRenderPlan)
-            return new RuntimeRenderBundle(plan, new FullStateFrameCache(plan, dpi));
+            return new RuntimeRenderBundle(plan, new FullStateFrameCache(plan, settings, dpi));
 
         var assets = new RadialVisualPackCache(plan, legacyTargetSize);
         RadialDynamicContentCache? dynamic = null;
@@ -219,7 +364,8 @@ internal sealed class RuntimeRenderBundle : IDisposable
     public void EnsureDynamicContent(RadialMenuSettings settings)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _dynamicContent?.Ensure(settings, TargetSize);
+        if (_fullStateCache != null) _fullStateCache.EnsureMappings(settings);
+        else _dynamicContent?.Ensure(settings, TargetSize);
     }
 
     public Bitmap GetFinalState(int selectedSlot) => FullStateCache.GetState(selectedSlot);
