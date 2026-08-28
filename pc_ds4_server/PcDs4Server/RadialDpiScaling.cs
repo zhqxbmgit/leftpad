@@ -14,6 +14,35 @@ internal static class RadialDpiScaling
             MidpointRounding.AwayFromZero));
     }
 
+    public static int LogicalEdgeToPhysical(double logicalValue, int dpi)
+    {
+        if (!double.IsFinite(logicalValue))
+            throw new ArgumentOutOfRangeException(nameof(logicalValue));
+        return checked((int)Math.Round(
+            logicalValue * GetScale(dpi),
+            MidpointRounding.AwayFromZero));
+    }
+
+    public static Size LogicalSizeToPhysical(double logicalWidth, double logicalHeight, int dpi)
+    {
+        if (!double.IsFinite(logicalWidth) || logicalWidth <= 0d ||
+            !double.IsFinite(logicalHeight) || logicalHeight <= 0d)
+            throw new ArgumentOutOfRangeException(nameof(logicalWidth));
+        return new Size(LogicalEdgeToPhysical(logicalWidth, dpi),
+            LogicalEdgeToPhysical(logicalHeight, dpi));
+    }
+
+    public static Rectangle LogicalRectToPhysical(
+        double left, double top, double right, double bottom, int dpi)
+    {
+        if (right < left || bottom < top) throw new ArgumentOutOfRangeException(nameof(right));
+        int physicalLeft = LogicalEdgeToPhysical(left, dpi);
+        int physicalTop = LogicalEdgeToPhysical(top, dpi);
+        int physicalRight = LogicalEdgeToPhysical(right, dpi);
+        int physicalBottom = LogicalEdgeToPhysical(bottom, dpi);
+        return Rectangle.FromLTRB(physicalLeft, physicalTop, physicalRight, physicalBottom);
+    }
+
     public static Point CenterAt(Point physicalCenter, int physicalSize)
     {
         if (physicalSize <= 0) throw new ArgumentOutOfRangeException(nameof(physicalSize));

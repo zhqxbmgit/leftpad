@@ -5,43 +5,45 @@ namespace PcDs4Server;
 
 internal sealed class RadialVisualPackSession : IDisposable
 {
-    private readonly RuntimeRenderBundleBuilder _bundleBuilder;
+    private readonly RuntimeRenderBundleTargetBuilder _bundleBuilder;
+    private readonly RadialVisualPackDefinition? _definition;
     private RuntimeRenderBundle _bundle;
     private bool _disposed;
 
-    public RadialVisualPackSession(
-        RadialVisualPackDefinition definition,
-        RadialMenuSettings settings,
-        int targetSize)
-        : this(
-            definition,
-            V1VisualPackCompatibilityAdapter.BuildPlan(definition),
-            settings,
-            targetSize,
-            RuntimeRenderBundle.Build)
-    {
-    }
+    public RadialVisualPackSession(RadialVisualPackDefinition definition,
+        RadialMenuSettings settings, int targetSize)
+        : this(definition, V1VisualPackCompatibilityAdapter.BuildPlan(definition), settings,
+            targetSize, RadialDpiScaling.DefaultDpi, RuntimeRenderBundle.Build) { }
 
-    internal RadialVisualPackSession(
-        RadialVisualPackDefinition definition,
-        NormalizedRenderPlan plan,
-        RadialMenuSettings settings,
-        int targetSize,
-        RuntimeRenderBundleBuilder bundleBuilder)
+    internal RadialVisualPackSession(RadialVisualPackDefinition definition,
+        NormalizedRenderPlan plan, RadialMenuSettings settings, int targetSize,
+        RuntimeRenderBundleBuilder builder)
+        : this(definition, plan, settings, targetSize, RadialDpiScaling.DefaultDpi,
+            (candidate, candidateSettings, size, _) => builder(candidate, candidateSettings, size)) { }
+
+    internal RadialVisualPackSession(RadialVisualPackCatalogEntry entry,
+        RadialMenuSettings settings, int targetSize, int dpi,
+        RuntimeRenderBundleTargetBuilder? builder = null)
+        : this(entry.V1Definition, entry.Plan, settings, targetSize, dpi,
+            builder ?? RuntimeRenderBundle.Build) { }
+
+    private RadialVisualPackSession(RadialVisualPackDefinition? definition,
+        NormalizedRenderPlan plan, RadialMenuSettings settings, int targetSize, int dpi,
+        RuntimeRenderBundleTargetBuilder builder)
     {
-        Definition = definition ?? throw new ArgumentNullException(nameof(definition));
+        _definition = definition;
         Plan = plan ?? throw new ArgumentNullException(nameof(plan));
         ArgumentNullException.ThrowIfNull(settings);
-        _bundleBuilder = bundleBuilder ?? throw new ArgumentNullException(nameof(bundleBuilder));
-        if (!string.Equals(Definition.Manifest.Id, Plan.ThemeId, StringComparison.Ordinal))
-            throw new InvalidDataException("V1 definition and normalized plan theme IDs do not match.");
-
+        _bundleBuilder = builder ?? throw new ArgumentNullException(nameof(builder));
+        if (definition != null && !string.Equals(definition.Manifest.Id, plan.ThemeId, StringComparison.Ordinal))
+            throw new InvalidDataException("V1 definition and normalized plan IDs do not match.");
         Mappings = settings.GetProfileMappings(LayoutDefinition.ProfileId);
-        _bundle = _bundleBuilder(Plan, settings, targetSize)
-            ?? throw new InvalidDataException("Runtime render bundle builder returned no bundle.");
+        _bundle = _bundleBuilder(Plan, settings, targetSize, dpi) ??
+            throw new InvalidDataException("Runtime render bundle builder returned no bundle.");
     }
 
-    public RadialVisualPackDefinition Definition { get; }
+    public RadialVisualPackDefinition Definition => _definition ??
+        throw new InvalidOperationException("V2 sessions do not have a V1 definition.");
     public NormalizedRenderPlan Plan { get; }
     public LayoutDefinition LayoutDefinition => Plan.LayoutDefinition;
     public RuntimeRenderBundle Bundle => _bundle;
@@ -51,24 +53,25 @@ internal sealed class RadialVisualPackSession : IDisposable
     public string PackId => Plan.ThemeId;
     internal bool IsDisposed => _disposed;
 
-    public void EnsureContent(RadialMenuSettings settings, int targetSize)
+    public void EnsureContent(RadialMenuSettings settings, int targetSize) =>
+        EnsureContent(settings, targetSize, RadialDpiScaling.DefaultDpi);
+
+    public void EnsureContent(RadialMenuSettings settings, int targetSize, int dpi)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(settings);
-
-        if (_bundle.TargetSize != targetSize)
+        bool rebuild = Plan.IsFullStateFrame ? _bundle.Dpi != dpi : _bundle.TargetSize != targetSize;
+        if (rebuild)
         {
-            RadialSlotMappings replacementMappings = settings.GetProfileMappings(
-                LayoutDefinition.ProfileId);
-            RuntimeRenderBundle replacement = _bundleBuilder(Plan, settings, targetSize)
-                ?? throw new InvalidDataException("Runtime render bundle builder returned no bundle.");
+            RadialSlotMappings mappings = settings.GetProfileMappings(LayoutDefinition.ProfileId);
+            RuntimeRenderBundle replacement = _bundleBuilder(Plan, settings, targetSize, dpi) ??
+                throw new InvalidDataException("Runtime render bundle builder returned no bundle.");
             RuntimeRenderBundle previous = _bundle;
             _bundle = replacement;
-            Mappings = replacementMappings;
+            Mappings = mappings;
             previous.Dispose();
             return;
         }
-
         _bundle.EnsureDynamicContent(settings);
         Mappings = settings.GetProfileMappings(LayoutDefinition.ProfileId);
     }
@@ -89,161 +92,78 @@ internal sealed class RadialVisualPackRuntime : IDisposable
     private string? _lastRequestedId;
     private bool _disposed;
 
-    public RadialVisualPackRuntime(
-        RadialVisualPackCatalog catalog,
-        Action<string>? log = null)
-    {
-        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-        _log = log ?? (message => Trace.TraceInformation(message));
-    }
-
+    public RadialVisualPackRuntime(RadialVisualPackCatalog catalog, Action<string>? log = null)
+    { _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog)); _log = log ?? (message => Trace.TraceInformation(message)); }
     public RadialVisualPackSession? Active => _active;
     public string? ActivePackId => _active?.PackId;
     public string? LastError { get; private set; }
     internal int InstallCount { get; private set; }
 
-    public RadialVisualPackSession? Ensure(
-        RadialMenuSettings settings,
-        int targetSize)
+    public RadialVisualPackSession? Ensure(RadialMenuSettings settings, int targetSize) =>
+        Ensure(settings, targetSize, RadialDpiScaling.DefaultDpi);
+
+    public RadialVisualPackSession? Ensure(RadialMenuSettings settings, int targetSize, int dpi)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(settings);
         if (targetSize <= 0) throw new ArgumentOutOfRangeException(nameof(targetSize));
-
         string requestedId = settings.VisualPackId;
-        if (string.Equals(requestedId, _lastRequestedId, StringComparison.Ordinal))
-        {
-            if (_active == null) return null;
-            return EnsureExisting(_active, settings, targetSize, requestedId);
-        }
+        if (requestedId == _lastRequestedId)
+            return _active == null ? null : EnsureExisting(_active, settings, targetSize, dpi, requestedId);
 
         RadialVisualPackCatalogSnapshot snapshot = _catalog.Discover();
         LogCatalogIssues(snapshot);
-        RadialVisualPackCatalogEntry? requested = snapshot.Find(requestedId);
-        RadialVisualPackCatalogEntry? target = requested;
+        RadialVisualPackCatalogEntry? target = snapshot.Find(requestedId);
         if (target == null)
         {
-            string reason = $"requested pack '{requestedId}' is unavailable or incompatible";
-            LogFallback(requestedId, reason);
+            LogFallback(requestedId, $"requested pack '{requestedId}' is unavailable or incompatible");
             _lastRequestedId = requestedId;
-            if (_active != null)
-            {
-                _log(
-                    $"[视觉主题] Retaining active pack '{_active.PackId}' after " +
-                    $"failed switch to '{requestedId}'.");
-                return _active;
-            }
+            if (_active != null) { LogRetained(requestedId); return _active; }
             target = snapshot.Find(RadialVisualPackContract.DefaultVisualPackId);
         }
-
         _lastRequestedId = requestedId;
         if (target == null)
         {
-            LastError =
-                $"No compatible fallback pack '{RadialVisualPackContract.DefaultVisualPackId}' was found.";
+            LastError = $"No compatible fallback pack '{RadialVisualPackContract.DefaultVisualPackId}' was found.";
             _log($"[视觉主题] {LastError}");
             return _active;
         }
-
-        if (_active != null &&
-            string.Equals(_active.PackId, target.Id, StringComparison.Ordinal))
-        {
-            return EnsureExisting(_active, settings, targetSize, requestedId);
-        }
-
-        if (TryCreateSession(target, settings, targetSize, out RadialVisualPackSession? replacement))
+        if (_active?.PackId == target.Id)
+            return EnsureExisting(_active, settings, targetSize, dpi, requestedId);
+        if (TryCreateSession(target, settings, targetSize, dpi, out RadialVisualPackSession? replacement))
             return Install(replacement!);
 
-        string targetFailure = LastError ?? "unknown load failure";
-        LogFallback(requestedId, targetFailure);
-        if (_active != null)
-        {
-            _log(
-                $"[视觉主题] Retaining active pack '{_active.PackId}' after " +
-                $"failed switch to '{requestedId}'.");
-            return _active;
-        }
-        if (string.Equals(
-                target.Id,
-                RadialVisualPackContract.DefaultVisualPackId,
-                StringComparison.Ordinal))
-        {
-            _log(
-                $"[视觉主题] Fallback pack '{target.Id}' failed: " +
-                targetFailure);
-            return _active;
-        }
-
-        RadialVisualPackCatalogEntry? fallback = snapshot.Find(
-            RadialVisualPackContract.DefaultVisualPackId);
-        if (fallback == null)
-            return _active;
-
-        if (_active != null &&
-            string.Equals(_active.PackId, fallback.Id, StringComparison.Ordinal))
-        {
-            return EnsureExisting(_active, settings, targetSize, requestedId);
-        }
-
-        if (!TryCreateSession(fallback, settings, targetSize, out replacement))
-        {
-            _log(
-                $"[视觉主题] Fallback pack '{fallback.Id}' failed: " +
-                $"{LastError ?? "unknown load failure"}");
-            return _active;
-        }
-
-        return Install(replacement!);
+        string failure = LastError ?? "unknown load failure";
+        LogFallback(requestedId, failure);
+        if (_active != null) { LogRetained(requestedId); return _active; }
+        if (target.Id == RadialVisualPackContract.DefaultVisualPackId) return null;
+        RadialVisualPackCatalogEntry? fallback = snapshot.Find(RadialVisualPackContract.DefaultVisualPackId);
+        if (fallback != null && TryCreateSession(fallback, settings, targetSize, dpi, out replacement))
+            return Install(replacement!);
+        return _active;
     }
 
     public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-        _active?.Dispose();
-        _active = null;
-    }
+    { if (_disposed) return; _disposed = true; _active?.Dispose(); _active = null; }
 
-    private RadialVisualPackSession? EnsureExisting(
-        RadialVisualPackSession session,
-        RadialMenuSettings settings,
-        int targetSize,
-        string requestedId)
+    private RadialVisualPackSession EnsureExisting(RadialVisualPackSession session,
+        RadialMenuSettings settings, int targetSize, int dpi, string requestedId)
     {
-        try
-        {
-            session.EnsureContent(settings, targetSize);
-            LastError = null;
-            return session;
-        }
+        try { session.EnsureContent(settings, targetSize, dpi); LastError = null; }
         catch (Exception exception) when (IsRuntimePackException(exception))
         {
             LastError = exception.Message;
-            _log(
-                $"[视觉主题] Active pack '{session.PackId}' refresh failed for " +
-                $"requested ID '{requestedId}': {exception.Message}");
-            return session;
+            _log($"[视觉主题] Active pack '{session.PackId}' refresh failed for requested ID '{requestedId}': {exception.Message}");
         }
+        return session;
     }
 
-    private bool TryCreateSession(
-        RadialVisualPackCatalogEntry entry,
-        RadialMenuSettings settings,
-        int targetSize,
-        out RadialVisualPackSession? session)
+    private bool TryCreateSession(RadialVisualPackCatalogEntry entry, RadialMenuSettings settings,
+        int targetSize, int dpi, out RadialVisualPackSession? session)
     {
-        try
-        {
-            session = new RadialVisualPackSession(entry.Definition, settings, targetSize);
-            LastError = null;
-            return true;
-        }
+        try { session = new(entry, settings, targetSize, dpi); LastError = null; return true; }
         catch (Exception exception) when (IsRuntimePackException(exception))
-        {
-            LastError = exception.Message;
-            session = null;
-            return false;
-        }
+        { LastError = exception.Message; session = null; return false; }
     }
 
     private RadialVisualPackSession Install(RadialVisualPackSession replacement)
@@ -258,24 +178,12 @@ internal sealed class RadialVisualPackRuntime : IDisposable
     }
 
     private void LogCatalogIssues(RadialVisualPackCatalogSnapshot snapshot)
-    {
-        foreach (RadialVisualPackCatalogIssue issue in snapshot.Issues)
-        {
-            _log(
-                $"[视觉主题] Ignored pack '{issue.PackId ?? issue.DirectoryPath}': " +
-                issue.Message);
-        }
-    }
-
-    private void LogFallback(string requestedId, string reason)
-    {
-        _log(
-            $"[视觉主题] Requested pack '{requestedId}' failed: {reason}; " +
-            $"fallback '{RadialVisualPackContract.DefaultVisualPackId}'.");
-    }
-
+    { foreach (var issue in snapshot.Issues) _log($"[视觉主题] Ignored pack '{issue.PackId ?? issue.DirectoryPath}': {issue.Message}"); }
+    private void LogFallback(string id, string reason) => _log(
+        $"[视觉主题] Requested pack '{id}' failed: {reason}; fallback '{RadialVisualPackContract.DefaultVisualPackId}'.");
+    private void LogRetained(string id) => _log(
+        $"[视觉主题] Retaining active pack '{_active!.PackId}' after failed switch to '{id}'.");
     private static bool IsRuntimePackException(Exception exception) =>
-        exception is IOException or UnauthorizedAccessException or InvalidDataException or
-        ArgumentException or ExternalException or OutOfMemoryException or
-        InvalidOperationException or NotSupportedException;
+        exception is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException or
+        ExternalException or OutOfMemoryException or InvalidOperationException or NotSupportedException;
 }

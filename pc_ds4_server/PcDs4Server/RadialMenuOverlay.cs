@@ -125,7 +125,8 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
             int physicalSize = RadialDpiScaling.ToPhysicalPixels(metrics.CanvasSize, dpi);
             RadialVisualPackSession? session = _visualPacks.Ensure(
                 settings,
-                physicalSize);
+                physicalSize,
+                dpi);
             if (session == null && _visualPacks.Active == null)
                 FailSafely(_visualPacks.LastError ?? "Radial visual pack is unavailable.");
             else if (session != null)
@@ -150,11 +151,7 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
         {
             selectedSlot = _selectedSlot;
         }
-        DrawComposition(
-            e.Graphics,
-            session.AssetCache,
-            session.DynamicContent,
-            selectedSlot);
+        DrawRuntimeComposition(e.Graphics, session.Bundle, selectedSlot);
     }
 
     protected override void Dispose(bool disposing)
@@ -200,8 +197,19 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
             _ = Handle;
             int dpi = GetDpiAt(screenPoint);
             int physicalSize = RadialDpiScaling.ToPhysicalPixels(metrics.CanvasSize, dpi);
-            Point topLeft = RadialDpiScaling.CenterAt(screenPoint, physicalSize);
-            ClientSize = new Size(physicalSize, physicalSize);
+            RadialVisualPackSession? session = _visualPacks.Ensure(
+                settings,
+                physicalSize,
+                dpi);
+            if (session == null)
+            {
+                FailSafely(_visualPacks.LastError ?? "Radial visual pack is unavailable.");
+                return;
+            }
+
+            Size surfaceSize = session.Bundle.PhysicalSurfaceSize;
+            Point topLeft = ComputeOverlayTopLeft(screenPoint, session.Plan, dpi, surfaceSize);
+            ClientSize = surfaceSize;
             Location = topLeft;
 
             int windowDpi = GetCurrentWindowDpi();
@@ -209,18 +217,11 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
             {
                 dpi = windowDpi;
                 physicalSize = RadialDpiScaling.ToPhysicalPixels(metrics.CanvasSize, dpi);
-                topLeft = RadialDpiScaling.CenterAt(screenPoint, physicalSize);
-                ClientSize = new Size(physicalSize, physicalSize);
+                session = _visualPacks.Ensure(settings, physicalSize, dpi) ?? session;
+                surfaceSize = session.Bundle.PhysicalSurfaceSize;
+                topLeft = ComputeOverlayTopLeft(screenPoint, session.Plan, dpi, surfaceSize);
+                ClientSize = surfaceSize;
                 Location = topLeft;
-            }
-
-            RadialVisualPackSession? session = _visualPacks.Ensure(
-                settings,
-                physicalSize);
-            if (session == null)
-            {
-                FailSafely(_visualPacks.LastError ?? "Radial visual pack is unavailable.");
-                return;
             }
 
             LayoutDefinition layout = session.LayoutDefinition;
@@ -232,8 +233,7 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
             }
 
             RenderLayeredWindow(
-                session.AssetCache,
-                session.DynamicContent,
+                session.Bundle,
                 selectedSlot,
                 settings,
                 metrics,
@@ -263,11 +263,40 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
         if (Visible) base.Hide();
     }
 
-    private static void DrawComposition(
-        Graphics graphics,
-        RadialVisualPackCache cache,
-        RadialDynamicContentCache dynamicContent,
-        int selectedSlot)
+    internal static Point ComputeOverlayTopLeft(
+        Point screenPoint,
+        NormalizedRenderPlan plan,
+        int dpi,
+        Size physicalSurfaceSize)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        if (plan.IsFullStateFrame)
+        {
+            return new Point(
+                screenPoint.X - RadialDpiScaling.LogicalEdgeToPhysical(
+                    plan.Placement.ActivationAnchor.X, dpi),
+                screenPoint.Y - RadialDpiScaling.LogicalEdgeToPhysical(
+                    plan.Placement.ActivationAnchor.Y, dpi));
+        }
+        if (physicalSurfaceSize.Width != physicalSurfaceSize.Height)
+            throw new InvalidDataException("Legacy radial surfaces must be square.");
+        return RadialDpiScaling.CenterAt(screenPoint, physicalSurfaceSize.Width);
+    }
+
+    private static void DrawRuntimeComposition(Graphics graphics, RuntimeRenderBundle bundle, int selectedSlot)
+    {
+        if (bundle.IsFullStateFrame)
+        {
+            graphics.CompositingMode = CompositingMode.SourceCopy;
+            graphics.DrawImageUnscaled(bundle.GetFinalState(selectedSlot), 0, 0);
+            return;
+        }
+
+        DrawComposition(graphics, bundle.AssetCache, bundle.DynamicContent, selectedSlot);
+    }
+
+    private static void DrawComposition(Graphics graphics, RadialVisualPackCache cache,
+        RadialDynamicContentCache dynamicContent, int selectedSlot)
     {
         graphics.CompositingMode = CompositingMode.SourceCopy;
         graphics.DrawImageUnscaled(cache.ScaledBase, 0, 0);
@@ -280,8 +309,7 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
     }
 
     private void RenderLayeredWindow(
-        RadialVisualPackCache cache,
-        RadialDynamicContentCache dynamicContent,
+        RuntimeRenderBundle bundle,
         int selectedSlot,
         RadialMenuSettings settings,
         RadialMenuRenderMetrics metrics,
@@ -292,13 +320,13 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
         if (!IsHandleCreated || IsDisposed) return;
 
         using var bitmap = new Bitmap(
-            cache.TargetSize,
-            cache.TargetSize,
+            bundle.PhysicalSurfaceSize.Width,
+            bundle.PhysicalSurfaceSize.Height,
             PixelFormat.Format32bppPArgb);
         using (Graphics graphics = Graphics.FromImage(bitmap))
         {
             graphics.Clear(Color.Transparent);
-            DrawComposition(graphics, cache, dynamicContent, selectedSlot);
+            DrawRuntimeComposition(graphics, bundle, selectedSlot);
         }
 
         IntPtr screenDc = GetDC(IntPtr.Zero);
@@ -322,7 +350,7 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
 
             var destination = new NativePoint(Left, Top);
             var source = new NativePoint(0, 0);
-            var size = new NativeSize(cache.TargetSize, cache.TargetSize);
+            var size = new NativeSize(bundle.PhysicalSurfaceSize.Width, bundle.PhysicalSurfaceSize.Height);
             var blend = new BlendFunction
             {
                 BlendOp = AcSrcOver,
@@ -345,16 +373,9 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
                     $"Failed to update radial menu transparency (Win32 error {Marshal.GetLastWin32Error()}).");
             }
 
-            LogDpiDiagnostics(
-                cache,
-                dynamicContent,
-                bitmap,
-                settings,
-                metrics,
-                screenPoint,
-                dpi,
-                topLeft,
-                size);
+            if (!bundle.IsFullStateFrame)
+                LogDpiDiagnostics(bundle.AssetCache, bundle.DynamicContent, bitmap, settings,
+                    metrics, screenPoint, dpi, topLeft, size);
         }
         finally
         {
