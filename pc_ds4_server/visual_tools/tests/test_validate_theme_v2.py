@@ -242,6 +242,312 @@ class ThemeV2ValidatorTests(unittest.TestCase):
         ):
             self.assertIn(required_text, decomposition)
 
+    def test_outline_width_is_full_centered_stroke_width(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "`outlineRole.width` is the full width of a centered stroke in Reference Space",
+            protocol,
+        )
+
+    def test_outline_outward_radius_is_half_width(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("extends `width / 2` inward and `width / 2` outward", protocol)
+
+    def test_zero_outline_width_adds_no_extent(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("A zero width contributes no outline pixels or extra semantic extent", protocol)
+
+    def test_shrink_scales_outline_width(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("fill size and outline width are multiplied by `s`", protocol)
+
+    def test_shadow_offset_is_applied_after_rotation(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Shadow offset is applied after rotation", protocol)
+
+    def test_shadow_offset_uses_final_screen_axes(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("in final Reference screen axes", protocol)
+
+    def test_positive_shadow_offsets_point_right_and_down(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("(`+x` right, `+y` down)", protocol)
+
+    def test_shadow_blur_is_gaussian_sigma(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("`shadowRole.blur` is Gaussian sigma in Reference Space", protocol)
+
+    def test_shadow_support_radius_is_three_sigma(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("`supportRadius = 3 * blur`", protocol)
+
+    def test_zero_blur_is_hard_shadow(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("`blur = 0` is a hard shadow with no blur expansion", protocol)
+
+    def test_shadow_alpha_is_zero_outside_finite_support(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Alpha outside that support MUST be zero", protocol)
+
+    def test_shrink_scales_shadow_offset(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("authored shadow offsets and blur sigma are all multiplied by `s`", protocol)
+
+    def test_shrink_scales_shadow_blur(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("support radius is `3 * blur * s`", protocol)
+
+    def test_fit_includes_visible_outline(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("visible centered-outline geometry", protocol)
+        self.assertIn("the entire union MUST fit inside the anchor", protocol)
+
+    def test_fit_includes_visible_shadow(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("visible finite shadow-support geometry", protocol)
+        self.assertIn("the entire union MUST fit inside the anchor", protocol)
+
+    def test_fill_fit_with_effect_overflow_is_not_fit(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "If fill fits but a visible outline or shadow exceeds the anchor, the styled element does not fit",
+            protocol,
+        )
+
+    def test_clip_allows_styled_effect_overflow(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "permits the complete styled geometry to extend outside the anchor before final clipping",
+            protocol,
+        )
+
+    def test_non_clip_safety_clip_is_not_effect_fallback(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("it MUST NOT be used to crop an ordinary outline or shadow into compliance", protocol)
+
+    def test_shadow_bounds_formula_is_frozen(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        for required_text in (
+            "S.left = R.left + dx - radius",
+            "S.top = R.top + dy - radius",
+            "S.right = R.right + dx + radius",
+            "S.bottom = R.bottom + dy + radius",
+        ):
+            self.assertIn(required_text, protocol)
+
+    def test_effect_geometry_uses_continuous_reference_space(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Styled Semantic Geometry is the union", protocol)
+        self.assertIn("continuous Reference-space text or glyph path", protocol)
+
+    def test_effect_semantics_are_dpi_independent(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Styled effect geometry and fit decisions are DPI-independent", protocol)
+
+    def test_outline_follows_element_rotation(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("fill plus outline rotate together around the anchor center", protocol)
+
+    def test_shadow_source_uses_rotated_silhouette(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "raster shadow source silhouette is the rotated fill path plus any visible round-join/round-cap outline",
+            protocol,
+        )
+
+    def test_shadow_offset_does_not_rotate_with_element(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("MUST NOT rotate with the element", protocol)
+
+    def test_transparent_outline_is_ignored(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "outline whose resolved color alpha is zero is neither drawn nor included in semantic extent",
+            protocol,
+        )
+
+    def test_transparent_shadow_is_ignored(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "shadow whose resolved color alpha is zero is neither drawn nor included in semantic extent",
+            protocol,
+        )
+
+    def test_transparent_fill_can_still_have_visible_effects(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("an outline-only or shadow-only dynamic element is valid", protocol)
+        self.assertIn("even when the fill itself is transparent", protocol)
+
+    def test_ellipsis_recomputes_styled_bounds(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "Each ellipsis candidate MUST recompute `F`, `O`, `R`, `S`, and Styled Semantic Bounds",
+            protocol,
+        )
+
+    def test_shrink_recomputes_styled_bounds(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Each shrink candidate MUST repeat layout and recompute `F`", protocol)
+
+    def test_hide_uses_complete_styled_bounds(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("`hide` uses the same `F -> O -> R -> S` authority at authored scale `1.0`", protocol)
+
+    def test_effects_do_not_create_max_lines(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Effects do not create additional logical lines", protocol)
+        self.assertIn("`maxLines` controls only line generation", protocol)
+
+    def test_schema_describes_effect_extent_contract(self) -> None:
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        styles = schema["$defs"]["styles"]["properties"]
+        outline = styles["outlineRoles"]
+        outline_width = outline["additionalProperties"]["properties"]["width"]
+        shadow = styles["shadowRoles"]
+        shadow_properties = shadow["additionalProperties"]["properties"]
+
+        self.assertIn("participates in Styled Semantic Geometry", outline["description"])
+        self.assertIn("Full width of a centered stroke", outline_width["description"])
+        self.assertIn("inflate the aligned fill/path AABB by width/2", outline_width["description"])
+        self.assertIn("applied after element rotation", shadow_properties["offsetX"]["description"])
+        self.assertIn("positive is right", shadow_properties["offsetX"]["description"])
+        self.assertIn("positive is down", shadow_properties["offsetY"]["description"])
+        self.assertIn("Gaussian sigma", shadow_properties["blur"]["description"])
+        self.assertIn("three-sigma support", shadow_properties["blur"]["description"])
+
+    def test_decomposition_guides_effect_extent_authoring(self) -> None:
+        decomposition = _normalized_document(DECOMPOSITION_PATH)
+
+        for required_text in (
+            "Reserve anchor space for the complete styled element",
+            "visible outline is a centered stroke",
+            "finite three-sigma blur support",
+            "`clip` is the only policy under which cropping these effects",
+            "fully transparent outline or shadow does not affect fit",
+            "outline-only or shadow-only element",
+        ):
+            self.assertIn(required_text, decomposition)
+
+    def test_semantic_outline_authority_inflates_fill_aabb(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Let `F` be the aligned, unrotated continuous fill/path AABB", protocol)
+        self.assertIn("O = inflate(F, r)", protocol)
+
+    def test_actual_stroked_bounds_are_not_fit_authority(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn(
+            "actual platform stroked-path bounds, GDI stroker bounds, and final raster pixels are not fit authority",
+            protocol,
+        )
+
+    def test_outline_raster_requires_round_join(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("centered stroke with round line joins", protocol)
+
+    def test_outline_raster_requires_round_cap(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("and round line caps", protocol)
+
+    def test_outline_raster_prohibits_miter_join(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Miter, miter-clipped, bevel, platform-default joins", protocol)
+        self.assertIn("are forbidden", protocol)
+
+    def test_rotated_outline_bounds_use_four_rectangle_corners(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("transforms all four corners of `O`", protocol)
+        self.assertIn("R = AABB(rotateCorners(O, anchorCenter, rotation))", protocol)
+
+    def test_shadow_base_uses_normative_rotated_rectangle(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("semantic base authority is the normative rectangle `R`", protocol)
+
+    def test_shrink_recomputes_f_o_r_s_at_each_scale(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Each shrink candidate MUST repeat layout and recompute `F`", protocol)
+        self.assertIn("scaled outline radius, `O`, `R`, scaled shadow offset and blur, `S`", protocol)
+        self.assertIn("scaling a previously rotated AABB is forbidden", protocol)
+
+    def test_ellipsis_recomputes_f_o_r_s_for_each_candidate(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("Each ellipsis candidate MUST recompute `F`, `O`, `R`, `S`", protocol)
+        self.assertIn("without consulting platform stroke bounds", protocol)
+
+    def test_invisible_outline_collapses_o_to_f(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("If the outline is invisible or `w = 0`, `O = F`", protocol)
+        self.assertIn("outline whose resolved color alpha is zero is neither drawn", protocol)
+
+    def test_shadow_only_element_retains_source_geometry_authority(self) -> None:
+        protocol = _normalized_document(PROTOCOL_PATH)
+
+        self.assertIn("`S` when only shadow is visible", protocol)
+        self.assertIn("glyph/path geometry remains available as the source for a visible outline or shadow", protocol)
+
+    def test_schema_describes_normative_outline_rectangle_authority(self) -> None:
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        styles = schema["$defs"]["styles"]["properties"]
+        outline_width = styles["outlineRoles"]["additionalProperties"]["properties"]["width"]
+        shadow = styles["shadowRoles"]
+
+        self.assertIn("inflate the aligned fill/path AABB by width/2", outline_width["description"])
+        self.assertIn("actual stroker bounds never redefine fit", outline_width["description"])
+        self.assertIn("Raster joins and caps are round", outline_width["description"])
+        self.assertIn("normative rotated fill-plus-outline rectangle R", shadow["description"])
+
+    def test_decomposition_requires_conservative_outline_space(self) -> None:
+        decomposition = _normalized_document(DECOMPOSITION_PATH)
+
+        for required_text in (
+            "conservative semantic rectangle",
+            "inflate every side by `outline.width / 2`",
+            "bound its four transformed corners",
+            "actual stroked-path bounds never replace the contract rectangle",
+            "Raster outlines use round joins and round caps",
+        ):
+            self.assertIn(required_text, decomposition)
+
     def test_valid_radial_6_example_passes(self) -> None:
         report = validate_theme_v2_document(_example())
 

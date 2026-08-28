@@ -342,7 +342,9 @@ down). Zero means no rotation. Positive `rotation` is clockwise and negative
 all use this same anchor-center contract.
 
 Fit is evaluated after rotation. Reference Space continuous geometry is the
-semantic fit authority; Physical anti-aliased pixel extents are not. A layout
+semantic fit authority; Physical anti-aliased pixel extents are not. Styled
+Semantic Geometry includes the visible fill, outline, and finite shadow support
+defined below. A layout
 fully fits only when its line count is no greater than `maxLines` when that
 field is present, it needs neither ellipsis nor clipping to make the original
 semantic content legal, and its final rotated continuous geometry bounds are
@@ -417,6 +419,176 @@ For example, an anchor measuring `100 x 50` and an aligned layout measuring
 approximately `30 x 80`, so post-rotation fit fails: `hide` hides it, `shrink`
 must continue until the rotated height fits within `50`, and `clip` draws it
 then clips it. At `rotation: 0`, pre- and post-rotation bounds are identical.
+
+### 7.2 Styled effect geometry
+
+Styled Semantic Geometry is the union of visible fill geometry, visible
+centered-outline geometry, and visible finite shadow-support geometry. For
+`ellipsis`, `shrink`, and `hide`, the entire union MUST fit inside the anchor;
+checking only text or glyph fill is forbidden. If fill fits but a visible
+outline or shadow exceeds the anchor, the styled element does not fit. The
+`clip` policy is the sole exception and permits the complete styled geometry to
+extend outside the anchor before final clipping.
+
+Fill geometry is the continuous Reference-space text or glyph path produced by
+the resolved font or glyph source at the candidate scale. Wrapping and
+`maxLines` determine its layout. Runtime aligns the fill layout before
+constructing and rotating the styled silhouette.
+
+#### 7.2.1 Outline model
+
+`outlineRole.width` is the full width of a centered stroke in Reference Space.
+The stroke extends `width / 2` inward and `width / 2` outward from the fill path
+centerline; Runtime MUST NOT reinterpret it as an outside radius, inside-only
+stroke, or platform-default stroke placement. A zero width contributes no
+outline pixels or extra semantic extent.
+
+A visible outline is constructed around the fill glyph/path geometry after
+layout and alignment, and fill plus outline rotate together around the anchor
+center. At shrink candidate scale `s`, both the authored fill size and outline
+width are multiplied by `s`. Other overflow policies use `s = 1.0`.
+
+Semantic outline bounds have one normative, rectangle-based authority. Let `F`
+be the aligned, unrotated continuous fill/path AABB in Reference Space. For a
+visible outline of full width `w`, let `r = w / 2` and define:
+
+```text
+O = inflate(F, r)
+```
+
+If the outline is invisible or `w = 0`, `O = F`. `O` is the normative
+pre-rotation fill-plus-outline semantic rectangle. Runtime transforms all four
+corners of `O` around the anchor geometric center using the declared clockwise
+rotation, then takes their continuous axis-aligned bounding box:
+
+```text
+R = AABB(rotateCorners(O, anchorCenter, rotation))
+```
+
+`R` is the normative rotated fill-plus-outline semantic bound. Overflow fit,
+ellipsis, shrink, and hide MUST use `R`; actual platform stroked-path bounds,
+GDI stroker bounds, and final raster pixels are not fit authority. The
+rectangle model is deterministic, platform-independent within the LeftPad
+contract, DPI-independent, and conservative. Actual raster geometry may occupy
+less space, but that MUST NOT turn a semantic NOT FIT result into FIT.
+
+Actual outline rasterization uses a centered stroke with round line joins and
+round line caps for text paths, runtime-symbol paths, and any future supported
+glyph vector path. Miter, miter-clipped, bevel, platform-default joins, square
+caps, and platform-default caps are forbidden. Round joins and caps keep the
+ideal centered stroke within the `w / 2` outward radius represented by `O`.
+Closed text glyphs use the same round-cap rule even when caps have no visible
+effect, so open runtime-symbol contours do not introduce another model. Actual
+vector stroke geometry is rasterization input only and MUST NOT redefine `O`,
+`R`, or any overflow decision.
+
+An outline whose resolved color alpha is zero is neither drawn nor included in
+semantic extent or the shadow-source silhouette, even when width is nonzero.
+Every nonzero outline alpha participates fully in semantic extent; low alpha
+MUST NOT weaken or remove its fit contribution.
+
+#### 7.2.2 Shadow model
+
+The raster shadow source silhouette is the rotated fill path plus any visible
+round-join/round-cap outline. The source is derived after element rotation.
+Its semantic base authority is the normative rectangle `R`, never an
+implementation-specific stroked-path bound. Runtime then applies
+`shadowRole.offsetX` and `offsetY` in final Reference screen axes (`+x` right,
+`+y` down), followed by finite blur support. Shadow offset is applied after
+rotation and MUST NOT rotate with the element. For example, offset `(4, 4)`
+still points screen-right and down when the element rotation is `90` degrees.
+
+`shadowRole.blur` is Gaussian sigma in Reference Space. For `blur > 0`, the
+finite kernel is truncated at plus or minus three sigma and
+`supportRadius = 3 * blur`. Alpha outside that support MUST be zero. Runtime
+may discretely sample the kernel, but MUST derive its radius from three sigma,
+not from an infinite tail, a platform-selected extent, or a DPI-specific
+cutoff. `blur = 0` is a hard shadow with no blur expansion; it MUST NOT cause
+division by zero, an arbitrary one-pixel blur, or shadow removal.
+
+At shrink candidate scale `s`, the authored shadow offsets and blur sigma are
+all multiplied by `s`, so the support radius is `3 * blur * s`. At scale `1.0`
+the authored values are used unchanged. Semantic offset, sigma, and support are
+resolved in Reference Space before Reference-to-Logical-to-Physical scaling;
+DPI changes sampling density only.
+
+Let `R` be the normative rotated fill-plus-visible-outline semantic bound,
+`offset = (dx, dy)`, and `radius = 3 * blur` after candidate scaling. The shadow
+support AABB is:
+
+```text
+S.left   = R.left   + dx - radius
+S.top    = R.top    + dy - radius
+S.right  = R.right  + dx + radius
+S.bottom = R.bottom + dy + radius
+```
+
+For visible fill or outline, the base fit contribution is `R`. For a visible
+shadow, the shadow contribution is `S`. Styled Semantic Bounds are `union(R,
+S)` when both base pixels and shadow are visible, `R` when only fill/outline is
+visible, and `S` when only shadow is visible. If fill, outline, and shadow are
+all invisible, the element has no visible pixels. Runtime MUST derive these
+bounds from the normative continuous rectangles, not by scanning final nonzero
+Physical pixels.
+
+A shadow whose resolved color alpha is zero is neither drawn nor included in
+semantic extent; its offset and blur do not affect fit. Every nonzero shadow
+alpha participates fully. A fill color whose alpha is zero contributes no fill
+pixels, but its glyph/path geometry remains available as the source for a
+visible outline or shadow. Consequently an outline-only or shadow-only dynamic
+element is valid. A visible shadow uses the glyph/path silhouette even when the
+fill itself is transparent, and includes the visible outline silhouette when
+one exists.
+
+#### 7.2.3 Effect pipeline and overflow interaction
+
+The following is the style-effect refinement of the existing dynamic layout
+pipeline; it preserves alignment-before-rotation and post-rotation fit:
+
+1. resolve fill geometry and style colors;
+2. apply the candidate scale;
+3. perform layout, wrapping, and declared `maxLines` generation;
+4. align the fill layout and derive its unrotated AABB `F`;
+5. derive `O = inflate(F, outlineWidth / 2)` for a visible outline, otherwise `O = F`;
+6. rotate the four corners of `O` around the anchor center and derive `R`;
+7. construct the round-join/round-cap raster outline and rotated shadow source;
+8. apply the shadow offset in Reference screen axes;
+9. derive finite three-sigma shadow rectangle `S`;
+10. union the applicable visible `R` and `S` contributions;
+11. make the overflow fit decision;
+12. transform Reference Space to Logical and Physical Space;
+13. rasterize the styled element;
+14. apply the final anchor safety clip.
+
+Each ellipsis candidate MUST recompute `F`, `O`, `R`, `S`, and Styled Semantic
+Bounds without consulting platform stroke bounds. Each shrink candidate MUST
+repeat layout and recompute `F`, scaled outline radius, `O`, `R`, scaled shadow
+offset and blur, `S`, and the final union; scaling a previously rotated AABB is
+forbidden. `hide` uses the same `F -> O -> R -> S` authority at authored scale
+`1.0`. Effects do not create additional logical lines; `maxLines` controls only
+line generation but effects participate in final styled fit.
+
+For `ellipsis`, `shrink`, and `hide`, any visible effect outside the anchor is a
+semantic NOT FIT result. Their final safety clip defends only against
+anti-alias fringe, finite-kernel discretization, font hinting, Physical
+rounding, and graphics overdraw; it MUST NOT be used to crop an ordinary
+outline or shadow into compliance. Under `clip`, fill, outline, and shadow may
+all exceed the anchor and the entire styled raster is strictly clipped to the
+anchor; Runtime MUST NOT clip only the text while allowing shadow leakage.
+`clip` uses the same `F -> O -> R -> S` semantic model but does not require its
+Styled Semantic Bounds to be contained by the anchor. For non-clip policies,
+round joins and caps ensure the ideal vector outline does not systematically
+escape the normative outline authority; only minor raster fringes may be
+removed by the safety clip.
+
+Styled effect geometry and fit decisions are DPI-independent. The same Theme,
+content, resolved font, and candidate scale MUST produce the same Reference
+bounds, ellipsis result, shrink scale, and show/hide decision at every DPI.
+Physical rasterization scales Reference-space outline width, shadow offset,
+sigma, and support, changing sample density without changing semantic bounds.
+
+The checked-in example uses outline width `2` and shadow blur `4`; at authored
+scale its semantic shadow support radius is therefore `12` Reference units.
 
 Styles are semantic roles rather than CSS or platform font names:
 

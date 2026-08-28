@@ -116,6 +116,30 @@ acceptable. `hide` is appropriate when authored-size content should be shown
 whole or not at all. If an element must preserve partial visible content,
 authors MUST select `ellipsis` or `clip`, not `shrink`.
 
+Reserve anchor space for the complete styled element, not only its fill. A
+visible outline is a centered stroke whose outward extent reduces the available
+fit area. A visible shadow's screen-axis offset and finite three-sigma blur
+support must also remain inside the anchor for `ellipsis`, `shrink`, and
+`hide`. Large outlines, offsets, or blur values therefore make shrink or hide
+more likely, especially for rotated labels.
+
+Authors MUST leave enough room around rotated text and glyphs for both outline
+and shadow support. `clip` is the only policy under which cropping these effects
+is intentional visual behavior; the final safety clip is not an authoring
+fallback for the other policies. A fully transparent outline or shadow does not
+affect fit, while any nonzero effect alpha contributes its complete semantic
+extent. Transparent fill may still produce a visible outline-only or
+shadow-only element, so it does not by itself eliminate the underlying glyph
+geometry.
+
+Outline space MUST be authored against the conservative semantic rectangle:
+take the aligned fill/path AABB, inflate every side by `outline.width / 2`, then
+rotate that rectangle around the anchor center and bound its four transformed
+corners. Do not assume that empty corners in a particular font's actual stroke
+or platform rasterizer will let the element fit a smaller anchor; actual
+stroked-path bounds never replace the contract rectangle for overflow
+decisions. Raster outlines use round joins and round caps.
+
 ## 6. Style and glyph extraction
 
 Extract style roles by purpose, not by a specific machine font name. Define
@@ -145,6 +169,8 @@ A decomposition is ready for later compiler/runtime phases only when:
 - required capabilities match every used feature;
 - rotated dynamic content has sufficient anchor area for its selected overflow
   policy, and intentional cropped output uses `clip`;
+- visible outline and finite shadow support fit the anchor after rotation, or
+  the selected policy intentionally handles the resulting NOT FIT condition;
 - package paths are safe and the hash set exactly equals referenced assets;
 - the V2 validator passes in both portable mode and the intended runtime
   capability context;

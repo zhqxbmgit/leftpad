@@ -348,6 +348,7 @@
           "additionalProperties": { "type": "string", "pattern": "^#[A-Fa-f0-9]{8}$" }
         },
         "outlineRoles": {
+          "description": "Centered-stroke effects in continuous Reference Space. A visible outline participates in Styled Semantic Geometry and overflow fit.",
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/identifier" },
           "additionalProperties": {
@@ -355,12 +356,18 @@
             "required": ["colorRole", "width"],
             "properties": {
               "colorRole": { "$ref": "#/$defs/identifier" },
-              "width": { "type": "number", "minimum": 0, "maximum": 32 }
+              "width": {
+                "description": "Full width of a centered stroke in Reference units. Semantic bounds inflate the aligned fill/path AABB by width/2 before rotation; actual stroker bounds never redefine fit. Raster joins and caps are round. Shrink scales width; zero adds no extent.",
+                "type": "number",
+                "minimum": 0,
+                "maximum": 32
+              }
             },
             "additionalProperties": false
           }
         },
         "shadowRoles": {
+          "description": "Finite Gaussian drop shadows in continuous Reference Space. Shadow semantic bounds use the normative rotated fill-plus-outline rectangle R as their base; visible three-sigma support participates in Styled Semantic Geometry and overflow fit.",
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/identifier" },
           "additionalProperties": {
@@ -368,9 +375,20 @@
             "required": ["colorRole", "offsetX", "offsetY", "blur"],
             "properties": {
               "colorRole": { "$ref": "#/$defs/identifier" },
-              "offsetX": { "type": "number" },
-              "offsetY": { "type": "number" },
-              "blur": { "type": "number", "minimum": 0, "maximum": 64 }
+              "offsetX": {
+                "description": "Screen-axis Reference-unit horizontal offset applied after element rotation; positive is right. Shrink scales it.",
+                "type": "number"
+              },
+              "offsetY": {
+                "description": "Screen-axis Reference-unit vertical offset applied after element rotation; positive is down. Shrink scales it.",
+                "type": "number"
+              },
+              "blur": {
+                "description": "Gaussian sigma in Reference units with finite three-sigma support. Shrink scales sigma; zero denotes a hard shadow without blur expansion.",
+                "type": "number",
+                "minimum": 0,
+                "maximum": 64
+              }
             },
             "additionalProperties": false
           }
