@@ -52,8 +52,8 @@ PROFILE_CONTRACTS = {
         profile_id="radial-8",
         slot_count=8,
         angles=(0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0),
-        status="experimental",
-        runtime_integrated=False,
+        status="stable",
+        runtime_integrated=True,
         required_geometry_fields=(
             "outerRadius",
             "innerRadius",

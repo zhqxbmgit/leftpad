@@ -219,7 +219,7 @@ class GenerateVisualPackTests(unittest.TestCase):
         self.assertFalse((self.output / "comparison.png").exists())
         self.assertIn("reference image not found", result.warnings[0])
 
-    def test_generator_packages_radial_8_and_reports_runtime_gap(self) -> None:
+    def test_generator_packages_runtime_integrated_radial_8(self) -> None:
         radial_8_workspace = Path(self.temporary_directory.name) / "radial-8-workspace"
         radial_8_config = _create_workspace(radial_8_workspace, profile="radial-8")
 
@@ -230,7 +230,7 @@ class GenerateVisualPackTests(unittest.TestCase):
         self.assertTrue(result.comparison_generated)
         self.assertEqual("radial-8", report.layout_profile)
         self.assertEqual(8, report.slot_count)
-        self.assertFalse(report.runtime_compatible)
+        self.assertTrue(report.runtime_compatible)
 
 
 if __name__ == "__main__":

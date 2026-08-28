@@ -1,0 +1,493 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leftpad.local/schemas/ui-theme-v2.schema.json",
+  "title": "LeftPad UI Theme Package Manifest V2",
+  "description": "Normative, closed manifest shape for reference-driven LeftPad UI themes. Cross-reference, coverage, bounds, ownership, capability-context, path, and hash-set rules are enforced by validate_theme_v2.py.",
+  "type": "object",
+  "required": [
+    "protocolVersion",
+    "packageRevision",
+    "id",
+    "name",
+    "surface",
+    "renderStrategy",
+    "layoutProfile",
+    "compatibleLayouts",
+    "referenceCanvas",
+    "referenceScale",
+    "states",
+    "layers",
+    "dynamicAnchors",
+    "styles",
+    "glyphs",
+    "elementOwnership",
+    "masks",
+    "fallback",
+    "capabilities",
+    "transitions",
+    "assetHashes"
+  ],
+  "properties": {
+    "protocolVersion": { "const": 2 },
+    "packageRevision": { "type": "integer", "minimum": 1 },
+    "id": { "$ref": "#/$defs/identifier" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "description": { "type": "string", "maxLength": 512 },
+    "exampleOnly": { "type": "boolean" },
+    "surface": { "const": "radial-overlay" },
+    "renderStrategy": {
+      "enum": ["full-state-frame", "layered-state"]
+    },
+    "authoring": {
+      "type": "object",
+      "required": ["method"],
+      "properties": {
+        "method": { "enum": ["external-artwork", "procedural", "mixed"] }
+      },
+      "additionalProperties": false
+    },
+    "layoutProfile": { "$ref": "#/$defs/layoutProfile" },
+    "compatibleLayouts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/layoutProfile" }
+    },
+    "referenceCanvas": { "$ref": "#/$defs/canvas" },
+    "referenceScale": {
+      "type": "object",
+      "required": ["logicalWidth", "logicalHeight", "fit", "origin"],
+      "properties": {
+        "logicalWidth": { "type": "number", "exclusiveMinimum": 0 },
+        "logicalHeight": { "type": "number", "exclusiveMinimum": 0 },
+        "fit": { "const": "contain" },
+        "origin": {
+          "type": "object",
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "states": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/stateName" },
+      "additionalProperties": { "$ref": "#/$defs/state" }
+    },
+    "layers": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/layer" }
+    },
+    "dynamicAnchors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/anchor" }
+    },
+    "styles": { "$ref": "#/$defs/styles" },
+    "glyphs": { "$ref": "#/$defs/glyphs" },
+    "elementOwnership": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/elementOwnership" }
+    },
+    "masks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/mask" }
+    },
+    "visualRegions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/visualRegion" }
+    },
+    "fallback": {
+      "type": "object",
+      "required": ["onInvalidCandidate", "onUnsupportedVersion", "startupThemeId"],
+      "properties": {
+        "onInvalidCandidate": { "const": "retain-active" },
+        "onUnsupportedVersion": { "const": "retain-active" },
+        "startupThemeId": { "$ref": "#/$defs/identifier" }
+      },
+      "additionalProperties": false
+    },
+    "capabilities": {
+      "type": "object",
+      "required": ["required", "optional"],
+      "properties": {
+        "required": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/capability" }
+        },
+        "optional": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/capability" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "transitions": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": { "mode": { "const": "instant" } },
+      "additionalProperties": false
+    },
+    "assetHashes": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/packagePath" },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[A-Fa-f0-9]{64}$"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "renderStrategy": { "const": "full-state-frame" } },
+        "required": ["renderStrategy"]
+      },
+      "then": {
+        "properties": { "compatibleLayouts": { "maxItems": 1 } }
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
+    },
+    "layoutProfile": { "enum": ["radial-6", "radial-8"] },
+    "stateName": {
+      "type": "string",
+      "pattern": "^(idle|selected-[1-8]|pressed-[1-8]|confirm|cancel|opening|closing)$"
+    },
+    "packagePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "pattern": "^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "capability": {
+      "enum": [
+        "fullStateFrame",
+        "layeredState",
+        "dynamicAnchors",
+        "themeGlyphAssets",
+        "visualRegions",
+        "maskAssets",
+        "occlusionLayers",
+        "safeDynamicSurfaces",
+        "instantTransitions",
+        "futureStates"
+      ]
+    },
+    "canvas": {
+      "type": "object",
+      "required": ["width", "height", "colorSpace", "alphaMode"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1, "maximum": 8192 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 8192 },
+        "colorSpace": { "const": "sRGB" },
+        "alphaMode": { "const": "straight" }
+      },
+      "additionalProperties": false
+    },
+    "bounds": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "state": {
+      "type": "object",
+      "required": ["slotId", "assets"],
+      "properties": {
+        "slotId": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 1, "maximum": 8 }
+          ]
+        },
+        "assets": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/identifier" },
+          "additionalProperties": { "$ref": "#/$defs/packagePath" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "layer": {
+      "type": "object",
+      "required": ["id", "kind", "zIndex", "bounds", "visibleStates", "ownership", "required"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "kind": {
+          "enum": ["stateAsset", "staticAsset", "dynamicText", "dynamicGlyph", "occlusionAsset", "safeSurfaceAsset"]
+        },
+        "asset": { "$ref": "#/$defs/packagePath" },
+        "zIndex": { "type": "integer", "minimum": -32768, "maximum": 32767 },
+        "bounds": { "$ref": "#/$defs/bounds" },
+        "visibleStates": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "ownership": { "enum": ["STATIC", "DYNAMIC", "STATE_ASSET"] },
+        "required": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "enum": ["staticAsset", "occlusionAsset", "safeSurfaceAsset"] } }, "required": ["kind"] },
+          "then": { "required": ["asset"] }
+        },
+        {
+          "if": { "properties": { "kind": { "enum": ["stateAsset", "dynamicText", "dynamicGlyph"] } }, "required": ["kind"] },
+          "then": { "not": { "required": ["asset"] } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "anchor": {
+      "type": "object",
+      "required": [
+        "id", "layerId", "role", "bounds", "horizontalAlignment", "verticalAlignment",
+        "overflowPolicy", "minimumScale", "rotation", "visibleStates", "styleRole"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "layerId": { "$ref": "#/$defs/identifier" },
+        "role": { "enum": ["text", "glyph"] },
+        "bounds": { "$ref": "#/$defs/bounds" },
+        "horizontalAlignment": { "enum": ["left", "center", "right"] },
+        "verticalAlignment": { "enum": ["top", "center", "bottom"] },
+        "overflowPolicy": { "enum": ["ellipsis", "shrink", "clip", "hide"] },
+        "minimumScale": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "rotation": { "type": "number", "minimum": -360, "maximum": 360 },
+        "maxLines": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "visibleStates": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "styleRole": { "$ref": "#/$defs/identifier" },
+        "glyphRole": { "$ref": "#/$defs/identifier" },
+        "safeSurface": { "$ref": "#/$defs/identifier" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "role": { "const": "glyph" } }, "required": ["role"] },
+          "then": { "required": ["glyphRole"] }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "styles": {
+      "type": "object",
+      "required": ["fontRoles", "colorRoles", "outlineRoles", "shadowRoles", "dynamicRoles"],
+      "properties": {
+        "fontRoles": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/identifier" },
+          "additionalProperties": { "enum": ["ui", "display", "monospace", "symbol"] }
+        },
+        "colorRoles": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/identifier" },
+          "additionalProperties": { "type": "string", "pattern": "^#[A-Fa-f0-9]{8}$" }
+        },
+        "outlineRoles": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/identifier" },
+          "additionalProperties": {
+            "type": "object",
+            "required": ["colorRole", "width"],
+            "properties": {
+              "colorRole": { "$ref": "#/$defs/identifier" },
+              "width": { "type": "number", "minimum": 0, "maximum": 32 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "shadowRoles": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/identifier" },
+          "additionalProperties": {
+            "type": "object",
+            "required": ["colorRole", "offsetX", "offsetY", "blur"],
+            "properties": {
+              "colorRole": { "$ref": "#/$defs/identifier" },
+              "offsetX": { "type": "number" },
+              "offsetY": { "type": "number" },
+              "blur": { "type": "number", "minimum": 0, "maximum": 64 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "dynamicRoles": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/identifier" },
+          "additionalProperties": {
+            "type": "object",
+            "required": ["fontRole", "colorRole", "size"],
+            "properties": {
+              "fontRole": { "$ref": "#/$defs/identifier" },
+              "colorRole": { "$ref": "#/$defs/identifier" },
+              "outlineRole": { "$ref": "#/$defs/identifier" },
+              "shadowRole": { "$ref": "#/$defs/identifier" },
+              "size": { "type": "number", "exclusiveMinimum": 0, "maximum": 512 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "glyphSource": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "styleRole"],
+          "properties": {
+            "type": { "const": "text" },
+            "styleRole": { "$ref": "#/$defs/identifier" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "assets"],
+          "properties": {
+            "type": { "const": "themeAsset" },
+            "assets": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": { "$ref": "#/$defs/identifier" },
+              "additionalProperties": { "$ref": "#/$defs/packagePath" }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "symbolSet"],
+          "properties": {
+            "type": { "const": "runtimeSymbol" },
+            "symbolSet": { "$ref": "#/$defs/identifier" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "glyphFamily": {
+      "type": "object",
+      "required": ["sources"],
+      "properties": {
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/glyphSource" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "glyphs": {
+      "type": "object",
+      "required": ["roles"],
+      "properties": {
+        "roles": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/identifier" },
+          "additionalProperties": {
+            "type": "object",
+            "required": ["keyboard", "keyboardShortcut", "ds4", "genericAction"],
+            "properties": {
+              "keyboard": { "$ref": "#/$defs/glyphFamily" },
+              "keyboardShortcut": { "$ref": "#/$defs/glyphFamily" },
+              "ds4": { "$ref": "#/$defs/glyphFamily" },
+              "genericAction": { "$ref": "#/$defs/glyphFamily" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "elementOwnership": {
+      "type": "object",
+      "required": ["element", "owner", "layerId"],
+      "properties": {
+        "element": { "$ref": "#/$defs/identifier" },
+        "owner": { "enum": ["STATIC", "DYNAMIC", "STATE_ASSET"] },
+        "layerId": { "$ref": "#/$defs/identifier" },
+        "contentKey": { "$ref": "#/$defs/identifier" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "owner": { "const": "DYNAMIC" } }, "required": ["owner"] },
+          "then": { "required": ["contentKey"] }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "mask": {
+      "type": "object",
+      "required": ["id", "asset", "purpose", "bounds", "appliesTo"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "asset": { "$ref": "#/$defs/packagePath" },
+        "purpose": { "enum": ["safeSurface", "compileClip", "debugRegion"] },
+        "bounds": { "$ref": "#/$defs/bounds" },
+        "appliesTo": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "visualRegion": {
+      "type": "object",
+      "required": ["id", "slotId", "label", "polygon"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "slotId": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "polygon": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["x", "y"],
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

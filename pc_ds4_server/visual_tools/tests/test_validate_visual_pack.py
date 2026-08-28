@@ -138,18 +138,18 @@ class VisualPackValidatorTests(unittest.TestCase):
         self.assertIn("VISUAL PACK VALID", format_valid_report(report))
         self.assertIn("verification.json not found", report.warnings[0])
 
-    def test_valid_radial_8_pack_passes_with_runtime_gap(self) -> None:
+    def test_valid_radial_8_pack_passes_as_runtime_integrated(self) -> None:
         _create_pack(self.pack, "radial-8")
 
         report = validate_visual_pack(self.pack)
 
         self.assertEqual("radial-8", report.layout_profile)
         self.assertEqual(8, report.slot_count)
-        self.assertEqual("experimental", report.profile_status)
-        self.assertFalse(report.runtime_compatible)
+        self.assertEqual("stable", report.profile_status)
+        self.assertTrue(report.runtime_compatible)
         formatted = format_valid_report(report)
-        self.assertIn("Runtime Compatible:\nNO", formatted)
-        self.assertIn("Runtime Capability Gap:\nEXISTS", formatted)
+        self.assertIn("Runtime Compatible:\nYES", formatted)
+        self.assertIn("Runtime Capability Gap:\nNONE", formatted)
 
     def test_radial_8_with_slot_count_6_fails(self) -> None:
         _create_pack(self.pack, "radial-8", manifest_slot_count=6)

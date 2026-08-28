@@ -1,0 +1,349 @@
+{
+  "protocolVersion": 2,
+  "packageRevision": 1,
+  "id": "reference-theme-v2-example",
+  "name": "Reference Theme V2 Contract Example",
+  "description": "Non-production manifest-only fixture; asset paths and hashes illustrate the contract and are not installed runtime data.",
+  "exampleOnly": true,
+  "surface": "radial-overlay",
+  "renderStrategy": "full-state-frame",
+  "authoring": {
+    "method": "external-artwork"
+  },
+  "layoutProfile": "radial-6",
+  "compatibleLayouts": [
+    "radial-6"
+  ],
+  "referenceCanvas": {
+    "width": 1254,
+    "height": 1254,
+    "colorSpace": "sRGB",
+    "alphaMode": "straight"
+  },
+  "referenceScale": {
+    "logicalWidth": 1254,
+    "logicalHeight": 1254,
+    "fit": "contain",
+    "origin": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "states": {
+    "idle": {
+      "slotId": null,
+      "assets": {
+        "stateFrame": "states/idle.png"
+      }
+    },
+    "selected-1": {
+      "slotId": 1,
+      "assets": {
+        "stateFrame": "states/selected-1.png"
+      }
+    },
+    "selected-2": {
+      "slotId": 2,
+      "assets": {
+        "stateFrame": "states/selected-2.png"
+      }
+    },
+    "selected-3": {
+      "slotId": 3,
+      "assets": {
+        "stateFrame": "states/selected-3.png"
+      }
+    },
+    "selected-4": {
+      "slotId": 4,
+      "assets": {
+        "stateFrame": "states/selected-4.png"
+      }
+    },
+    "selected-5": {
+      "slotId": 5,
+      "assets": {
+        "stateFrame": "states/selected-5.png"
+      }
+    },
+    "selected-6": {
+      "slotId": 6,
+      "assets": {
+        "stateFrame": "states/selected-6.png"
+      }
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "kind": "staticAsset",
+      "asset": "layers/background.png",
+      "zIndex": 0,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1254,
+        "height": 1254
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "STATIC",
+      "required": true
+    },
+    {
+      "id": "stateFrame",
+      "kind": "stateAsset",
+      "zIndex": 10,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1254,
+        "height": 1254
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "STATE_ASSET",
+      "required": true
+    },
+    {
+      "id": "actionLabelLayer",
+      "kind": "dynamicText",
+      "zIndex": 20,
+      "bounds": {
+        "x": 477,
+        "y": 810,
+        "width": 300,
+        "height": 90
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "actionGlyphLayer",
+      "kind": "dynamicGlyph",
+      "zIndex": 21,
+      "bounds": {
+        "x": 567,
+        "y": 515,
+        "width": 120,
+        "height": 120
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    }
+  ],
+  "dynamicAnchors": [
+    {
+      "id": "actionLabel",
+      "layerId": "actionLabelLayer",
+      "role": "text",
+      "bounds": {
+        "x": 477,
+        "y": 810,
+        "width": 300,
+        "height": 90
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "shrink",
+      "minimumScale": 0.65,
+      "rotation": 0,
+      "maxLines": 2,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "actionLabel",
+      "safeSurface": "centerSafeSurface"
+    },
+    {
+      "id": "actionGlyph",
+      "layerId": "actionGlyphLayer",
+      "role": "glyph",
+      "bounds": {
+        "x": 567,
+        "y": 515,
+        "width": 120,
+        "height": 120
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "shrink",
+      "minimumScale": 0.75,
+      "rotation": 0,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "actionGlyphText",
+      "glyphRole": "primaryAction",
+      "safeSurface": "centerSafeSurface"
+    }
+  ],
+  "styles": {
+    "fontRoles": {
+      "interface": "ui",
+      "symbol": "symbol"
+    },
+    "colorRoles": {
+      "primaryText": "#F4F8FFFF",
+      "outlineDark": "#071018E6",
+      "shadowDark": "#00000099"
+    },
+    "outlineRoles": {
+      "legible": {
+        "colorRole": "outlineDark",
+        "width": 2
+      }
+    },
+    "shadowRoles": {
+      "soft": {
+        "colorRole": "shadowDark",
+        "offsetX": 0,
+        "offsetY": 2,
+        "blur": 4
+      }
+    },
+    "dynamicRoles": {
+      "actionLabel": {
+        "fontRole": "interface",
+        "colorRole": "primaryText",
+        "outlineRole": "legible",
+        "shadowRole": "soft",
+        "size": 34
+      },
+      "actionGlyphText": {
+        "fontRole": "symbol",
+        "colorRole": "primaryText",
+        "outlineRole": "legible",
+        "size": 52
+      }
+    }
+  },
+  "glyphs": {
+    "roles": {
+      "primaryAction": {
+        "keyboard": {
+          "sources": [
+            {
+              "type": "text",
+              "styleRole": "actionGlyphText"
+            },
+            {
+              "type": "runtimeSymbol",
+              "symbolSet": "leftpad-basic"
+            }
+          ]
+        },
+        "keyboardShortcut": {
+          "sources": [
+            {
+              "type": "text",
+              "styleRole": "actionGlyphText"
+            }
+          ]
+        },
+        "ds4": {
+          "sources": [
+            {
+              "type": "runtimeSymbol",
+              "symbolSet": "leftpad-ds4"
+            },
+            {
+              "type": "text",
+              "styleRole": "actionGlyphText"
+            }
+          ]
+        },
+        "genericAction": {
+          "sources": [
+            {
+              "type": "runtimeSymbol",
+              "symbolSet": "leftpad-basic"
+            },
+            {
+              "type": "text",
+              "styleRole": "actionGlyphText"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "elementOwnership": [
+    {
+      "element": "backgroundArt",
+      "owner": "STATIC",
+      "layerId": "background"
+    },
+    {
+      "element": "stateArt",
+      "owner": "STATE_ASSET",
+      "layerId": "stateFrame"
+    },
+    {
+      "element": "actionLabel",
+      "owner": "DYNAMIC",
+      "layerId": "actionLabelLayer",
+      "contentKey": "selectedActionLabel"
+    },
+    {
+      "element": "actionGlyph",
+      "owner": "DYNAMIC",
+      "layerId": "actionGlyphLayer",
+      "contentKey": "selectedActionGlyph"
+    }
+  ],
+  "masks": [
+    {
+      "id": "centerSafeSurface",
+      "asset": "masks/center-safe.png",
+      "purpose": "safeSurface",
+      "bounds": {
+        "x": 430,
+        "y": 430,
+        "width": 394,
+        "height": 394
+      },
+      "appliesTo": [
+        "actionLabelLayer",
+        "actionGlyphLayer"
+      ]
+    }
+  ],
+  "visualRegions": [],
+  "fallback": {
+    "onInvalidCandidate": "retain-active",
+    "onUnsupportedVersion": "retain-active",
+    "startupThemeId": "radial-v5"
+  },
+  "capabilities": {
+    "required": [
+      "fullStateFrame",
+      "dynamicAnchors",
+      "maskAssets",
+      "instantTransitions"
+    ],
+    "optional": []
+  },
+  "transitions": {
+    "mode": "instant"
+  },
+  "assetHashes": {
+    "layers/background.png": "1111111111111111111111111111111111111111111111111111111111111111",
+    "masks/center-safe.png": "2222222222222222222222222222222222222222222222222222222222222222",
+    "states/idle.png": "3333333333333333333333333333333333333333333333333333333333333333",
+    "states/selected-1.png": "4444444444444444444444444444444444444444444444444444444444444444",
+    "states/selected-2.png": "5555555555555555555555555555555555555555555555555555555555555555",
+    "states/selected-3.png": "6666666666666666666666666666666666666666666666666666666666666666",
+    "states/selected-4.png": "7777777777777777777777777777777777777777777777777777777777777777",
+    "states/selected-5.png": "8888888888888888888888888888888888888888888888888888888888888888",
+    "states/selected-6.png": "9999999999999999999999999999999999999999999999999999999999999999"
+  }
+}

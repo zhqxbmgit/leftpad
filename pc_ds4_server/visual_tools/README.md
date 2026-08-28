@@ -123,6 +123,29 @@ does not create `comparison.png`. Existing output is rejected unless `--force`
 is supplied. See `examples/radial-6-theme-config.json` for the supported config
 shape.
 
+## UI Theme Package V2 contract (Phase 0)
+
+V2 is currently a schema, documentation, and independent validation contract;
+it is not connected to runtime discovery or rendering. The normative files are:
+
+- `schemas/ui-theme-v2.schema.json` — closed Draft 2020-12 manifest schema;
+- `THEME_RUNTIME_PROTOCOL_V2.md` — state, layer, anchor, glyph, ownership,
+  fallback, capability, path, hash, and V1/V2 compatibility semantics;
+- `REFERENCE_THEME_DECOMPOSITION_SPEC.md` — reference-to-package authoring rules;
+- `examples/reference-theme-v2.example.json` — non-production manifest fixture;
+- `validate_theme_v2.py` — schema/semantic validator with optional asset hashing.
+
+Manifest-only validation does not require example PNG files:
+
+```powershell
+python validate_theme_v2.py examples/reference-theme-v2.example.json
+```
+
+Use `--check-assets` for a production candidate. Capability-context validation
+is enabled by repeating `--supported-capability`; otherwise the tool validates
+portable package coherence without claiming current V2 runtime support. V1
+validation and generation commands below remain unchanged.
+
 ## Supported Profiles
 
 The current Toolchain accepts:
@@ -130,16 +153,15 @@ The current Toolchain accepts:
 | Profile | Slots | Angles | Toolchain status | Runtime |
 | --- | ---: | --- | --- | --- |
 | `radial-6` | 6 | `0, 60, 120, 180, 240, 300` | stable | integrated |
-| `radial-8` | 8 | `0, 45, 90, 135, 180, 225, 270, 315` | experimental | **not integrated** |
+| `radial-8` | 8 | `0, 45, 90, 135, 180, 225, 270, 315` | stable | integrated |
 
 Both profiles use manifest version `1`, `canonical-transform`, and a
 `1254x1254 RGBA` master. Profile and slot count are a strict pair:
 `radial-6 + 6` and `radial-8 + 8` are valid; crossed combinations fail.
 
-`radial-8` passing Validator, Generator, or Comparison means the offline
-Toolchain contract is valid. It does not mean the current Runtime can load the
-pack. Validator output explicitly reports `Runtime Capability Gap: EXISTS` and
-`Runtime Compatible: NO`. See
+`radial-8` is supported by both the offline Toolchain and the current Runtime.
+Validator output reports `Runtime Capability Gap: NONE` and
+`Runtime Compatible: YES`. See
 `../visual_prototypes/layout_profiles/RADIAL_8_LAYOUT_PROFILE.md`.
 
 ## Validation rules

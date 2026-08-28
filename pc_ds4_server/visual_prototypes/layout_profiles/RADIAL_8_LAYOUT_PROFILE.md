@@ -6,14 +6,14 @@
 | --- | --- |
 | `layoutProfile` | `radial-8` |
 | Layout family | `radial` |
-| Status | `experimental` |
-| Runtime | `not integrated` |
-| Runtime Capability Gap | `EXISTS` |
+| Status | `stable` |
+| Runtime | `integrated` |
+| Runtime Capability Gap | `NONE` |
 
-`radial-8` is an offline Visual Pack Toolchain profile. A pack may pass schema,
-Validator, Generator, and Comparison checks while remaining unavailable to the
-current LeftPad Runtime. Toolchain validity must never be reported as Runtime
-compatibility.
+`radial-8` is supported by both the offline Visual Pack Toolchain and the
+current LeftPad Runtime. Schema, Validator, Generator, and Comparison checks
+therefore report the same integrated capability already established by the
+runtime registry and integration tests.
 
 ## Topology
 
@@ -34,7 +34,7 @@ Recommended clockwise ordering from top:
 
 The ordered values in `layout.json.slotAnglesDegrees` are authoritative. Each
 `slots[]` record must use the same ID/order and angle as the corresponding
-entry in that array. The current experimental contract uses the evenly spaced
+entry in that array. The current stable contract uses the evenly spaced
 reference angles above.
 
 ## Geometry Contract
@@ -101,7 +101,8 @@ It must not contain:
 - DS4 mappings;
 - user-specific data.
 
-Dynamic Runtime content is outside this experimental layout profile.
+Dynamic Runtime content remains outside the V1 layout-profile asset contract;
+that restriction is independent of radial-8 runtime integration.
 
 ## Reference Image Analysis
 
@@ -122,6 +123,7 @@ The offline Toolchain may:
 - package designer-exported radial-8 assets;
 - generate Reference/Base/Selected/All Slots comparison sheets.
 
-The current Runtime may not discover, select, compose, or execute radial-8.
-Runtime integration requires a separate capability task and is explicitly out
-of scope for this profile definition.
+The current Runtime may discover, select, compose, and execute installed V1
+radial-8 packs through the existing runtime session. This document does not
+change geometry, slot ordering, mappings, actions, assets, or runtime behavior;
+it only aligns the offline capability declaration with the integrated baseline.
