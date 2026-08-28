@@ -430,7 +430,7 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
         NativeSize updateSize)
     {
         var key = new DpiDiagnosticKey(
-            cache.Definition.Manifest.Id,
+            cache.Plan.ThemeId,
             settings.ScalePercent,
             metrics.CanvasSize,
             cache.TargetSize,
@@ -457,9 +457,9 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
             windowBounds.Size == composition.Size;
 
         _log(
-            $"[环形菜单 DPI] pack={cache.Definition.Manifest.Id}; " +
-            $"master={cache.Definition.LayoutDefinition.Canvas.Width}x" +
-            $"{cache.Definition.LayoutDefinition.Canvas.Height}; " +
+            $"[环形菜单 DPI] pack={cache.Plan.ThemeId}; " +
+            $"master={cache.Plan.LayoutDefinition.Canvas.Width}x" +
+            $"{cache.Plan.LayoutDefinition.Canvas.Height}; " +
             $"scalePercent={settings.ScalePercent}; logicalTarget={metrics.CanvasSize}x" +
             $"{metrics.CanvasSize}; dpi={dpi}; deviceDpi={DeviceDpi}; " +
             $"windowDpi={windowDpi}; dpiScale={RadialDpiScaling.GetScale(dpi):0.###}; " +

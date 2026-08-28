@@ -21,4 +21,8 @@
     <ProjectReference Include="..\PcDs4Server\PcDs4Server.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="TestData\phase1-parent-render-baseline.txt" />
+  </ItemGroup>
+
 </Project>

@@ -69,7 +69,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
 {
     public const int SupersampleScale = 4;
 
-    private readonly RadialVisualPackDefinition _definition;
+    private readonly NormalizedRenderPlan _plan;
     private readonly FontFamily _fontFamily;
     private Bitmap? _content;
     private DynamicContentKey? _key;
@@ -78,8 +78,15 @@ internal sealed class RadialDynamicContentCache : IDisposable
     public RadialDynamicContentCache(
         RadialVisualPackDefinition definition,
         FontFamily fontFamily)
+        : this(V1VisualPackCompatibilityAdapter.BuildPlan(definition), fontFamily)
     {
-        _definition = definition ?? throw new ArgumentNullException(nameof(definition));
+    }
+
+    public RadialDynamicContentCache(
+        NormalizedRenderPlan plan,
+        FontFamily fontFamily)
+    {
+        _plan = plan ?? throw new ArgumentNullException(nameof(plan));
         _fontFamily = fontFamily ?? throw new ArgumentNullException(nameof(fontFamily));
     }
 
@@ -95,7 +102,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
 
     internal int BuildCount { get; private set; }
     internal int RenderedSlotCount { get; private set; }
-    internal RadialVisualPackDefinition Definition => _definition;
+    internal NormalizedRenderPlan Plan => _plan;
 
     public bool Ensure(RadialMenuSettings settings, int targetSize)
     {
@@ -110,7 +117,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
             metrics.FontSize * outputScale,
             outputScale,
             settings.TextAlpha,
-            settings.GetProfileMappings(_definition.LayoutDefinition.ProfileId));
+            settings.GetProfileMappings(_plan.LayoutDefinition.ProfileId));
         if (_content != null && key == _key) return false;
 
         Bitmap replacement = BuildContent(key);
@@ -154,7 +161,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
 
     private void DrawSlotContent(Graphics graphics, DynamicContentKey key, int workingSize)
     {
-        LayoutDefinition layout = _definition.LayoutDefinition;
+        LayoutDefinition layout = _plan.LayoutDefinition;
         float masterScale = workingSize / (float)layout.Canvas.Width;
         float primaryWidth = 270f * masterScale;
         float primaryHeight = 92f * masterScale;
@@ -184,7 +191,10 @@ internal sealed class RadialDynamicContentCache : IDisposable
                 : RadialSlotMapping.None;
             RadialActionDisplayText display = RadialActionDisplayText.FromMapping(
                 mapping);
-            PointF primaryAnchor = _definition.ScalePoint(slot.GlyphAnchor, workingSize);
+            float anchorScale = workingSize / (float)layout.Canvas.Width;
+            PointF primaryAnchor = new(
+                (float)slot.GlyphAnchor.X * anchorScale,
+                (float)slot.GlyphAnchor.Y * anchorScale);
 
             DrawFittedText(
                 graphics,

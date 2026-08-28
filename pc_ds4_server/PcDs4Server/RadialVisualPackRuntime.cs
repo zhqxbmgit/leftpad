@@ -5,47 +5,71 @@ namespace PcDs4Server;
 
 internal sealed class RadialVisualPackSession : IDisposable
 {
+    private readonly RuntimeRenderBundleBuilder _bundleBuilder;
+    private RuntimeRenderBundle _bundle;
     private bool _disposed;
 
     public RadialVisualPackSession(
         RadialVisualPackDefinition definition,
         RadialMenuSettings settings,
         int targetSize)
+        : this(
+            definition,
+            V1VisualPackCompatibilityAdapter.BuildPlan(definition),
+            settings,
+            targetSize,
+            RuntimeRenderBundle.Build)
+    {
+    }
+
+    internal RadialVisualPackSession(
+        RadialVisualPackDefinition definition,
+        NormalizedRenderPlan plan,
+        RadialMenuSettings settings,
+        int targetSize,
+        RuntimeRenderBundleBuilder bundleBuilder)
     {
         Definition = definition ?? throw new ArgumentNullException(nameof(definition));
-        Definition.EnsureRuntimeSessionSupported();
+        Plan = plan ?? throw new ArgumentNullException(nameof(plan));
+        ArgumentNullException.ThrowIfNull(settings);
+        _bundleBuilder = bundleBuilder ?? throw new ArgumentNullException(nameof(bundleBuilder));
+        if (!string.Equals(Definition.Manifest.Id, Plan.ThemeId, StringComparison.Ordinal))
+            throw new InvalidDataException("V1 definition and normalized plan theme IDs do not match.");
+
         Mappings = settings.GetProfileMappings(LayoutDefinition.ProfileId);
-        AssetCache = new RadialVisualPackCache(definition, targetSize);
-        RadialDynamicContentCache? dynamicContent = null;
-        try
-        {
-            dynamicContent = new RadialDynamicContentCache(
-                definition,
-                WindowsUiFontResolver.ResolveUiFontFamily());
-            dynamicContent.Ensure(settings, targetSize);
-            DynamicContent = dynamicContent;
-        }
-        catch
-        {
-            dynamicContent?.Dispose();
-            AssetCache.Dispose();
-            throw;
-        }
+        _bundle = _bundleBuilder(Plan, settings, targetSize)
+            ?? throw new InvalidDataException("Runtime render bundle builder returned no bundle.");
     }
 
     public RadialVisualPackDefinition Definition { get; }
-    public LayoutDefinition LayoutDefinition => Definition.LayoutDefinition;
-    public RadialVisualPackCache AssetCache { get; }
-    public RadialDynamicContentCache DynamicContent { get; }
+    public NormalizedRenderPlan Plan { get; }
+    public LayoutDefinition LayoutDefinition => Plan.LayoutDefinition;
+    public RuntimeRenderBundle Bundle => _bundle;
+    public RadialVisualPackCache AssetCache => _bundle.AssetCache;
+    public RadialDynamicContentCache DynamicContent => _bundle.DynamicContent;
     public RadialSlotMappings Mappings { get; private set; }
-    public string PackId => Definition.Manifest.Id;
+    public string PackId => Plan.ThemeId;
     internal bool IsDisposed => _disposed;
 
     public void EnsureContent(RadialMenuSettings settings, int targetSize)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        AssetCache.Rebuild(targetSize);
-        DynamicContent.Ensure(settings, targetSize);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        if (_bundle.TargetSize != targetSize)
+        {
+            RadialSlotMappings replacementMappings = settings.GetProfileMappings(
+                LayoutDefinition.ProfileId);
+            RuntimeRenderBundle replacement = _bundleBuilder(Plan, settings, targetSize)
+                ?? throw new InvalidDataException("Runtime render bundle builder returned no bundle.");
+            RuntimeRenderBundle previous = _bundle;
+            _bundle = replacement;
+            Mappings = replacementMappings;
+            previous.Dispose();
+            return;
+        }
+
+        _bundle.EnsureDynamicContent(settings);
         Mappings = settings.GetProfileMappings(LayoutDefinition.ProfileId);
     }
 
@@ -53,8 +77,7 @@ internal sealed class RadialVisualPackSession : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        DynamicContent.Dispose();
-        AssetCache.Dispose();
+        _bundle.Dispose();
     }
 }
 
@@ -199,7 +222,7 @@ internal sealed class RadialVisualPackRuntime : IDisposable
             _log(
                 $"[视觉主题] Active pack '{session.PackId}' refresh failed for " +
                 $"requested ID '{requestedId}': {exception.Message}");
-            return null;
+            return session;
         }
     }
 

@@ -317,16 +317,24 @@ internal sealed class RadialVisualPackCache : IDisposable
     private bool _disposed;
 
     public RadialVisualPackCache(RadialVisualPackDefinition definition, int targetSize)
+        : this(V1VisualPackCompatibilityAdapter.BuildPlan(definition), targetSize)
     {
-        ArgumentNullException.ThrowIfNull(definition);
+    }
+
+    public RadialVisualPackCache(NormalizedRenderPlan plan, int targetSize)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
         if (targetSize <= 0) throw new ArgumentOutOfRangeException(nameof(targetSize));
 
-        Definition = definition;
-        _baseMaster = DecodeMaster(definition.BasePath);
+        if (plan.RenderModel is not LegacyCanonicalSelectedPlan legacy)
+            throw new NotSupportedException($"Unsupported render model: {plan.RenderModel.GetType().Name}");
+
+        Plan = plan;
+        _baseMaster = DecodeMaster(legacy.BaseLayer.AssetPath);
         Bitmap? selectedMaster = null;
         try
         {
-            selectedMaster = DecodeMaster(definition.SelectedPath);
+            selectedMaster = DecodeMaster(legacy.CanonicalSelectedAssetPath);
             _selectedMaster = selectedMaster;
             Rebuild(targetSize);
         }
@@ -338,7 +346,7 @@ internal sealed class RadialVisualPackCache : IDisposable
         }
     }
 
-    public RadialVisualPackDefinition Definition { get; }
+    public NormalizedRenderPlan Plan { get; }
     public int TargetSize { get; private set; }
     public Bitmap ScaledBase { get; private set; } = null!;
     internal int SelectedSlotCount => _selectedSlots.Length;
@@ -349,7 +357,7 @@ internal sealed class RadialVisualPackCache : IDisposable
         if (targetSize <= 0) throw new ArgumentOutOfRangeException(nameof(targetSize));
         if (TargetSize == targetSize) return;
 
-        LayoutDefinition layout = Definition.LayoutDefinition;
+        LayoutDefinition layout = Plan.LayoutDefinition;
         Bitmap? scaledBase = null;
         var selectedSlots = new List<Bitmap>(layout.SlotCount);
         Bitmap[] replacementSelectedSlots;
@@ -391,7 +399,7 @@ internal sealed class RadialVisualPackCache : IDisposable
     public Bitmap GetSelectedSlot(int slot)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (slot < 1 || slot > Definition.LayoutDefinition.SlotCount)
+        if (slot < 1 || slot > Plan.LayoutDefinition.SlotCount)
             throw new ArgumentOutOfRangeException(nameof(slot));
         return _selectedSlots[slot - 1];
     }

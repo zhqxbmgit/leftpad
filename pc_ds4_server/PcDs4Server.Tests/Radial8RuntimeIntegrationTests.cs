@@ -24,8 +24,8 @@ public sealed class Radial8RuntimeIntegrationTests
         Assert.True(controller.UpdateSelectionForCursor(new Point(429, 429)));
 
         Assert.Same(definition.LayoutDefinition, session.LayoutDefinition);
-        Assert.Same(definition, session.AssetCache.Definition);
-        Assert.Same(definition, session.DynamicContent.Definition);
+        Assert.Same(session.Plan, session.AssetCache.Plan);
+        Assert.Same(session.Plan, session.DynamicContent.Plan);
         Assert.Same(session.LayoutDefinition, controller.CurrentLayoutDefinition);
         Assert.Same(settings.GetProfileMappings("radial-8"), session.Mappings);
         Assert.Equal("radial-8", controller.ActiveSettings.MappingProfileId);

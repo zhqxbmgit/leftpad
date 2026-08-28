@@ -130,7 +130,7 @@ public sealed class RadialVisualPackRuntimeTests
             280)!;
 
         Assert.Equal(700d, active.Definition.Layout.Slots[0].GlyphAnchor.X);
-        Assert.Same(active.Definition, active.AssetCache.Definition);
+        Assert.Same(active.Plan, active.AssetCache.Plan);
         Assert.Equal(1, active.DynamicContent.BuildCount);
     }
 
