@@ -1,0 +1,161 @@
+{
+  "result": "PASS",
+  "states": {
+    "idle": {
+      "sha256": "F9BB31203C3DD502A2A593B9A2DFDBDE378C5704FB9879AD31D6979D5F126473",
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ],
+      "transparentPixels": 894213,
+      "partialAlphaPixels": 17616
+    },
+    "selected-1": {
+      "sha256": "C6A8378AC500A5CAE25C059AC3300F0FC5AC1178A5E655CEE29F62CC3ADE1D9E",
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ],
+      "transparentPixels": 894213,
+      "partialAlphaPixels": 17616
+    },
+    "selected-2": {
+      "sha256": "6CB984105AED60D47BB7BDED73957F2E9C5D24FFCA89EB0AC2EA77AAB8650483",
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ],
+      "transparentPixels": 894152,
+      "partialAlphaPixels": 17677
+    },
+    "selected-3": {
+      "sha256": "4651625C11C5A6061C937D0C6854004411DA71BDBFF470CB98D34CA250937C2C",
+      "contentBounds": [
+        132,
+        109,
+        1125,
+        1072
+      ],
+      "transparentPixels": 894136,
+      "partialAlphaPixels": 17693
+    },
+    "selected-4": {
+      "sha256": "4DA0DDFAA58A093FE0216A7BBD8B7000C393C05B5541BC2922CF0F634712A3C3",
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ],
+      "transparentPixels": 894143,
+      "partialAlphaPixels": 17686
+    },
+    "selected-5": {
+      "sha256": "57C8176D4852AC3FBCEC45DB37B77DB5BDD2D7115215884BF0E2A95C347A5BC8",
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ],
+      "transparentPixels": 894160,
+      "partialAlphaPixels": 17669
+    },
+    "selected-6": {
+      "sha256": "82DF91FE6CE7563187ADEEDE11A4345745838A0366D7D4A289140584736921A3",
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ],
+      "transparentPixels": 894162,
+      "partialAlphaPixels": 17667
+    },
+    "selected-7": {
+      "sha256": "90757B2E4756E52A824FD16409371F07E7201CEB0A0F2A4FD02BB34281B28EDD",
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ],
+      "transparentPixels": 894136,
+      "partialAlphaPixels": 17693
+    },
+    "selected-8": {
+      "sha256": "4ED75F9321EA7080A30935EF52A75FD4551A0B734BEE7290B96351F89D78865A",
+      "contentBounds": [
+        132,
+        109,
+        1123,
+        1072
+      ],
+      "transparentPixels": 894161,
+      "partialAlphaPixels": 17668
+    }
+  },
+  "layerCount": 19,
+  "anchorCount": 18,
+  "assetHashClosure": "exact",
+  "alphaZeroRgbResidue": 0,
+  "runtime200Percent": {
+    "idle": {
+      "sha256": "F2740D3D902D6931BBC983C138CE672D5D776B5951CD2E88BA228763566DD23C",
+      "size": [
+        840,
+        840
+      ]
+    },
+    "selected-1": {
+      "sha256": "AFF842DC633213829682015DD558FA780968D2DF5D8FA72E3D229182F7BB2465",
+      "size": [
+        840,
+        840
+      ]
+    },
+    "selected-2": {
+      "sha256": "F70253E0B6979EF7123A0E9DF35E5A3DCA7F0DB22D06C4E363C6C10804D377C4",
+      "size": [
+        840,
+        840
+      ]
+    },
+    "selected-3": {
+      "sha256": "2D19041AAC2B8EC9D8241C3BFF648932E6DEBF07A0E1CD789E7C1BE3F5DA1528",
+      "size": [
+        840,
+        840
+      ]
+    },
+    "selected-5": {
+      "sha256": "BBE1BDE2B47CBAA92B4FBB64C0E67FD556ADF8325360E8DBFC4448A1331493C8",
+      "size": [
+        840,
+        840
+      ]
+    },
+    "selected-8": {
+      "sha256": "5579E39906427C94987D8F508A18C3A7743702CE3CB02F3DE11BE1F16CBB9975",
+      "size": [
+        840,
+        840
+      ]
+    }
+  },
+  "mappingRebuild": "PASS",
+  "authoredDecoderReuse": "PASS",
+  "noneSlot5": "NO DRAW",
+  "keyboardGlyphOwnership": "LABEL ONLY; GLYPH SOURCE INCAPABLE/NO DRAW",
+  "ds4GlyphOwnership": "RUNTIME SYMBOL + LABEL",
+  "reviewSheet": "review/spike02-review-sheet.png",
+  "dynamicContentDetailReview": "review/dynamic-content-detail-review.png",
+  "oneToOneDetailCrops": 10,
+  "checkerboardReview": "review/checkerboard-review.png"
+}

@@ -1,0 +1,142 @@
+{
+  "themeId": "reference-dark-fantasy-radial8-dynamic-spike",
+  "protocolVersion": 2,
+  "layerCount": 19,
+  "anchorCount": 18,
+  "mappingSetA": [
+    "Slot1:E",
+    "Slot2:Ctrl\u002BShift\u002BK",
+    "Slot3:CROSS",
+    "Slot4:Tab",
+    "Slot5:\u003Cempty\u003E",
+    "Slot6:TRIANGLE",
+    "Slot7:F1",
+    "Slot8:DPAD_DOWN"
+  ],
+  "mappingSetB": [
+    "Slot1:F2",
+    "Slot2:Ctrl\u002BShift\u002BK",
+    "Slot3:SQUARE",
+    "Slot4:Tab",
+    "Slot5:\u003Cempty\u003E",
+    "Slot6:CIRCLE",
+    "Slot7:F1",
+    "Slot8:DPAD_DOWN"
+  ],
+  "glyphResolution": {
+    "slot1ActionGlyph": "no-draw:E",
+    "slot2ActionGlyph": "no-draw:K",
+    "slot3ActionGlyph": "runtimeSymbol:CROSS",
+    "slot6ActionGlyph": "runtimeSymbol:TRIANGLE",
+    "slot8ActionGlyph": "runtimeSymbol:DPAD_DOWN"
+  },
+  "unicodeOverflow": {
+    "input": "\u8D85\u9577\u52D5\u4F5C\u2014\u0394\u03C5\u03BD\u03B1\u03BC\u03B9\u03BA\u03AE\u2014\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435\u2014Ctrl\u002BShift\u002BK",
+    "displayed": "\u8D85\u9577\u52D5\u4F5C\u2014\u0394\u03C5\u03BD\u03B1\u03BC\u03B9\u03BA\u03AE\u2014\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435\u2014Ctrl\u002BShift\u002BK",
+    "draw": true,
+    "scale": 0.5,
+    "styledBounds": "ThemeSemanticRect { Left = 408.3871704101563, Top = 562.5956176757812, Right = 848.812890625, Bottom = 589.2043823242187, Width = 440.42572021484375, Height = 26.6087646484375 }"
+  },
+  "runtime": {
+    "physical": "840x840",
+    "dpi": 192,
+    "decodedAssetsBeforeAfter": [
+      9,
+      9
+    ],
+    "authoredLayersBeforeAfter": [
+      9,
+      9
+    ],
+    "dynamicBuildsBeforeAfter": [
+      1,
+      2
+    ],
+    "mappingRebuildsBeforeAfter": [
+      0,
+      1
+    ],
+    "idleOuterZonesChanged": {
+      "slot1": true,
+      "slot2": true,
+      "slot3": true,
+      "slot4": true,
+      "slot5": true,
+      "slot6": true,
+      "slot7": true,
+      "slot8": true
+    },
+    "selectedCentralZonesChanged": {
+      "selected-1": true,
+      "selected-2": true,
+      "selected-3": true,
+      "selected-5": false,
+      "selected-8": true
+    },
+    "idleDynamicLayersDraw": {
+      "slot1Glyph": false,
+      "slot1Label": true,
+      "slot2Glyph": false,
+      "slot2Label": true,
+      "slot3Glyph": true,
+      "slot3Label": true,
+      "slot4Glyph": false,
+      "slot4Label": true,
+      "slot5Glyph": false,
+      "slot5Label": false,
+      "slot6Glyph": true,
+      "slot6Label": true,
+      "slot7Glyph": false,
+      "slot7Label": true,
+      "slot8Glyph": true,
+      "slot8Label": true
+    },
+    "selectedDynamicLayersDraw": {
+      "selected-1Glyph": false,
+      "selected-1Label": true,
+      "selected-2Glyph": false,
+      "selected-2Label": true,
+      "selected-3Glyph": true,
+      "selected-3Label": true,
+      "selected-5Glyph": false,
+      "selected-5Label": false,
+      "selected-8Glyph": true,
+      "selected-8Label": true
+    },
+    "setAStateSha": {
+      "0": "33608F5E69F671F57E915453937AD056BDD51140A9FAF04DB54228D164C0ED04",
+      "1": "39342554BF97147DEDCA8ECBB663885FE92719A26128B9877C79AEA16054E93E",
+      "2": "E1D80B47AF03A405B1974F02C80908CC582E0FE76C22CCCFECBFA50C78186A79",
+      "3": "06B0C3305E6A2C7C9346B671E6D4971E9BF40347F72D73FC3BDBECC2A3B022C8",
+      "5": "C14AE5188422E89BA526B48D25EE14707CC61DF0B14EDB9170FF6CC5113F1D7F",
+      "8": "16E1307DB5DE3824D1AAFC3CBDD063A4EE58AA29E74BCC966D826C6FBA51D0FC"
+    },
+    "setBStateSha": {
+      "0": "EE5EE43D7FE0C41C2C3646DD9434A5A6898880D36806D139D9DA7C45DBCDA7C6",
+      "1": "EED441A05F6F0817E699C36A9368520F0E16CA847BB7A23074D0E018C0584FF9",
+      "3": "36B7F4E77AE20882631DA2490096D95200C980662575284EB99A937D4718FBA7",
+      "6": "48EFD848B39B84515205D110A90779E8E476D3F49A79CD9BE70EA75A2C652CA9"
+    }
+  },
+  "catalog": {
+    "discovered": true,
+    "displayName": "Dark Fantasy Radial 8 Dynamic Spike",
+    "issuesForTheme": []
+  },
+  "idleHwndPreview": {
+    "visible": true,
+    "hiddenAfterClose": true,
+    "activeDpi": 96,
+    "selectedSlot": 0,
+    "outerMappingsVisibleByManifest": true,
+    "logs": [
+      "[\u89C6\u89C9\u4E3B\u9898] Ignored pack \u0027C:\\leftpad\\pc_ds4_server\\visual_prototypes\\reference_fidelity_spikes\\dark-fantasy-radial8-v2-dynamic\\harness\u0027: V2 theme id is missing or its manifest is unreadable.",
+      "[\u89C6\u89C9\u4E3B\u9898] Ignored pack \u0027C:\\leftpad\\pc_ds4_server\\visual_prototypes\\reference_fidelity_spikes\\dark-fantasy-radial8-v2-dynamic\\masks\u0027: V2 theme id is missing or its manifest is unreadable.",
+      "[\u89C6\u89C9\u4E3B\u9898] Ignored pack \u0027C:\\leftpad\\pc_ds4_server\\visual_prototypes\\reference_fidelity_spikes\\dark-fantasy-radial8-v2-dynamic\\review\u0027: V2 theme id is missing or its manifest is unreadable.",
+      "[\u89C6\u89C9\u4E3B\u9898] Ignored pack \u0027C:\\leftpad\\pc_ds4_server\\visual_prototypes\\reference_fidelity_spikes\\dark-fantasy-radial8-v2-dynamic\\source\u0027: V2 theme id is missing or its manifest is unreadable.",
+      "[\u89C6\u89C9\u4E3B\u9898] Ignored pack \u0027C:\\leftpad\\pc_ds4_server\\visual_prototypes\\reference_fidelity_spikes\\dark-fantasy-radial8-v2-dynamic\\states\u0027: V2 theme id is missing or its manifest is unreadable.",
+      "[\u89C6\u89C9\u4E3B\u9898] Ignored pack \u0027C:\\leftpad\\pc_ds4_server\\visual_prototypes\\reference_fidelity_spikes\\dark-fantasy-radial8-v2-dynamic\\working\u0027: V2 theme id is missing or its manifest is unreadable.",
+      "[\u89C6\u89C9\u4E3B\u9898] Loaded radial visual pack: reference-dark-fantasy-radial8-dynamic-spike"
+    ]
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "slots": {
+    "1": {
+      "direction": "top",
+      "center": [
+        628,
+        268
+      ],
+      "glyph": [
+        570,
+        207,
+        116,
+        116
+      ],
+      "label": [
+        548,
+        320,
+        160,
+        82
+      ],
+      "labelRotation": 0,
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center"
+    },
+    "2": {
+      "direction": "upper-right",
+      "center": [
+        886,
+        334
+      ],
+      "glyph": [
+        833,
+        282,
+        106,
+        106
+      ],
+      "label": [
+        776,
+        360,
+        220,
+        130
+      ],
+      "labelRotation": 36,
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center"
+    },
+    "3": {
+      "direction": "right",
+      "center": [
+        998,
+        580
+      ],
+      "glyph": [
+        945,
+        527,
+        106,
+        106
+      ],
+      "label": [
+        900,
+        500,
+        92,
+        160
+      ],
+      "labelRotation": 82,
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center"
+    },
+    "4": {
+      "direction": "lower-right",
+      "center": [
+        888,
+        837
+      ],
+      "glyph": [
+        835,
+        784,
+        106,
+        106
+      ],
+      "label": [
+        788,
+        836,
+        196,
+        116
+      ],
+      "labelRotation": -36,
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center"
+    },
+    "5": {
+      "direction": "bottom",
+      "center": [
+        628,
+        937
+      ],
+      "glyph": [
+        575,
+        884,
+        106,
+        106
+      ],
+      "label": [
+        548,
+        970,
+        160,
+        76
+      ],
+      "labelRotation": 0,
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center"
+    },
+    "6": {
+      "direction": "lower-left",
+      "center": [
+        368,
+        837
+      ],
+      "glyph": [
+        315,
+        784,
+        106,
+        106
+      ],
+      "label": [
+        272,
+        836,
+        196,
+        116
+      ],
+      "labelRotation": 36,
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center"
+    },
+    "7": {
+      "direction": "left",
+      "center": [
+        258,
+        580
+      ],
+      "glyph": [
+        205,
+        527,
+        106,
+        106
+      ],
+      "label": [
+        264,
+        500,
+        92,
+        160
+      ],
+      "labelRotation": -82,
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center"
+    },
+    "8": {
+      "direction": "upper-left",
+      "center": [
+        370,
+        334
+      ],
+      "glyph": [
+        317,
+        282,
+        106,
+        106
+      ],
+      "label": [
+        260,
+        360,
+        220,
+        130
+      ],
+      "labelRotation": -36,
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center"
+    }
+  },
+  "central": {
+    "glyph": [
+      508,
+      380,
+      240,
+      195
+    ],
+    "label": [
+      405,
+      500,
+      446,
+      150
+    ],
+    "horizontalAlignment": "center",
+    "verticalAlignment": "center"
+  }
+}

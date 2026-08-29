@@ -1,0 +1,1044 @@
+{
+  "protocolVersion": 2,
+  "packageRevision": 1,
+  "id": "reference-dark-fantasy-radial8-dynamic-spike",
+  "name": "Dark Fantasy Radial 8 Dynamic Spike",
+  "description": "Reference-fidelity Spike 01 artwork with action semantics owned by Phase 3 dynamic mappings.",
+  "exampleOnly": false,
+  "surface": "radial-overlay",
+  "renderStrategy": "full-state-frame",
+  "authoring": {
+    "method": "mixed"
+  },
+  "layoutProfile": "radial-8",
+  "compatibleLayouts": [
+    "radial-8"
+  ],
+  "referenceCanvas": {
+    "width": 1254,
+    "height": 1254,
+    "colorSpace": "sRGB",
+    "alphaMode": "straight"
+  },
+  "referenceScale": {
+    "logicalWidth": 420,
+    "logicalHeight": 420,
+    "fit": "contain",
+    "contentOrigin": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "placement": {
+    "activationAnchor": {
+      "x": 210,
+      "y": 210
+    }
+  },
+  "states": {
+    "idle": {
+      "slotId": null,
+      "assets": {
+        "stateFrame": "states/idle.png"
+      }
+    },
+    "selected-1": {
+      "slotId": 1,
+      "assets": {
+        "stateFrame": "states/selected-1.png"
+      }
+    },
+    "selected-2": {
+      "slotId": 2,
+      "assets": {
+        "stateFrame": "states/selected-2.png"
+      }
+    },
+    "selected-3": {
+      "slotId": 3,
+      "assets": {
+        "stateFrame": "states/selected-3.png"
+      }
+    },
+    "selected-4": {
+      "slotId": 4,
+      "assets": {
+        "stateFrame": "states/selected-4.png"
+      }
+    },
+    "selected-5": {
+      "slotId": 5,
+      "assets": {
+        "stateFrame": "states/selected-5.png"
+      }
+    },
+    "selected-6": {
+      "slotId": 6,
+      "assets": {
+        "stateFrame": "states/selected-6.png"
+      }
+    },
+    "selected-7": {
+      "slotId": 7,
+      "assets": {
+        "stateFrame": "states/selected-7.png"
+      }
+    },
+    "selected-8": {
+      "slotId": 8,
+      "assets": {
+        "stateFrame": "states/selected-8.png"
+      }
+    }
+  },
+  "layers": [
+    {
+      "id": "stateFrame",
+      "kind": "stateAsset",
+      "zIndex": 0,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1254,
+        "height": 1254
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "STATE_ASSET",
+      "required": true
+    },
+    {
+      "id": "slot1GlyphLayer",
+      "kind": "dynamicGlyph",
+      "zIndex": 10,
+      "bounds": {
+        "x": 570,
+        "y": 207,
+        "width": 116,
+        "height": 116
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot1LabelLayer",
+      "kind": "dynamicText",
+      "zIndex": 11,
+      "bounds": {
+        "x": 548,
+        "y": 320,
+        "width": 160,
+        "height": 82
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot2GlyphLayer",
+      "kind": "dynamicGlyph",
+      "zIndex": 10,
+      "bounds": {
+        "x": 833,
+        "y": 282,
+        "width": 106,
+        "height": 106
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot2LabelLayer",
+      "kind": "dynamicText",
+      "zIndex": 11,
+      "bounds": {
+        "x": 776,
+        "y": 360,
+        "width": 220,
+        "height": 130
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot3GlyphLayer",
+      "kind": "dynamicGlyph",
+      "zIndex": 10,
+      "bounds": {
+        "x": 945,
+        "y": 527,
+        "width": 106,
+        "height": 106
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot3LabelLayer",
+      "kind": "dynamicText",
+      "zIndex": 11,
+      "bounds": {
+        "x": 900,
+        "y": 500,
+        "width": 92,
+        "height": 160
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot4GlyphLayer",
+      "kind": "dynamicGlyph",
+      "zIndex": 10,
+      "bounds": {
+        "x": 835,
+        "y": 784,
+        "width": 106,
+        "height": 106
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot4LabelLayer",
+      "kind": "dynamicText",
+      "zIndex": 11,
+      "bounds": {
+        "x": 788,
+        "y": 836,
+        "width": 196,
+        "height": 116
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot5GlyphLayer",
+      "kind": "dynamicGlyph",
+      "zIndex": 10,
+      "bounds": {
+        "x": 575,
+        "y": 884,
+        "width": 106,
+        "height": 106
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot5LabelLayer",
+      "kind": "dynamicText",
+      "zIndex": 11,
+      "bounds": {
+        "x": 548,
+        "y": 970,
+        "width": 160,
+        "height": 76
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot6GlyphLayer",
+      "kind": "dynamicGlyph",
+      "zIndex": 10,
+      "bounds": {
+        "x": 315,
+        "y": 784,
+        "width": 106,
+        "height": 106
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot6LabelLayer",
+      "kind": "dynamicText",
+      "zIndex": 11,
+      "bounds": {
+        "x": 272,
+        "y": 836,
+        "width": 196,
+        "height": 116
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot7GlyphLayer",
+      "kind": "dynamicGlyph",
+      "zIndex": 10,
+      "bounds": {
+        "x": 205,
+        "y": 527,
+        "width": 106,
+        "height": 106
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot7LabelLayer",
+      "kind": "dynamicText",
+      "zIndex": 11,
+      "bounds": {
+        "x": 264,
+        "y": 500,
+        "width": 92,
+        "height": 160
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot8GlyphLayer",
+      "kind": "dynamicGlyph",
+      "zIndex": 10,
+      "bounds": {
+        "x": 317,
+        "y": 282,
+        "width": 106,
+        "height": 106
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "slot8LabelLayer",
+      "kind": "dynamicText",
+      "zIndex": 11,
+      "bounds": {
+        "x": 260,
+        "y": 360,
+        "width": 220,
+        "height": 130
+      },
+      "visibleStates": [
+        "all"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "selectedGlyphLayer",
+      "kind": "dynamicGlyph",
+      "zIndex": 12,
+      "bounds": {
+        "x": 508,
+        "y": 380,
+        "width": 240,
+        "height": 195
+      },
+      "visibleStates": [
+        "selected"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    },
+    {
+      "id": "selectedLabelLayer",
+      "kind": "dynamicText",
+      "zIndex": 13,
+      "bounds": {
+        "x": 405,
+        "y": 500,
+        "width": 446,
+        "height": 150
+      },
+      "visibleStates": [
+        "selected"
+      ],
+      "ownership": "DYNAMIC",
+      "required": true
+    }
+  ],
+  "dynamicAnchors": [
+    {
+      "id": "slot1GlyphAnchor",
+      "layerId": "slot1GlyphLayer",
+      "role": "glyph",
+      "bounds": {
+        "x": 570,
+        "y": 207,
+        "width": 116,
+        "height": 116
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "shrink",
+      "minimumScale": 0.48,
+      "rotation": 0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotGlyph",
+      "glyphRole": "darkFantasyAction"
+    },
+    {
+      "id": "slot1LabelAnchor",
+      "layerId": "slot1LabelLayer",
+      "role": "text",
+      "bounds": {
+        "x": 548,
+        "y": 320,
+        "width": 160,
+        "height": 82
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "ellipsis",
+      "minimumScale": 0.52,
+      "rotation": 0.0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotLabel"
+    },
+    {
+      "id": "slot2GlyphAnchor",
+      "layerId": "slot2GlyphLayer",
+      "role": "glyph",
+      "bounds": {
+        "x": 833,
+        "y": 282,
+        "width": 106,
+        "height": 106
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "shrink",
+      "minimumScale": 0.48,
+      "rotation": 0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotGlyph",
+      "glyphRole": "darkFantasyAction"
+    },
+    {
+      "id": "slot2LabelAnchor",
+      "layerId": "slot2LabelLayer",
+      "role": "text",
+      "bounds": {
+        "x": 776,
+        "y": 360,
+        "width": 220,
+        "height": 130
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "ellipsis",
+      "minimumScale": 0.52,
+      "rotation": 36.0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotLabel"
+    },
+    {
+      "id": "slot3GlyphAnchor",
+      "layerId": "slot3GlyphLayer",
+      "role": "glyph",
+      "bounds": {
+        "x": 945,
+        "y": 527,
+        "width": 106,
+        "height": 106
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "shrink",
+      "minimumScale": 0.48,
+      "rotation": 0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotGlyph",
+      "glyphRole": "darkFantasyAction"
+    },
+    {
+      "id": "slot3LabelAnchor",
+      "layerId": "slot3LabelLayer",
+      "role": "text",
+      "bounds": {
+        "x": 900,
+        "y": 500,
+        "width": 92,
+        "height": 160
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "ellipsis",
+      "minimumScale": 0.52,
+      "rotation": 82.0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotLabel"
+    },
+    {
+      "id": "slot4GlyphAnchor",
+      "layerId": "slot4GlyphLayer",
+      "role": "glyph",
+      "bounds": {
+        "x": 835,
+        "y": 784,
+        "width": 106,
+        "height": 106
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "shrink",
+      "minimumScale": 0.48,
+      "rotation": 0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotGlyph",
+      "glyphRole": "darkFantasyAction"
+    },
+    {
+      "id": "slot4LabelAnchor",
+      "layerId": "slot4LabelLayer",
+      "role": "text",
+      "bounds": {
+        "x": 788,
+        "y": 836,
+        "width": 196,
+        "height": 116
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "ellipsis",
+      "minimumScale": 0.52,
+      "rotation": -36.0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotLabel"
+    },
+    {
+      "id": "slot5GlyphAnchor",
+      "layerId": "slot5GlyphLayer",
+      "role": "glyph",
+      "bounds": {
+        "x": 575,
+        "y": 884,
+        "width": 106,
+        "height": 106
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "shrink",
+      "minimumScale": 0.48,
+      "rotation": 0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotGlyph",
+      "glyphRole": "darkFantasyAction"
+    },
+    {
+      "id": "slot5LabelAnchor",
+      "layerId": "slot5LabelLayer",
+      "role": "text",
+      "bounds": {
+        "x": 548,
+        "y": 970,
+        "width": 160,
+        "height": 76
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "ellipsis",
+      "minimumScale": 0.52,
+      "rotation": 0.0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotLabel"
+    },
+    {
+      "id": "slot6GlyphAnchor",
+      "layerId": "slot6GlyphLayer",
+      "role": "glyph",
+      "bounds": {
+        "x": 315,
+        "y": 784,
+        "width": 106,
+        "height": 106
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "shrink",
+      "minimumScale": 0.48,
+      "rotation": 0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotGlyph",
+      "glyphRole": "darkFantasyAction"
+    },
+    {
+      "id": "slot6LabelAnchor",
+      "layerId": "slot6LabelLayer",
+      "role": "text",
+      "bounds": {
+        "x": 272,
+        "y": 836,
+        "width": 196,
+        "height": 116
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "ellipsis",
+      "minimumScale": 0.52,
+      "rotation": 36.0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotLabel"
+    },
+    {
+      "id": "slot7GlyphAnchor",
+      "layerId": "slot7GlyphLayer",
+      "role": "glyph",
+      "bounds": {
+        "x": 205,
+        "y": 527,
+        "width": 106,
+        "height": 106
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "shrink",
+      "minimumScale": 0.48,
+      "rotation": 0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotGlyph",
+      "glyphRole": "darkFantasyAction"
+    },
+    {
+      "id": "slot7LabelAnchor",
+      "layerId": "slot7LabelLayer",
+      "role": "text",
+      "bounds": {
+        "x": 264,
+        "y": 500,
+        "width": 92,
+        "height": 160
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "ellipsis",
+      "minimumScale": 0.52,
+      "rotation": -82.0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotLabel"
+    },
+    {
+      "id": "slot8GlyphAnchor",
+      "layerId": "slot8GlyphLayer",
+      "role": "glyph",
+      "bounds": {
+        "x": 317,
+        "y": 282,
+        "width": 106,
+        "height": 106
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "shrink",
+      "minimumScale": 0.48,
+      "rotation": 0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotGlyph",
+      "glyphRole": "darkFantasyAction"
+    },
+    {
+      "id": "slot8LabelAnchor",
+      "layerId": "slot8LabelLayer",
+      "role": "text",
+      "bounds": {
+        "x": 260,
+        "y": 360,
+        "width": 220,
+        "height": 130
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "ellipsis",
+      "minimumScale": 0.52,
+      "rotation": -36.0,
+      "maxLines": 1,
+      "visibleStates": [
+        "all"
+      ],
+      "styleRole": "darkFantasySlotLabel"
+    },
+    {
+      "id": "selectedGlyphAnchor",
+      "layerId": "selectedGlyphLayer",
+      "role": "glyph",
+      "bounds": {
+        "x": 508,
+        "y": 380,
+        "width": 240,
+        "height": 195
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "shrink",
+      "minimumScale": 0.42,
+      "rotation": 0,
+      "maxLines": 1,
+      "visibleStates": [
+        "selected"
+      ],
+      "styleRole": "darkFantasySelectedGlyph",
+      "glyphRole": "darkFantasyAction"
+    },
+    {
+      "id": "selectedLabelAnchor",
+      "layerId": "selectedLabelLayer",
+      "role": "text",
+      "bounds": {
+        "x": 405,
+        "y": 500,
+        "width": 446,
+        "height": 150
+      },
+      "horizontalAlignment": "center",
+      "verticalAlignment": "center",
+      "overflowPolicy": "shrink",
+      "minimumScale": 0.3,
+      "rotation": 0,
+      "maxLines": 1,
+      "visibleStates": [
+        "selected"
+      ],
+      "styleRole": "darkFantasySelectedLabel"
+    }
+  ],
+  "styles": {
+    "fontRoles": {
+      "fantasyDisplay": "display",
+      "fantasySymbols": "symbol"
+    },
+    "colorRoles": {
+      "warmIvory": "#E8D8B0FF",
+      "paleGold": "#F1D292FF",
+      "selectedGold": "#FFD178FF",
+      "darkEdge": "#0B0805F0",
+      "deepShadow": "#0000008C"
+    },
+    "outlineRoles": {
+      "thinDark": {
+        "colorRole": "darkEdge",
+        "width": 1.35
+      },
+      "glyphDark": {
+        "colorRole": "darkEdge",
+        "width": 2.6
+      },
+      "centralDark": {
+        "colorRole": "darkEdge",
+        "width": 2.25
+      }
+    },
+    "shadowRoles": {
+      "restrained": {
+        "colorRole": "deepShadow",
+        "offsetX": 1.2,
+        "offsetY": 1.8,
+        "blur": 1.25
+      }
+    },
+    "dynamicRoles": {
+      "darkFantasySlotLabel": {
+        "fontRole": "fantasyDisplay",
+        "colorRole": "warmIvory",
+        "outlineRole": "thinDark",
+        "shadowRole": "restrained",
+        "size": 28
+      },
+      "darkFantasySlotGlyph": {
+        "fontRole": "fantasySymbols",
+        "colorRole": "paleGold",
+        "outlineRole": "glyphDark",
+        "shadowRole": "restrained",
+        "size": 62
+      },
+      "darkFantasySelectedGlyph": {
+        "fontRole": "fantasySymbols",
+        "colorRole": "selectedGold",
+        "outlineRole": "centralDark",
+        "shadowRole": "restrained",
+        "size": 102
+      },
+      "darkFantasySelectedLabel": {
+        "fontRole": "fantasyDisplay",
+        "colorRole": "warmIvory",
+        "outlineRole": "centralDark",
+        "shadowRole": "restrained",
+        "size": 40
+      }
+    }
+  },
+  "glyphs": {
+    "roles": {
+      "darkFantasyAction": {
+        "keyboard": {
+          "sources": [
+            {
+              "type": "runtimeSymbol",
+              "symbolSet": "leftpad-ds4"
+            }
+          ]
+        },
+        "keyboardShortcut": {
+          "sources": [
+            {
+              "type": "runtimeSymbol",
+              "symbolSet": "leftpad-ds4"
+            }
+          ]
+        },
+        "ds4": {
+          "sources": [
+            {
+              "type": "runtimeSymbol",
+              "symbolSet": "leftpad-ds4"
+            },
+            {
+              "type": "text",
+              "styleRole": "darkFantasySlotGlyph"
+            }
+          ]
+        },
+        "genericAction": {
+          "sources": [
+            {
+              "type": "runtimeSymbol",
+              "symbolSet": "leftpad-ds4"
+            },
+            {
+              "type": "text",
+              "styleRole": "darkFantasySlotGlyph"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "elementOwnership": [
+    {
+      "element": "stateArt",
+      "owner": "STATE_ASSET",
+      "layerId": "stateFrame"
+    },
+    {
+      "element": "slot1GlyphAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot1GlyphLayer",
+      "contentKey": "slot1ActionGlyph"
+    },
+    {
+      "element": "slot1LabelAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot1LabelLayer",
+      "contentKey": "slot1ActionLabel"
+    },
+    {
+      "element": "slot2GlyphAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot2GlyphLayer",
+      "contentKey": "slot2ActionGlyph"
+    },
+    {
+      "element": "slot2LabelAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot2LabelLayer",
+      "contentKey": "slot2ActionLabel"
+    },
+    {
+      "element": "slot3GlyphAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot3GlyphLayer",
+      "contentKey": "slot3ActionGlyph"
+    },
+    {
+      "element": "slot3LabelAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot3LabelLayer",
+      "contentKey": "slot3ActionLabel"
+    },
+    {
+      "element": "slot4GlyphAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot4GlyphLayer",
+      "contentKey": "slot4ActionGlyph"
+    },
+    {
+      "element": "slot4LabelAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot4LabelLayer",
+      "contentKey": "slot4ActionLabel"
+    },
+    {
+      "element": "slot5GlyphAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot5GlyphLayer",
+      "contentKey": "slot5ActionGlyph"
+    },
+    {
+      "element": "slot5LabelAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot5LabelLayer",
+      "contentKey": "slot5ActionLabel"
+    },
+    {
+      "element": "slot6GlyphAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot6GlyphLayer",
+      "contentKey": "slot6ActionGlyph"
+    },
+    {
+      "element": "slot6LabelAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot6LabelLayer",
+      "contentKey": "slot6ActionLabel"
+    },
+    {
+      "element": "slot7GlyphAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot7GlyphLayer",
+      "contentKey": "slot7ActionGlyph"
+    },
+    {
+      "element": "slot7LabelAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot7LabelLayer",
+      "contentKey": "slot7ActionLabel"
+    },
+    {
+      "element": "slot8GlyphAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot8GlyphLayer",
+      "contentKey": "slot8ActionGlyph"
+    },
+    {
+      "element": "slot8LabelAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "slot8LabelLayer",
+      "contentKey": "slot8ActionLabel"
+    },
+    {
+      "element": "selectedGlyphAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "selectedGlyphLayer",
+      "contentKey": "selectedActionGlyph"
+    },
+    {
+      "element": "selectedLabelAnchor",
+      "owner": "DYNAMIC",
+      "layerId": "selectedLabelLayer",
+      "contentKey": "selectedActionLabel"
+    }
+  ],
+  "masks": [],
+  "visualRegions": [],
+  "fallback": {
+    "onInvalidCandidate": "retain-active",
+    "onUnsupportedVersion": "retain-active",
+    "startupThemeId": "radial-v5"
+  },
+  "capabilities": {
+    "required": [
+      "fullStateFrame",
+      "dynamicAnchors",
+      "instantTransitions"
+    ],
+    "optional": []
+  },
+  "transitions": {
+    "mode": "instant"
+  },
+  "assetHashes": {
+    "states/idle.png": "F9BB31203C3DD502A2A593B9A2DFDBDE378C5704FB9879AD31D6979D5F126473",
+    "states/selected-1.png": "C6A8378AC500A5CAE25C059AC3300F0FC5AC1178A5E655CEE29F62CC3ADE1D9E",
+    "states/selected-2.png": "6CB984105AED60D47BB7BDED73957F2E9C5D24FFCA89EB0AC2EA77AAB8650483",
+    "states/selected-3.png": "4651625C11C5A6061C937D0C6854004411DA71BDBFF470CB98D34CA250937C2C",
+    "states/selected-4.png": "4DA0DDFAA58A093FE0216A7BBD8B7000C393C05B5541BC2922CF0F634712A3C3",
+    "states/selected-5.png": "57C8176D4852AC3FBCEC45DB37B77DB5BDD2D7115215884BF0E2A95C347A5BC8",
+    "states/selected-6.png": "82DF91FE6CE7563187ADEEDE11A4345745838A0366D7D4A289140584736921A3",
+    "states/selected-7.png": "90757B2E4756E52A824FD16409371F07E7201CEB0A0F2A4FD02BB34281B28EDD",
+    "states/selected-8.png": "4ED75F9321EA7080A30935EF52A75FD4551A0B734BEE7290B96351F89D78865A"
+  }
+}
