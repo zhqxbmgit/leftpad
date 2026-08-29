@@ -25,6 +25,8 @@ public sealed record RadialMenuSettings
     };
 
     public string VisualPackId { get; init; } = RadialVisualPackContract.DefaultVisualPackId;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public RadialSettingsSemanticRevision? SettingsSemanticRevision { get; init; }
     public int ReceiverUiScalePercent { get; init; } = ReceiverUiScaling.DefaultScalePercent;
     public int ScalePercent { get; init; } = 100;
     public int BaseCanvasSize { get; init; } = 280;
@@ -119,6 +121,8 @@ public sealed record RadialMenuSettings
     {
         if (string.IsNullOrWhiteSpace(VisualPackId))
             return Invalid("视觉主题 ID 不能为空。", out error);
+        if (SettingsSemanticRevision.HasValue && !Enum.IsDefined(SettingsSemanticRevision.Value))
+            return Invalid("环形菜单设置语义版本必须为 Legacy(1) 或 Universal(2)。", out error);
         if (!ReceiverUiScaling.IsPreset(ReceiverUiScalePercent))
             return Invalid("接收器界面缩放必须为 100%、125%、150%、175% 或 200%。", out error);
         if (ScalePercent is < MinimumScalePercent or > MaximumScalePercent)

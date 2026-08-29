@@ -149,7 +149,7 @@ internal static class UiThemeV2Loader
                 .Select(x => new NormalizedStaticLayer(x.Id, x.StaticAsset!.PackagePath)),
             new(NormalizedDynamicContentDescriptor.None), Array.Empty<NormalizedGeometryTransform>(),
             fallback, capabilities, placement,
-            dynamicTheme);
+            dynamicTheme, revision);
         return new UiThemeV2Package(root,
             new UiThemeV2Manifest(2, revision, id, name, "radial-overlay", "full-state-frame", profile),
             plan);

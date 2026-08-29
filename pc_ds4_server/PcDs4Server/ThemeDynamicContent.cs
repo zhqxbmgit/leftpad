@@ -486,10 +486,17 @@ internal sealed class ThemeDynamicRasterizer
     private readonly NormalizedRenderPlan _plan;
     private readonly ThemeFontSession _fonts;
     private readonly IThemeRuntimeSymbolProvider _symbols;
+    private readonly UniversalRadialParameters? _universalParameters;
 
     public ThemeDynamicRasterizer(NormalizedRenderPlan plan, ThemeFontSession fonts,
-        IThemeRuntimeSymbolProvider? symbols = null)
-    { _plan=plan; _fonts=fonts; _symbols=symbols ?? new LeftPadRuntimeSymbolProvider(); }
+        IThemeRuntimeSymbolProvider? symbols = null,
+        UniversalRadialParameters? universalParameters = null)
+    {
+        _plan=plan;
+        _fonts=fonts;
+        _symbols=symbols ?? new LeftPadRuntimeSymbolProvider();
+        _universalParameters = universalParameters;
+    }
 
     public Bitmap RenderLayer(FullStateFrameLayer layer, FullStateFrameState state,
         ThemeMappingSnapshot mappings, int dpi, out ThemeDynamicLayoutResult semantic)
@@ -519,6 +526,7 @@ internal sealed class ThemeDynamicRasterizer
                 symbolFactory = size => _symbols.TryCreatePath(source.SymbolSet!, source.GlyphId, size, out GraphicsPath path)
                     ? path : new GraphicsPath();
         }
+        style = ApplyUniversalStyle(style, scaleFont: symbolFactory == null);
         FontFamily family = _fonts.Get(style.FontRole);
         semantic = ThemeDynamicLayoutEngine.Layout(anchor, style, family, text, symbolFactory);
         Bitmap target = EmptySurface(dpi);
@@ -529,26 +537,30 @@ internal sealed class ThemeDynamicRasterizer
 
     private Bitmap EmptySurface(int dpi)
     {
-        Size size = RadialDpiScaling.LogicalSizeToPhysical(_plan.ReferenceScale.LogicalWidth,
-            _plan.ReferenceScale.LogicalHeight, dpi);
+        double presentationScale = _universalParameters?.SurfaceScale ?? 1d;
+        Size size = RadialDpiScaling.LogicalSizeToPhysical(
+            _plan.ReferenceScale.LogicalWidth * presentationScale,
+            _plan.ReferenceScale.LogicalHeight * presentationScale,
+            dpi);
         return new Bitmap(size.Width, size.Height, PixelFormat.Format32bppPArgb);
     }
 
     private void Draw(Bitmap target, NormalizedDynamicAnchor anchor, NormalizedDynamicStyle style,
         ThemeDynamicLayoutResult semantic, int dpi)
     {
+        double presentationScale = _universalParameters?.SurfaceScale ?? 1d;
         double referenceFactor = Math.Min(_plan.ReferenceScale.LogicalWidth/_plan.ReferenceCanvas.Width,
-            _plan.ReferenceScale.LogicalHeight/_plan.ReferenceCanvas.Height);
+            _plan.ReferenceScale.LogicalHeight/_plan.ReferenceCanvas.Height) * presentationScale;
         float physicalScale = checked((float)(referenceFactor * RadialDpiScaling.GetScale(dpi)));
-        float originX = checked((float)(_plan.ReferenceScale.ContentOrigin.X * RadialDpiScaling.GetScale(dpi)));
-        float originY = checked((float)(_plan.ReferenceScale.ContentOrigin.Y * RadialDpiScaling.GetScale(dpi)));
+        float originX = checked((float)(_plan.ReferenceScale.ContentOrigin.X * presentationScale * RadialDpiScaling.GetScale(dpi)));
+        float originY = checked((float)(_plan.ReferenceScale.ContentOrigin.Y * presentationScale * RadialDpiScaling.GetScale(dpi)));
         using GraphicsPath path = (GraphicsPath)semantic.Path!.Clone();
         using (var transform = new Matrix(physicalScale, 0, 0, physicalScale, originX, originY)) path.Transform(transform);
         Rectangle clip = RadialDpiScaling.LogicalRectToPhysical(
-            _plan.ReferenceScale.ContentOrigin.X + anchor.Bounds.X*referenceFactor,
-            _plan.ReferenceScale.ContentOrigin.Y + anchor.Bounds.Y*referenceFactor,
-            _plan.ReferenceScale.ContentOrigin.X + (anchor.Bounds.X+anchor.Bounds.Width)*referenceFactor,
-            _plan.ReferenceScale.ContentOrigin.Y + (anchor.Bounds.Y+anchor.Bounds.Height)*referenceFactor, dpi);
+            _plan.ReferenceScale.ContentOrigin.X * presentationScale + anchor.Bounds.X*referenceFactor,
+            _plan.ReferenceScale.ContentOrigin.Y * presentationScale + anchor.Bounds.Y*referenceFactor,
+            _plan.ReferenceScale.ContentOrigin.X * presentationScale + (anchor.Bounds.X+anchor.Bounds.Width)*referenceFactor,
+            _plan.ReferenceScale.ContentOrigin.Y * presentationScale + (anchor.Bounds.Y+anchor.Bounds.Height)*referenceFactor, dpi);
         using Graphics graphics = Graphics.FromImage(target);
         graphics.CompositingMode = CompositingMode.SourceOver;
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -572,6 +584,31 @@ internal sealed class ThemeDynamicRasterizer
             graphics.DrawPath(pen, path);
         }
     }
+
+    private NormalizedDynamicStyle ApplyUniversalStyle(
+        NormalizedDynamicStyle style,
+        bool scaleFont)
+    {
+        if (_universalParameters == null) return style;
+        byte strength = _universalParameters.TextStrength;
+        return style with
+        {
+            Size = scaleFont ? style.Size * _universalParameters.FontScale : style.Size,
+            Color = ScaleColor(style.Color, strength),
+            Outline = style.Outline == null
+                ? null
+                : style.Outline with { Color = ScaleColor(style.Outline.Color, strength) },
+            Shadow = style.Shadow == null
+                ? null
+                : style.Shadow with { Color = ScaleColor(style.Shadow.Color, strength) }
+        };
+    }
+
+    private static NormalizedThemeColor ScaleColor(NormalizedThemeColor color, byte strength) =>
+        color with
+        {
+            Alpha = UniversalRadialSettingsNormalizer.ScaleAuthoredAlpha(color.Alpha, strength)
+        };
 
     private static Bitmap RenderShadow(GraphicsPath source, NormalizedOutlineStyle? outline,
         NormalizedShadowStyle shadow,

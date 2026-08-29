@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 
@@ -38,6 +39,7 @@ internal sealed class FullStateFrameCache : IDisposable
     private readonly ThemeFontSession? _fontSession;
     private readonly Action<ThemeMappingSnapshot>? _mappingBuildProbe;
     private ThemeMappingSnapshot? _mappingSnapshot;
+    private UniversalRadialParameters? _universalParameters;
     private bool _disposed;
 
     public FullStateFrameCache(NormalizedRenderPlan plan, int dpi,
@@ -46,17 +48,22 @@ internal sealed class FullStateFrameCache : IDisposable
 
     public FullStateFrameCache(NormalizedRenderPlan plan, RadialMenuSettings settings, int dpi,
         IThemeAssetDecoder? decoder = null,
-        Action<ThemeMappingSnapshot>? mappingBuildProbe = null)
+        Action<ThemeMappingSnapshot>? mappingBuildProbe = null,
+        UniversalRadialParameters? universalParameters = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
         if (plan.RenderModel is not FullStateFrameRenderPlan model)
             throw new ArgumentException("A full-state plan is required.", nameof(plan));
         Plan = plan;
+        _universalParameters = universalParameters;
         _mappingBuildProbe = mappingBuildProbe;
         Dpi = dpi > 0 ? dpi : RadialDpiScaling.DefaultDpi;
         _model = model;
+        double presentationScale = universalParameters?.SurfaceScale ?? 1d;
         PhysicalSurfaceSize = RadialDpiScaling.LogicalSizeToPhysical(
-            plan.ReferenceScale.LogicalWidth, plan.ReferenceScale.LogicalHeight, Dpi);
+            plan.ReferenceScale.LogicalWidth * presentationScale,
+            plan.ReferenceScale.LogicalHeight * presentationScale,
+            Dpi);
         decoder ??= new GdiThemeAssetDecoder();
 
         Dictionary<string, VerifiedThemeAsset> assetSources = model.OrderedLayers
@@ -78,7 +85,7 @@ internal sealed class FullStateFrameCache : IDisposable
                 _fontSession = ThemeFontResolver.Resolve(plan.DynamicTheme!.FontRoles);
                 BuildAuthoredLayerCache(masters);
                 _mappingSnapshot = ThemeMappingSnapshot.Capture(settings, plan.LayoutProfileId);
-                (_dynamicLayers, states) = BuildDynamicCandidate(_mappingSnapshot);
+                (_dynamicLayers, states) = BuildDynamicCandidate(_mappingSnapshot, universalParameters);
             }
             else
             {
@@ -110,6 +117,11 @@ internal sealed class FullStateFrameCache : IDisposable
     public int MappingRebuildCount { get; private set; }
     public int HotPathDynamicWorkCount { get; private set; }
     public int AuthoredLayerCount => _authoredLayers.Count;
+    public ThemeMappingSnapshot? MappingSnapshot => _mappingSnapshot;
+    public string FontEnvironment => _fontSession == null
+        ? "none"
+        : string.Join(";", _fontSession.ResolvedNames.OrderBy(x => x.Key, StringComparer.Ordinal)
+            .Select(x => $"{x.Key}={x.Value}"));
 
     public Bitmap GetState(int slot)
     {
@@ -124,13 +136,46 @@ internal sealed class FullStateFrameCache : IDisposable
         ThemeMappingSnapshot candidateSnapshot = ThemeMappingSnapshot.Capture(settings, Plan.LayoutProfileId);
         if (candidateSnapshot.Equals(_mappingSnapshot)) return false;
         (Dictionary<string, Bitmap> dynamic, Dictionary<string, Bitmap> states) =
-            BuildDynamicCandidate(candidateSnapshot);
+            BuildDynamicCandidate(candidateSnapshot, _universalParameters);
         Dictionary<string, Bitmap> previousDynamic = _dynamicLayers;
         Dictionary<string, Bitmap> previousStates = _states;
         _dynamicLayers = dynamic;
         _states = states;
         _mappingSnapshot = candidateSnapshot;
         MappingRebuildCount++;
+        foreach (Bitmap bitmap in previousDynamic.Values) bitmap.Dispose();
+        foreach (Bitmap bitmap in previousStates.Values) bitmap.Dispose();
+        return true;
+    }
+
+    public bool EnsureUniversalDynamic(
+        RadialMenuSettings settings,
+        UniversalRadialParameters parameters)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(parameters);
+        if (_universalParameters == null)
+            throw new InvalidOperationException("This cache was not built through the Universal opt-in path.");
+        if (parameters.SurfaceScale != _universalParameters.SurfaceScale)
+            throw new InvalidOperationException("SurfaceScale changes require an authored-layer rebuild.");
+        if (!Plan.HasV2DynamicContent) return false;
+
+        ThemeMappingSnapshot candidateSnapshot = ThemeMappingSnapshot.Capture(settings, Plan.LayoutProfileId);
+        bool mappingChanged = !candidateSnapshot.Equals(_mappingSnapshot);
+        bool styleChanged = parameters.FontScale != _universalParameters.FontScale ||
+            parameters.TextStrength != _universalParameters.TextStrength;
+        if (!mappingChanged && !styleChanged) return false;
+
+        (Dictionary<string, Bitmap> dynamic, Dictionary<string, Bitmap> states) =
+            BuildDynamicCandidate(candidateSnapshot, parameters);
+        Dictionary<string, Bitmap> previousDynamic = _dynamicLayers;
+        Dictionary<string, Bitmap> previousStates = _states;
+        _dynamicLayers = dynamic;
+        _states = states;
+        _mappingSnapshot = candidateSnapshot;
+        _universalParameters = parameters;
+        if (mappingChanged) MappingRebuildCount++;
         foreach (Bitmap bitmap in previousDynamic.Values) bitmap.Dispose();
         foreach (Bitmap bitmap in previousStates.Values) bitmap.Dispose();
         return true;
@@ -209,14 +254,19 @@ internal sealed class FullStateFrameCache : IDisposable
     }
 
     private (Dictionary<string, Bitmap> Dynamic, Dictionary<string, Bitmap> States)
-        BuildDynamicCandidate(ThemeMappingSnapshot mappings)
+        BuildDynamicCandidate(
+            ThemeMappingSnapshot mappings,
+            UniversalRadialParameters? universalParameters)
     {
         _mappingBuildProbe?.Invoke(mappings);
         var dynamic = new Dictionary<string, Bitmap>(StringComparer.Ordinal);
         var states = new Dictionary<string, Bitmap>(StringComparer.Ordinal);
         try
         {
-            var rasterizer = new ThemeDynamicRasterizer(Plan, _fontSession!);
+            var rasterizer = new ThemeDynamicRasterizer(
+                Plan,
+                _fontSession!,
+                universalParameters: universalParameters);
             foreach (FullStateFrameState state in _model.States.Values.OrderBy(x => x.SlotId ?? 0))
             {
                 foreach (FullStateFrameLayer layer in _model.OrderedLayers.Where(x => x.Kind is "dynamicText" or "dynamicGlyph"))
@@ -280,12 +330,13 @@ internal sealed class FullStateFrameCache : IDisposable
     private Rectangle ToPhysicalBounds(NormalizedReferenceBounds bounds)
     {
         NormalizedReferenceScale scale = Plan.ReferenceScale;
+        double presentationScale = _universalParameters?.SurfaceScale ?? 1d;
         double factor = Math.Min(scale.LogicalWidth / Plan.ReferenceCanvas.Width,
-            scale.LogicalHeight / Plan.ReferenceCanvas.Height);
-        double left = scale.ContentOrigin.X + bounds.X * factor;
-        double top = scale.ContentOrigin.Y + bounds.Y * factor;
-        double right = scale.ContentOrigin.X + (bounds.X + bounds.Width) * factor;
-        double bottom = scale.ContentOrigin.Y + (bounds.Y + bounds.Height) * factor;
+            scale.LogicalHeight / Plan.ReferenceCanvas.Height) * presentationScale;
+        double left = scale.ContentOrigin.X * presentationScale + bounds.X * factor;
+        double top = scale.ContentOrigin.Y * presentationScale + bounds.Y * factor;
+        double right = scale.ContentOrigin.X * presentationScale + (bounds.X + bounds.Width) * factor;
+        double bottom = scale.ContentOrigin.Y * presentationScale + (bounds.Y + bounds.Height) * factor;
         return RadialDpiScaling.LogicalRectToPhysical(left, top, right, bottom, Dpi);
     }
 
@@ -300,22 +351,32 @@ internal sealed class RuntimeRenderBundle : IDisposable
     private readonly RadialVisualPackCache? _assetCache;
     private readonly RadialDynamicContentCache? _dynamicContent;
     private readonly FullStateFrameCache? _fullStateCache;
+    private Bitmap[]? _universalLegacyStates;
+    private UniversalRadialRenderPlan? _universalPlan;
     private bool _disposed;
 
     private RuntimeRenderBundle(NormalizedRenderPlan plan, RadialVisualPackCache assetCache,
-        RadialDynamicContentCache dynamicContent, int dpi)
+        RadialDynamicContentCache dynamicContent, int dpi,
+        UniversalRadialRenderPlan? universalPlan = null,
+        Bitmap[]? universalLegacyStates = null)
     {
         Plan = plan;
         _assetCache = assetCache;
         _dynamicContent = dynamicContent;
+        _universalPlan = universalPlan;
+        _universalLegacyStates = universalLegacyStates;
         Dpi = dpi;
         PhysicalSurfaceSize = new(assetCache.TargetSize, assetCache.TargetSize);
     }
 
-    private RuntimeRenderBundle(NormalizedRenderPlan plan, FullStateFrameCache cache)
+    private RuntimeRenderBundle(
+        NormalizedRenderPlan plan,
+        FullStateFrameCache cache,
+        UniversalRadialRenderPlan? universalPlan = null)
     {
         Plan = plan;
         _fullStateCache = cache;
+        _universalPlan = universalPlan;
         Dpi = cache.Dpi;
         PhysicalSurfaceSize = cache.PhysicalSurfaceSize;
     }
@@ -325,6 +386,13 @@ internal sealed class RuntimeRenderBundle : IDisposable
     public int Dpi { get; }
     public Size PhysicalSurfaceSize { get; }
     public bool IsFullStateFrame => _fullStateCache != null;
+    public bool IsUniversal => _universalPlan != null;
+    public UniversalRadialRenderPlan UniversalPlan => _universalPlan ??
+        throw new InvalidOperationException("This bundle uses the production legacy path.");
+    public UniversalRadialCacheKey? UniversalCacheKey { get; private set; }
+    public UniversalRenderBuildDiagnostics? UniversalDiagnostics { get; private set; }
+    public TimeSpan LastUniversalDynamicRebuild { get; private set; }
+    public int SelectionHotPathWorkCount { get; private set; }
     public RadialVisualPackCache AssetCache => _assetCache ?? throw new InvalidOperationException("This is a V2 full-state bundle.");
     public RadialDynamicContentCache DynamicContent => _dynamicContent ?? throw new InvalidOperationException("This is a V2 full-state bundle.");
     public FullStateFrameCache FullStateCache => _fullStateCache ?? throw new InvalidOperationException("This is a V1 legacy bundle.");
@@ -361,14 +429,124 @@ internal sealed class RuntimeRenderBundle : IDisposable
         }
     }
 
+    public static RuntimeRenderBundle BuildUniversal(
+        UniversalRadialRenderPlan universalPlan,
+        RadialMenuSettings settings,
+        int dpi)
+    {
+        ArgumentNullException.ThrowIfNull(universalPlan);
+        ArgumentNullException.ThrowIfNull(settings);
+        var stopwatch = Stopwatch.StartNew();
+        NormalizedRenderPlan plan = universalPlan.SourcePlan;
+        RuntimeRenderBundle bundle;
+        if (plan.RenderModel is FullStateFrameRenderPlan)
+        {
+            var cache = new FullStateFrameCache(
+                plan,
+                settings,
+                dpi,
+                universalParameters: universalPlan.Parameters);
+            bundle = new RuntimeRenderBundle(plan, cache, universalPlan);
+        }
+        else
+        {
+            Size physical = universalPlan.PhysicalSurfaceSize(dpi);
+            if (physical.Width != physical.Height)
+                throw new InvalidDataException("The V1 Universal foundation requires a square logical surface.");
+            var assets = new RadialVisualPackCache(plan, physical.Width);
+            RadialDynamicContentCache? dynamic = null;
+            Bitmap[]? states = null;
+            try
+            {
+                dynamic = new RadialDynamicContentCache(plan, WindowsUiFontResolver.ResolveUiFontFamily());
+                dynamic.EnsureUniversal(settings, physical.Width, universalPlan.Parameters);
+                states = BuildLegacyFinalStates(plan, assets, dynamic);
+                bundle = new RuntimeRenderBundle(plan, assets, dynamic, dpi, universalPlan, states);
+            }
+            catch
+            {
+                if (states != null) foreach (Bitmap state in states) state.Dispose();
+                dynamic?.Dispose();
+                assets.Dispose();
+                throw;
+            }
+        }
+
+        stopwatch.Stop();
+        bundle.RefreshUniversalMetadata(settings);
+        bundle.UniversalDiagnostics = new(
+            stopwatch.Elapsed,
+            bundle.IsFullStateFrame
+                ? bundle.FullStateCache.DecodedAssetCount
+                : bundle.AssetCache.DecodedAssetCount,
+            bundle.IsFullStateFrame
+                ? bundle.FullStateCache.DynamicBuildCount
+                : bundle.DynamicContent.BuildCount,
+            SelectionHotPathPrebuilt: true);
+        return bundle;
+    }
+
     public void EnsureDynamicContent(RadialMenuSettings settings)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_universalPlan != null)
+        {
+            _ = EnsureUniversalContent(settings, _universalPlan.Parameters);
+            return;
+        }
         if (_fullStateCache != null) _fullStateCache.EnsureMappings(settings);
         else _dynamicContent?.Ensure(settings, TargetSize);
     }
 
-    public Bitmap GetFinalState(int selectedSlot) => FullStateCache.GetState(selectedSlot);
+    public bool EnsureUniversalContent(
+        RadialMenuSettings settings,
+        UniversalRadialParameters parameters)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(parameters);
+        if (_universalPlan == null)
+            throw new InvalidOperationException("This bundle was not built through the Universal opt-in path.");
+        if (parameters.SurfaceScale != _universalPlan.Parameters.SurfaceScale)
+            throw new InvalidOperationException("SurfaceScale changes require a complete Universal bundle rebuild.");
+
+        var stopwatch = Stopwatch.StartNew();
+        bool rebuilt;
+        if (_fullStateCache != null)
+        {
+            rebuilt = _fullStateCache.EnsureUniversalDynamic(settings, parameters);
+        }
+        else
+        {
+            rebuilt = _dynamicContent!.EnsureUniversal(settings, TargetSize, parameters);
+            if (rebuilt)
+            {
+                Bitmap[] replacement = BuildLegacyFinalStates(Plan, _assetCache!, _dynamicContent);
+                Bitmap[]? previous = _universalLegacyStates;
+                _universalLegacyStates = replacement;
+                if (previous != null) foreach (Bitmap state in previous) state.Dispose();
+            }
+        }
+        stopwatch.Stop();
+        LastUniversalDynamicRebuild = stopwatch.Elapsed;
+        if (rebuilt)
+        {
+            _universalPlan = _universalPlan.WithParameters(parameters);
+            RefreshUniversalMetadata(settings);
+        }
+        return rebuilt;
+    }
+
+    public Bitmap GetFinalState(int selectedSlot)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_fullStateCache != null) return _fullStateCache.GetState(selectedSlot);
+        if (_universalLegacyStates == null)
+            throw new InvalidOperationException("The production V1 bundle is composed by the overlay.");
+        if (selectedSlot < 0 || selectedSlot >= _universalLegacyStates.Length)
+            throw new ArgumentOutOfRangeException(nameof(selectedSlot));
+        return _universalLegacyStates[selectedSlot];
+    }
 
     public void Dispose()
     {
@@ -376,8 +554,55 @@ internal sealed class RuntimeRenderBundle : IDisposable
         _disposed = true;
         DisposeCount++;
         _fullStateCache?.Dispose();
+        if (_universalLegacyStates != null)
+            foreach (Bitmap state in _universalLegacyStates) state.Dispose();
         _dynamicContent?.Dispose();
         _assetCache?.Dispose();
+    }
+
+    private void RefreshUniversalMetadata(RadialMenuSettings settings)
+    {
+        UniversalRadialRenderPlan plan = UniversalPlan;
+        ThemeMappingSnapshot mappings = ThemeMappingSnapshot.Capture(settings, plan.SourcePlan.LayoutProfileId);
+        string fontEnvironment = _fullStateCache?.FontEnvironment ?? _dynamicContent!.FontEnvironment;
+        UniversalCacheKey = new(
+            plan.SourcePlan.ThemeId,
+            plan.SourceProtocolVersion,
+            plan.SourcePackageRevision,
+            plan.Parameters.SurfaceScale,
+            plan.Parameters.FontScale,
+            plan.Parameters.TextStrength,
+            Dpi,
+            mappings,
+            fontEnvironment);
+    }
+
+    private static Bitmap[] BuildLegacyFinalStates(
+        NormalizedRenderPlan plan,
+        RadialVisualPackCache assets,
+        RadialDynamicContentCache dynamic)
+    {
+        var states = new Bitmap[plan.LayoutDefinition.SlotCount + 1];
+        try
+        {
+            for (int slot = 0; slot < states.Length; slot++)
+            {
+                var target = new Bitmap(assets.TargetSize, assets.TargetSize, PixelFormat.Format32bppPArgb);
+                using Graphics graphics = Graphics.FromImage(target);
+                graphics.CompositingMode = CompositingMode.SourceCopy;
+                graphics.DrawImageUnscaled(assets.ScaledBase, 0, 0);
+                graphics.CompositingMode = CompositingMode.SourceOver;
+                if (slot > 0) graphics.DrawImageUnscaled(assets.GetSelectedSlot(slot), 0, 0);
+                graphics.DrawImageUnscaled(dynamic.Content, 0, 0);
+                states[slot] = target;
+            }
+            return states;
+        }
+        catch
+        {
+            foreach (Bitmap? state in states) state?.Dispose();
+            throw;
+        }
     }
 
     private static void ValidateLegacy(NormalizedRenderPlan plan, RadialVisualPackCache assets,

@@ -206,9 +206,11 @@ internal sealed class NormalizedRenderPlan
         NormalizedFallbackMetadata fallback,
         IEnumerable<string> requiredRuntimeCapabilities,
         NormalizedPlacement? placement = null,
-        NormalizedDynamicThemeModel? dynamicTheme = null)
+        NormalizedDynamicThemeModel? dynamicTheme = null,
+        int sourcePackageRevision = 1)
     {
         if (sourceProtocolVersion <= 0) throw new ArgumentOutOfRangeException(nameof(sourceProtocolVersion));
+        if (sourcePackageRevision <= 0) throw new ArgumentOutOfRangeException(nameof(sourcePackageRevision));
         ArgumentException.ThrowIfNullOrWhiteSpace(themeId);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
         ArgumentNullException.ThrowIfNull(layoutDefinition);
@@ -235,6 +237,7 @@ internal sealed class NormalizedRenderPlan
         if (capabilities.Any(string.IsNullOrWhiteSpace)) throw new ArgumentException("Capability IDs cannot be empty.");
 
         SourceProtocolVersion = sourceProtocolVersion;
+        SourcePackageRevision = sourcePackageRevision;
         ThemeId = themeId;
         DisplayName = displayName;
         LayoutDefinition = layoutDefinition;
@@ -251,6 +254,7 @@ internal sealed class NormalizedRenderPlan
     }
 
     public int SourceProtocolVersion { get; }
+    public int SourcePackageRevision { get; }
     public string ThemeId { get; }
     public string DisplayName { get; }
     public LayoutDefinition LayoutDefinition { get; }

@@ -103,6 +103,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
     internal int BuildCount { get; private set; }
     internal int RenderedSlotCount { get; private set; }
     internal NormalizedRenderPlan Plan => _plan;
+    internal string FontEnvironment => _fontFamily.Name;
 
     public bool Ensure(RadialMenuSettings settings, int targetSize)
     {
@@ -117,6 +118,38 @@ internal sealed class RadialDynamicContentCache : IDisposable
             metrics.FontSize * outputScale,
             outputScale,
             settings.TextAlpha,
+            UseLegacyTextClamp: true,
+            settings.GetProfileMappings(_plan.LayoutDefinition.ProfileId));
+        if (_content != null && key == _key) return false;
+
+        Bitmap replacement = BuildContent(key);
+        Bitmap? previous = _content;
+        _content = replacement;
+        _key = key;
+        BuildCount++;
+        previous?.Dispose();
+        return true;
+    }
+
+    public bool EnsureUniversal(
+        RadialMenuSettings settings,
+        int targetSize,
+        UniversalRadialParameters parameters)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(parameters);
+        if (targetSize <= 0) throw new ArgumentOutOfRangeException(nameof(targetSize));
+
+        float physicalPresentationScale = checked((float)(
+            targetSize / _plan.ReferenceScale.LogicalWidth));
+        var key = new DynamicContentKey(
+            targetSize,
+            checked((float)(UniversalRadialParameters.NeutralFontSize *
+                parameters.FontScale * physicalPresentationScale)),
+            physicalPresentationScale,
+            UniversalRadialSettingsNormalizer.ScaleAuthoredAlpha(235, parameters.TextStrength),
+            UseLegacyTextClamp: false,
             settings.GetProfileMappings(_plan.LayoutDefinition.ProfileId));
         if (_content != null && key == _key) return false;
 
@@ -169,7 +202,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
             7.5f * key.OutputScale,
             key.FontPixelSize * 0.72f) * SupersampleScale;
         Color primaryColor = Color.FromArgb(
-            Math.Min(key.TextAlpha, 235),
+            key.UseLegacyTextClamp ? Math.Min(key.TextAlpha, 235) : key.TextAlpha,
             0xCC,
             0xD5,
             0xDE);
@@ -283,5 +316,6 @@ internal sealed class RadialDynamicContentCache : IDisposable
         float FontPixelSize,
         float OutputScale,
         int TextAlpha,
+        bool UseLegacyTextClamp,
         RadialSlotMappings SlotMappings);
 }

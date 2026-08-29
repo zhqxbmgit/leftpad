@@ -353,6 +353,7 @@ internal sealed class RadialVisualPackCache : IDisposable
     public NormalizedRenderPlan Plan { get; }
     public int TargetSize { get; private set; }
     public Bitmap ScaledBase { get; private set; } = null!;
+    public int DecodedAssetCount { get; } = 2;
     internal int SelectedSlotCount => _selectedSlots.Length;
 
     public void Rebuild(int targetSize)
