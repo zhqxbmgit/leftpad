@@ -18,6 +18,11 @@ public sealed record RadialMenuSettings
     public const int MaximumSelectionPollIntervalMs = 50;
 
     public static RadialMenuSettings Default => new();
+    public static RadialMenuSettings SafeFallback => new()
+    {
+        VisualPackId = RadialVisualPackContract.FallbackVisualPackId,
+        MappingProfileId = RadialVisualPackContract.FallbackMappingProfileId
+    };
 
     public string VisualPackId { get; init; } = RadialVisualPackContract.DefaultVisualPackId;
     public int ReceiverUiScalePercent { get; init; } = ReceiverUiScaling.DefaultScalePercent;
@@ -36,7 +41,7 @@ public sealed record RadialMenuSettings
     public int SelectionDeadZone { get; init; } = 28;
     public int HighlightAlpha { get; init; } = 80;
     public int SelectionPollIntervalMs { get; init; } = 16;
-    public string MappingProfileId { get; init; } = LayoutProfileRegistry.Radial6ProfileId;
+    public string MappingProfileId { get; init; } = RadialVisualPackContract.DefaultMappingProfileId;
 
     public RadialMappingsByProfile MappingsByProfile
     {

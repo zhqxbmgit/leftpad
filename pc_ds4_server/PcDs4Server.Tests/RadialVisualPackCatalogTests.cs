@@ -10,8 +10,8 @@ public sealed class RadialVisualPackCatalogTests
         RadialVisualPackCatalogSnapshot snapshot = new RadialVisualPackCatalog().Discover();
 
         RadialVisualPackCatalogEntry pack = Assert.IsType<RadialVisualPackCatalogEntry>(
-            snapshot.Find(RadialVisualPackContract.DefaultVisualPackId));
-        Assert.Equal(RadialVisualPackContract.DefaultVisualPackId, pack.Id);
+            snapshot.Find(RadialVisualPackContract.FallbackVisualPackId));
+        Assert.Equal(RadialVisualPackContract.FallbackVisualPackId, pack.Id);
         Assert.Equal("Tactical HUD V5", pack.Name);
         Assert.Same(pack, snapshot.ResolveSelection("missing-pack"));
     }

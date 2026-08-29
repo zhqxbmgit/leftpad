@@ -94,6 +94,11 @@ namespace PcDs4Server
             _joystickOverlay = new VirtualJoystickOverlay();
             _ = _joystickOverlay.Handle;
             _radialVisualPackCatalog = new RadialVisualPackCatalog();
+            RadialSettingsCoherenceResult coherence =
+                RadialSettingsCoherenceResolver.Resolve(
+                    radialSettings.Settings,
+                    _radialVisualPackCatalog.Discover());
+            radialSettings = radialSettings with { Settings = coherence.Settings };
             _radialOverlay = new RadialMenuOverlay(
                 _radialVisualPackCatalog,
                 LogRadialMessage);

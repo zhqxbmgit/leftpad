@@ -6,7 +6,11 @@ namespace PcDs4Server;
 
 public static class RadialVisualPackContract
 {
-    public const string DefaultVisualPackId = "radial-v5";
+    public const string DefaultVisualPackId = "dark-fantasy-radial8-v1";
+    public const string FallbackVisualPackId = "radial-v5";
+    public const string LegacyV1DefaultPackId = "radial-v5";
+    public const string DefaultMappingProfileId = LayoutProfileRegistry.Radial8ProfileId;
+    public const string FallbackMappingProfileId = LayoutProfileRegistry.Radial6ProfileId;
     public const int SupportedManifestVersion = 1;
     public const string SupportedSelectionAssetMode = "canonical-transform";
 
@@ -99,7 +103,7 @@ public sealed class RadialVisualPackDefinition
 
     public static string DefaultDirectory => Path.Combine(
         RadialVisualPackContract.DiscoveryRoot,
-        RadialVisualPackContract.DefaultVisualPackId);
+        RadialVisualPackContract.LegacyV1DefaultPackId);
 
     public static RadialVisualPackDefinition Load(string directoryPath)
     {

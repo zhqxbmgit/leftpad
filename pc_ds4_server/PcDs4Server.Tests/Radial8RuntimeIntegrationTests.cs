@@ -71,7 +71,7 @@ public sealed class Radial8RuntimeIntegrationTests
         using var runtime = new RadialVisualPackRuntime(
             new RadialVisualPackCatalog(temporary.Root));
 
-        RadialVisualPackSession radial6 = runtime.Ensure(RadialMenuSettings.Default, 280)!;
+        RadialVisualPackSession radial6 = runtime.Ensure(RadialMenuSettings.SafeFallback, 280)!;
         RadialVisualPackSession radial8 = runtime.Ensure(Radial8Settings(), 280)!;
 
         Assert.Equal(Radial8PackId, runtime.ActivePackId);
@@ -81,9 +81,9 @@ public sealed class Radial8RuntimeIntegrationTests
         Assert.False(radial8.IsDisposed);
         Assert.Equal(8, radial8.LayoutDefinition.SlotCount);
 
-        RadialVisualPackSession radial6Again = runtime.Ensure(RadialMenuSettings.Default, 280)!;
+        RadialVisualPackSession radial6Again = runtime.Ensure(RadialMenuSettings.SafeFallback, 280)!;
 
-        Assert.Equal(RadialVisualPackContract.DefaultVisualPackId, runtime.ActivePackId);
+        Assert.Equal(RadialVisualPackContract.FallbackVisualPackId, runtime.ActivePackId);
         Assert.Same(radial6Again, runtime.Active);
         Assert.NotSame(radial8, radial6Again);
         Assert.True(radial8.IsDisposed);

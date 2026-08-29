@@ -21,6 +21,7 @@ public sealed class RadialMenuSettingsStore
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
         WriteIndented = true
     };
 
@@ -53,15 +54,34 @@ public sealed class RadialMenuSettingsStore
 
         try
         {
+            string content = _files.ReadAllText(_path);
+            using JsonDocument document = JsonDocument.Parse(content);
+            bool hasVisualPackId = document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.EnumerateObject().Any(property =>
+                    string.Equals(
+                        property.Name,
+                        JsonOptions.PropertyNamingPolicy!.ConvertName(
+                            nameof(RadialMenuSettings.VisualPackId)),
+                        JsonOptions.PropertyNameCaseInsensitive
+                            ? StringComparison.OrdinalIgnoreCase
+                            : StringComparison.Ordinal));
             RadialMenuSettings? settings = JsonSerializer.Deserialize<RadialMenuSettings>(
-                _files.ReadAllText(_path),
+                content,
                 JsonOptions);
             if (settings == null)
             {
                 return new RadialMenuSettingsLoadResult(
-                    RadialMenuSettings.Default,
+                    RadialMenuSettings.SafeFallback,
                     RadialMenuSettingsLoadStatus.Invalid,
                     "Settings file was empty.");
+            }
+            if (!hasVisualPackId)
+            {
+                settings = settings with
+                {
+                    VisualPackId = RadialVisualPackContract.LegacyV1DefaultPackId,
+                    MappingProfileId = RadialVisualPackContract.FallbackMappingProfileId
+                };
             }
             settings = settings with
             {
@@ -72,7 +92,7 @@ public sealed class RadialMenuSettingsStore
             if (!settings.TryValidate(out string validationError))
             {
                 return new RadialMenuSettingsLoadResult(
-                    RadialMenuSettings.Default,
+                    RadialMenuSettings.SafeFallback,
                     RadialMenuSettingsLoadStatus.Invalid,
                     validationError);
             }
@@ -82,14 +102,14 @@ public sealed class RadialMenuSettingsStore
         catch (JsonException ex)
         {
             return new RadialMenuSettingsLoadResult(
-                RadialMenuSettings.Default,
+                RadialMenuSettings.SafeFallback,
                 RadialMenuSettingsLoadStatus.Malformed,
                 ex.Message);
         }
         catch (Exception ex)
         {
             return new RadialMenuSettingsLoadResult(
-                RadialMenuSettings.Default,
+                RadialMenuSettings.SafeFallback,
                 RadialMenuSettingsLoadStatus.Failed,
                 ex.Message);
         }

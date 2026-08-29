@@ -420,10 +420,10 @@ public sealed class ReferenceThemeRuntimePhase3Tests
     public void V1DynamicV1ThemeSwitchPublishesAndDisposesAtomically()
     {
         using var fixture=new DynamicThemeFixture();using var runtime=new RadialVisualPackRuntime(fixture.Catalog);
-        RadialVisualPackSession v1=runtime.Ensure(RadialMenuSettings.Default,280,96)!;
+        RadialVisualPackSession v1=runtime.Ensure(RadialMenuSettings.SafeFallback,280,96)!;
         RadialVisualPackSession dynamic=runtime.Ensure(fixture.Settings,280,96)!;
         Assert.True(dynamic.Plan.HasV2DynamicContent);Assert.True(v1.Bundle.IsDisposed);
-        RadialVisualPackSession v1Again=runtime.Ensure(RadialMenuSettings.Default,280,96)!;
+        RadialVisualPackSession v1Again=runtime.Ensure(RadialMenuSettings.SafeFallback,280,96)!;
         Assert.False(v1Again.Bundle.IsFullStateFrame);Assert.True(dynamic.Bundle.IsDisposed);
     }
 

@@ -32,7 +32,7 @@ public sealed class ReferenceThemeRuntimePhase1Tests
         Assert.Equal(new NormalizedReferenceCanvas(1254, 1254, "RGBA"), plan.ReferenceCanvas);
         Assert.Equal(NormalizedReferenceScale.DirectToFinalPhysical, plan.ReferenceScale.Mode);
         Assert.Equal(NormalizedDynamicContentDescriptor.LegacyGlyphMappings, plan.DynamicContent.Mode);
-        Assert.Equal(RadialVisualPackContract.DefaultVisualPackId, plan.Fallback.StartupFallbackThemeId);
+        Assert.Equal(RadialVisualPackContract.FallbackVisualPackId, plan.Fallback.StartupFallbackThemeId);
         Assert.True(plan.Fallback.RetainActiveOnCandidateFailure);
         Assert.Contains("pargb-layered-window", plan.RequiredRuntimeCapabilities);
 

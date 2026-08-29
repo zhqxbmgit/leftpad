@@ -73,7 +73,9 @@ public sealed class RadialMenuController : IDisposable
     public Point? PreviewAnchor => IsPreviewActive ? _previewAnchor : null;
     public RadialMenuSettings ActiveSettings => _activeSettings with
     {
-        MappingProfileId = CurrentLayoutDefinition.ProfileId
+        MappingProfileId =
+            (_overlay as IRadialLayoutProvider)?.ActiveLayoutDefinition?.ProfileId ??
+            _activeSettings.MappingProfileId
     };
     internal LayoutDefinition CurrentLayoutDefinition =>
         (_overlay as IRadialLayoutProvider)?.ActiveLayoutDefinition ?? _layout.Value;

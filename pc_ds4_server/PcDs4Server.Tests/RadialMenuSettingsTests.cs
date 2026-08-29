@@ -52,7 +52,8 @@ public sealed class RadialMenuSettingsTests
             new RadialMenuSettingsStore(temporary.FilePath).Load();
 
         Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
-        Assert.Equal(RadialVisualPackContract.DefaultVisualPackId, result.Settings.VisualPackId);
+        Assert.Equal(RadialVisualPackContract.LegacyV1DefaultPackId, result.Settings.VisualPackId);
+        Assert.Equal(RadialVisualPackContract.FallbackMappingProfileId, result.Settings.MappingProfileId);
         Assert.Equal(90, result.Settings.ScalePercent);
         Assert.Equal(275, result.Settings.DoubleTapWindowMs);
         Assert.Equal(36, result.Settings.SelectionDeadZone);
@@ -169,7 +170,7 @@ public sealed class RadialMenuSettingsTests
         RadialMenuSettingsLoadResult result = store.Load();
 
         Assert.Equal(RadialMenuSettingsLoadStatus.Malformed, result.Status);
-        Assert.Equal(RadialMenuSettings.Default, result.Settings);
+        Assert.Equal(RadialMenuSettings.SafeFallback, result.Settings);
     }
 
     [Fact]
@@ -417,7 +418,7 @@ public sealed class RadialMenuSettingsTests
         RadialMenuSettingsLoadResult result = store.Load();
 
         Assert.Equal(RadialMenuSettingsLoadStatus.Invalid, result.Status);
-        Assert.Equal(RadialMenuSettings.Default, result.Settings);
+        Assert.Equal(RadialMenuSettings.SafeFallback, result.Settings);
     }
 
     [Fact]

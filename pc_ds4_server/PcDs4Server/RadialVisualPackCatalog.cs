@@ -44,8 +44,20 @@ public sealed class RadialVisualPackCatalogSnapshot
     public IReadOnlyList<RadialVisualPackCatalogIssue> Issues { get; }
     public RadialVisualPackCatalogEntry? Find(string? id) => string.IsNullOrWhiteSpace(id) ? null :
         Packs.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.Ordinal));
-    public RadialVisualPackCatalogEntry? ResolveSelection(string? requestedId) => Find(requestedId) ??
-        Find(RadialVisualPackContract.DefaultVisualPackId) ?? Packs.FirstOrDefault();
+    public RadialVisualPackCatalogEntry? ResolveSelection(string? requestedId)
+    {
+        if (string.IsNullOrWhiteSpace(requestedId))
+        {
+            return Find(RadialVisualPackContract.DefaultVisualPackId) ??
+                Find(RadialVisualPackContract.FallbackVisualPackId) ??
+                Packs.FirstOrDefault();
+        }
+
+        return Find(requestedId) ??
+            Find(RadialVisualPackContract.FallbackVisualPackId) ??
+            Find(RadialVisualPackContract.DefaultVisualPackId) ??
+            Packs.FirstOrDefault();
+    }
 }
 
 public sealed class RadialVisualPackCatalog
@@ -68,7 +80,7 @@ public sealed class RadialVisualPackCatalog
         List<RadialVisualPackCatalogEntry> entries = new(v1);
         if (Directory.Exists(ThemeDiscoveryRoot)) DiscoverV2(v1, entries, issues);
         RadialVisualPackCatalogEntry[] sorted = entries
-            .OrderBy(x => x.Id == RadialVisualPackContract.DefaultVisualPackId ? 0 : 1)
+            .OrderBy(x => x.Id == RadialVisualPackContract.LegacyV1DefaultPackId ? 0 : 1)
             .ThenBy(x => x.Name, StringComparer.Ordinal).ThenBy(x => x.Id, StringComparer.Ordinal).ToArray();
         return new(sorted, issues);
     }

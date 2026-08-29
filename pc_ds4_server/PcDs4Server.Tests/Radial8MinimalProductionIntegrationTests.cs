@@ -28,7 +28,7 @@ public sealed class Radial8MinimalProductionIntegrationTests
         Assert.Equal(
             new[]
             {
-                RadialVisualPackContract.DefaultVisualPackId,
+                RadialVisualPackContract.LegacyV1DefaultPackId,
                 DarkFantasyProductionPackId,
                 ProductionPackId
             },
@@ -135,7 +135,7 @@ public sealed class Radial8MinimalProductionIntegrationTests
         using var runtime = new RadialVisualPackRuntime(new RadialVisualPackCatalog());
 
         RadialVisualPackSession radialV5 = runtime.Ensure(
-            RadialMenuSettings.Default,
+            RadialMenuSettings.SafeFallback,
             targetSize: 280)!;
         RadialVisualPackSession minimal = runtime.Ensure(
             ProductionSettings(RadialSlotMappings.Create(8)),
@@ -147,10 +147,10 @@ public sealed class Radial8MinimalProductionIntegrationTests
         Assert.False(minimal.IsDisposed);
 
         RadialVisualPackSession radialV5Again = runtime.Ensure(
-            RadialMenuSettings.Default,
+            RadialMenuSettings.SafeFallback,
             targetSize: 280)!;
 
-        Assert.Equal(RadialVisualPackContract.DefaultVisualPackId, runtime.ActivePackId);
+        Assert.Equal(RadialVisualPackContract.FallbackVisualPackId, runtime.ActivePackId);
         Assert.Same(radialV5Again, runtime.Active);
         Assert.True(minimal.IsDisposed);
         Assert.False(radialV5Again.IsDisposed);

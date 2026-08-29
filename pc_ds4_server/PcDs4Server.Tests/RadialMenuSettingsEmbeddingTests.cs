@@ -52,7 +52,7 @@ public sealed class RadialMenuSettingsEmbeddingTests
             Assert.True(control.IsInitialized);
             Assert.Equal(initialRefreshCount + 1, control.RefreshCount);
             Assert.Equal(RadialVisualPackContract.DefaultVisualPackId, control.SelectedVisualPackId);
-            Assert.Equal(LayoutProfileRegistry.Radial6SlotCount, control.MappingRowCount);
+            Assert.Equal(LayoutProfileRegistry.Radial8SlotCount, control.MappingRowCount);
             Assert.Throws<InvalidOperationException>(() => control.Initialize(
                 controller,
                 new RadialMenuSettingsStore(temporary.FilePath),
@@ -103,6 +103,7 @@ public sealed class RadialMenuSettingsEmbeddingTests
     [Theory]
     [InlineData("radial-v5", LayoutProfileRegistry.Radial6ProfileId, 6)]
     [InlineData("radial-8-minimal-v1", LayoutProfileRegistry.Radial8ProfileId, 8)]
+    [InlineData("dark-fantasy-radial8-v1", LayoutProfileRegistry.Radial8ProfileId, 8)]
     public void SettingsControl_VisualPackSelectionBuildsNumberedProfileRows(
         string visualPackId,
         string expectedProfileId,

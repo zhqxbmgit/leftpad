@@ -117,7 +117,7 @@ internal static class UiThemeV2Loader
             (regions.ValueKind != JsonValueKind.Array || regions.GetArrayLength() != 0))
             throw Invalid("visualRegions are not supported by the Phase 2 runtime.");
         ValidateStylesAndGlyphs(manifest);
-        ValidateFallback(manifest);
+        NormalizedFallbackMetadata fallback = ParseFallback(manifest);
         string[] capabilities = ValidateCapabilities(manifest);
         ValidateTransitions(manifest);
 
@@ -148,7 +148,7 @@ internal static class UiThemeV2Loader
             layers.Where(x => x.StaticAsset != null)
                 .Select(x => new NormalizedStaticLayer(x.Id, x.StaticAsset!.PackagePath)),
             new(NormalizedDynamicContentDescriptor.None), Array.Empty<NormalizedGeometryTransform>(),
-            new(RadialVisualPackContract.DefaultVisualPackId, true), capabilities, placement,
+            fallback, capabilities, placement,
             dynamicTheme);
         return new UiThemeV2Package(root,
             new UiThemeV2Manifest(2, revision, id, name, "radial-overlay", "full-state-frame", profile),
@@ -690,13 +690,13 @@ internal static class UiThemeV2Loader
         if (!UiThemeV2Contract.IdentifierPattern().IsMatch(value)) throw Invalid($"{name} is not an identifier.");
     }
 
-    private static void ValidateFallback(JsonElement manifest)
+    private static NormalizedFallbackMetadata ParseFallback(JsonElement manifest)
     {
         JsonElement value = RequireObject(manifest.GetProperty("fallback"), "fallback",
             new[] { "onInvalidCandidate", "onUnsupportedVersion", "startupThemeId" });
         RequireStringValue(value, "onInvalidCandidate", "retain-active");
         RequireStringValue(value, "onUnsupportedVersion", "retain-active");
-        _ = RequireIdentifier(value, "startupThemeId");
+        return new(RequireIdentifier(value, "startupThemeId"), true);
     }
 
     private static void ValidateTransitions(JsonElement manifest)

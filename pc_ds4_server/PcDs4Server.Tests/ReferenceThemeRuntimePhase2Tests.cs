@@ -233,7 +233,7 @@ public sealed class ReferenceThemeRuntimePhase2Tests
         using var fixture = new V2ThemeFixture(6, 800, 500, 400, 400, 0, 75, 120, 200);
         fixture.ReplaceAsset("selected-1.png", "not a png"u8.ToArray());
         using var runtime = new RadialVisualPackRuntime(fixture.Catalog);
-        RadialVisualPackSession v1 = runtime.Ensure(RadialMenuSettings.Default, 280, 96)!;
+        RadialVisualPackSession v1 = runtime.Ensure(RadialMenuSettings.SafeFallback, 280, 96)!;
 
         RadialVisualPackSession retained = runtime.Ensure(fixture.Settings, 280, 96)!;
 
@@ -248,14 +248,14 @@ public sealed class ReferenceThemeRuntimePhase2Tests
     {
         using var fixture = new V2ThemeFixture(6, 800, 500, 400, 400, 0, 75, 120, 200);
         using var runtime = new RadialVisualPackRuntime(fixture.Catalog);
-        RadialVisualPackSession v1 = runtime.Ensure(RadialMenuSettings.Default, 280, 96)!;
+        RadialVisualPackSession v1 = runtime.Ensure(RadialMenuSettings.SafeFallback, 280, 96)!;
 
         RadialVisualPackSession v2 = runtime.Ensure(fixture.Settings, 280, 96)!;
         Assert.True(v2.Bundle.IsFullStateFrame);
         Assert.Equal(7, v2.Bundle.FullStateCache.StateCount);
         Assert.True(v1.Bundle.IsDisposed);
 
-        RadialVisualPackSession v1Again = runtime.Ensure(RadialMenuSettings.Default, 280, 96)!;
+        RadialVisualPackSession v1Again = runtime.Ensure(RadialMenuSettings.SafeFallback, 280, 96)!;
         Assert.False(v1Again.Bundle.IsFullStateFrame);
         Assert.True(v2.Bundle.IsDisposed);
     }

@@ -116,31 +116,42 @@ internal sealed class RadialVisualPackRuntime : IDisposable
         RadialVisualPackCatalogEntry? target = snapshot.Find(requestedId);
         if (target == null)
         {
-            LogFallback(requestedId, $"requested pack '{requestedId}' is unavailable or incompatible");
+            LogFallback(
+                requestedId,
+                $"requested pack '{requestedId}' is unavailable or incompatible",
+                RadialVisualPackContract.FallbackVisualPackId);
             _lastRequestedId = requestedId;
             if (_active != null) { LogRetained(requestedId); return _active; }
-            target = snapshot.Find(RadialVisualPackContract.DefaultVisualPackId);
+            return TryInstallFallback(
+                snapshot,
+                settings,
+                targetSize,
+                dpi,
+                failedThemeId: requestedId,
+                preferredFallbackId: null);
         }
         _lastRequestedId = requestedId;
-        if (target == null)
-        {
-            LastError = $"No compatible fallback pack '{RadialVisualPackContract.DefaultVisualPackId}' was found.";
-            _log($"[视觉主题] {LastError}");
-            return _active;
-        }
         if (_active?.PackId == target.Id)
             return EnsureExisting(_active, settings, targetSize, dpi, requestedId);
         if (TryCreateSession(target, settings, targetSize, dpi, out RadialVisualPackSession? replacement))
             return Install(replacement!);
 
         string failure = LastError ?? "unknown load failure";
-        LogFallback(requestedId, failure);
+        string preferredFallbackId = target.Plan.Fallback.StartupFallbackThemeId;
+        LogFallback(
+            requestedId,
+            failure,
+            string.Equals(preferredFallbackId, target.Id, StringComparison.Ordinal)
+                ? RadialVisualPackContract.FallbackVisualPackId
+                : preferredFallbackId);
         if (_active != null) { LogRetained(requestedId); return _active; }
-        if (target.Id == RadialVisualPackContract.DefaultVisualPackId) return null;
-        RadialVisualPackCatalogEntry? fallback = snapshot.Find(RadialVisualPackContract.DefaultVisualPackId);
-        if (fallback != null && TryCreateSession(fallback, settings, targetSize, dpi, out replacement))
-            return Install(replacement!);
-        return _active;
+        return TryInstallFallback(
+            snapshot,
+            settings,
+            targetSize,
+            dpi,
+            target.Id,
+            preferredFallbackId);
     }
 
     public void Dispose()
@@ -177,10 +188,47 @@ internal sealed class RadialVisualPackRuntime : IDisposable
         return replacement;
     }
 
+    private RadialVisualPackSession? TryInstallFallback(
+        RadialVisualPackCatalogSnapshot snapshot,
+        RadialMenuSettings settings,
+        int targetSize,
+        int dpi,
+        string failedThemeId,
+        string? preferredFallbackId)
+    {
+        var visited = new HashSet<string>(StringComparer.Ordinal) { failedThemeId };
+        foreach (string fallbackId in new[]
+                 {
+                     preferredFallbackId,
+                     RadialVisualPackContract.FallbackVisualPackId
+                 }
+                 .Where(id => !string.IsNullOrWhiteSpace(id))
+                 .Select(id => id!)
+                 .Where(visited.Add))
+        {
+            RadialVisualPackCatalogEntry? fallback = snapshot.Find(fallbackId);
+            if (fallback == null) continue;
+            if (TryCreateSession(
+                    fallback,
+                    settings,
+                    targetSize,
+                    dpi,
+                    out RadialVisualPackSession? replacement))
+            {
+                return Install(replacement!);
+            }
+        }
+
+        LastError ??=
+            $"No compatible fallback pack '{RadialVisualPackContract.FallbackVisualPackId}' was found.";
+        _log($"[视觉主题] {LastError}");
+        return _active;
+    }
+
     private void LogCatalogIssues(RadialVisualPackCatalogSnapshot snapshot)
     { foreach (var issue in snapshot.Issues) _log($"[视觉主题] Ignored pack '{issue.PackId ?? issue.DirectoryPath}': {issue.Message}"); }
-    private void LogFallback(string id, string reason) => _log(
-        $"[视觉主题] Requested pack '{id}' failed: {reason}; fallback '{RadialVisualPackContract.DefaultVisualPackId}'.");
+    private void LogFallback(string id, string reason, string fallbackId) => _log(
+        $"[视觉主题] Requested pack '{id}' failed: {reason}; fallback '{fallbackId}'.");
     private void LogRetained(string id) => _log(
         $"[视觉主题] Retaining active pack '{_active!.PackId}' after failed switch to '{id}'.");
     private static bool IsRuntimePackException(Exception exception) =>

@@ -447,18 +447,20 @@ public sealed class DreamscapeSettingsBasicTests
         Assert.DoesNotContain("type=\"number\"", html);
     }
 
-    [Fact]
-    public void VisualPackChange_AlsoUsesItsProductionMappingProfile()
+    [Theory]
+    [InlineData("radial-8-minimal-v1")]
+    [InlineData("dark-fantasy-radial8-v1")]
+    public void VisualPackChange_AlsoUsesItsProductionMappingProfile(string visualPackId)
     {
         SessionHarness harness = CreateHarness();
         harness.Session.Activate();
         Assert.True(ReceiverSettingsCommandAllowList.TryParse(
-            "{\"command\":\"settingsBasicChange\",\"field\":\"visualPackId\",\"value\":\"radial-8-minimal-v1\"}",
+            $"{{\"command\":\"settingsBasicChange\",\"field\":\"visualPackId\",\"value\":\"{visualPackId}\"}}",
             out ReceiverSettingsMessage message,
             out string parseError), parseError);
 
         Assert.True(harness.Session.TryApplyChange(message, out string applyError), applyError);
-        Assert.Equal("radial-8-minimal-v1", harness.Session.Draft.VisualPackId);
+        Assert.Equal(visualPackId, harness.Session.Draft.VisualPackId);
         Assert.Equal("radial-8", harness.Session.Draft.MappingProfileId);
     }
 
@@ -586,7 +588,7 @@ public sealed class DreamscapeSettingsBasicTests
     {
         var harness = new SessionHarness
         {
-            Active = RadialMenuSettings.Default with
+            Active = RadialMenuSettings.SafeFallback with
             {
                 ReceiverUiScalePercent = 150,
                 ScalePercent = 112,

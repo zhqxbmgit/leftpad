@@ -296,7 +296,7 @@ internal static class V1VisualPackCompatibilityAdapter
                 LegacyCanonicalSelectedPlan.LegacyRotationStateLookup),
             new[] { baseLayer }, new(NormalizedDynamicContentDescriptor.LegacyGlyphMappings),
             new[] { new NormalizedGeometryTransform(NormalizedGeometryTransform.LayoutSlotRotation) },
-            new(RadialVisualPackContract.DefaultVisualPackId, true),
+            new(RadialVisualPackContract.FallbackVisualPackId, true),
             new[] { "legacy-canonical-selected", "legacy-glyph-content", "pargb-layered-window" });
     }
 }

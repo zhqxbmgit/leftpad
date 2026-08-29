@@ -233,20 +233,20 @@ public sealed class DreamscapeSettingsMappingTests
     public void Slot3Tab_PersistsThroughJsonReloadNormalizeControllerSessionAndResolver()
     {
         using var temporary = new TemporarySettingsFile();
-        RadialSlotMappings mappings = RadialMenuSettings.Default
+        RadialSlotMappings mappings = RadialMenuSettings.SafeFallback
             .GetProfileMappings(LayoutProfileRegistry.Radial6ProfileId)
             .WithSlot(3, new RadialSlotMapping
             {
                 Kind = RadialActionKind.KeyboardKey,
                 Key = KeyboardKey.Tab
             });
-        RadialMenuSettings expected = RadialMenuSettings.Default.SetProfileMappings(
+        RadialMenuSettings expected = RadialMenuSettings.SafeFallback.SetProfileMappings(
             LayoutProfileRegistry.Radial6ProfileId,
             mappings);
 
         using (var savingController = new RadialMenuController(
             new FakeOverlay(),
-            RadialMenuSettings.Default))
+            RadialMenuSettings.SafeFallback))
         {
             var savingStore = new RadialMenuSettingsStore(temporary.Path);
             Assert.True(RadialMenuSettingsPersistence.TryApplyAndSave(
@@ -569,7 +569,7 @@ public sealed class DreamscapeSettingsMappingTests
     {
         var harness = new SessionHarness
         {
-            Active = RadialMenuSettings.Default with { ReceiverUiScalePercent = 150 }
+            Active = RadialMenuSettings.SafeFallback with { ReceiverUiScalePercent = 150 }
         };
         harness.Session = new DreamscapeSettingsBasicSession(
             () => harness.Active,

@@ -132,7 +132,7 @@ public sealed class RadialActionMappingTests
     public void ActiveAndTemporaryMappings_AreIsolatedUntilApply()
     {
         var overlay = new FakeOverlay();
-        RadialMenuSettings active = RadialMenuSettings.Default;
+        RadialMenuSettings active = RadialMenuSettings.SafeFallback;
         RadialMenuSettings temporary = active with
         {
             SlotMappings = active.SlotMappings.WithSlot(2, new RadialSlotMapping
@@ -165,9 +165,9 @@ public sealed class RadialActionMappingTests
     public void ResetDefaults_ChangesTemporaryMappingsOnlyUntilApply()
     {
         var overlay = new FakeOverlay();
-        RadialMenuSettings customized = RadialMenuSettings.Default with
+        RadialMenuSettings customized = RadialMenuSettings.SafeFallback with
         {
-            SlotMappings = RadialMenuSettings.Default.SlotMappings.WithSlot(2,
+            SlotMappings = RadialMenuSettings.SafeFallback.SlotMappings.WithSlot(2,
                 new RadialSlotMapping
                 {
                     Kind = RadialActionKind.KeyboardKey,
@@ -176,7 +176,7 @@ public sealed class RadialActionMappingTests
         };
         using var controller = new RadialMenuController(overlay, customized);
 
-        RadialMenuSettings resetTemporary = RadialMenuSettings.Default;
+        RadialMenuSettings resetTemporary = RadialMenuSettings.SafeFallback;
 
         Assert.All(resetTemporary.SlotMappings,
             mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
@@ -201,7 +201,7 @@ public sealed class RadialActionMappingTests
             radialDs4Delay: _ => { });
         Assert.True(service.Initialize());
 
-        RadialMenuSettings settings = RadialMenuSettings.Default with
+        RadialMenuSettings settings = RadialMenuSettings.SafeFallback with
         {
             SlotMappings = RadialSlotMappings.Create(new RadialSlotMapping[]
             {
@@ -270,7 +270,7 @@ public sealed class RadialActionMappingTests
         using var service = new Ds4Service(
             keyboardOutput: keyboardOutput,
             bindingStore: new MemoryBindingStore());
-        RadialMenuSettings settings = RadialMenuSettings.Default;
+        RadialMenuSettings settings = RadialMenuSettings.SafeFallback;
         using var controller = new RadialMenuController(new FakeOverlay(), settings);
 
         RadialMenuCompletion noneCompletion = CompleteSlot(controller, 1);
@@ -298,9 +298,9 @@ public sealed class RadialActionMappingTests
         using var service = new Ds4Service(
             keyboardOutput: keyboardOutput,
             bindingStore: new MemoryBindingStore());
-        RadialMenuSettings settings = RadialMenuSettings.Default with
+        RadialMenuSettings settings = RadialMenuSettings.SafeFallback with
         {
-            SlotMappings = RadialMenuSettings.Default.SlotMappings.WithSlot(2,
+            SlotMappings = RadialMenuSettings.SafeFallback.SlotMappings.WithSlot(2,
                 new RadialSlotMapping
                 {
                     Kind = RadialActionKind.KeyboardKey,
@@ -326,9 +326,9 @@ public sealed class RadialActionMappingTests
             new MemoryBindingStore());
         Assert.True(service.TrySetOutputMode(OutputMode.Keyboard));
         Assert.True(service.Initialize());
-        RadialMenuSettings settings = RadialMenuSettings.Default with
+        RadialMenuSettings settings = RadialMenuSettings.SafeFallback with
         {
-            SlotMappings = RadialMenuSettings.Default.SlotMappings.WithSlot(4,
+            SlotMappings = RadialMenuSettings.SafeFallback.SlotMappings.WithSlot(4,
                 new RadialSlotMapping
                 {
                     Kind = RadialActionKind.Ds4Button,
@@ -353,7 +353,7 @@ public sealed class RadialActionMappingTests
     public void AppliedMappings_SurviveShutdownAndFreshStartupInstances()
     {
         using var temporary = new TemporarySettingsPath();
-        RadialMenuSettings settingsA = RadialMenuSettings.Default with
+        RadialMenuSettings settingsA = RadialMenuSettings.SafeFallback with
         {
             ScalePercent = 90,
             SelectionDeadZone = 36,
@@ -375,7 +375,7 @@ public sealed class RadialActionMappingTests
         string jsonAfterApply;
         using (var firstController = new RadialMenuController(
             new FakeOverlay(),
-            RadialMenuSettings.Default))
+            RadialMenuSettings.SafeFallback))
         {
             var firstStore = new RadialMenuSettingsStore(temporary.FilePath);
             Assert.True(RadialMenuSettingsPersistence.TryApplyAndSave(
@@ -419,7 +419,7 @@ public sealed class RadialActionMappingTests
     public void FreshStartupSettingsForm_PopulatesLoadedMappings()
     {
         using var temporary = new TemporarySettingsPath();
-        RadialMenuSettings savedSettings = RadialMenuSettings.Default with
+        RadialMenuSettings savedSettings = RadialMenuSettings.SafeFallback with
         {
             SlotMappings = RadialSlotMappings.Create(new RadialSlotMapping[]
             {
