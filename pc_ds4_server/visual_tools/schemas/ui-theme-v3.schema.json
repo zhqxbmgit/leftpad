@@ -1,0 +1,394 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://leftpad.local/schemas/ui-theme-v3.schema.json",
+  "title": "LeftPad Universal Radial UI Theme Package Manifest V3",
+  "description": "Closed package shape for protocolVersion 3 universal-radial themes. Cross-reference, exact coverage, safe-path, hash-closure, geometry, identity-state, semantic-ownership, mask, and dynamic-group invariants are additionally enforced by validate_theme_v3.py.",
+  "type": "object",
+  "required": [
+    "protocolVersion",
+    "packageRevision",
+    "id",
+    "name",
+    "surface",
+    "renderStrategy",
+    "layoutProfile",
+    "compatibleLayouts",
+    "slotCount",
+    "referenceCanvas",
+    "referenceScale",
+    "placement",
+    "radialGeometry",
+    "identityStates",
+    "semanticLayers",
+    "masks",
+    "dynamicGroups",
+    "fallback",
+    "capabilities",
+    "transitions",
+    "assetHashes"
+  ],
+  "properties": {
+    "protocolVersion": { "const": 3 },
+    "packageRevision": { "type": "integer", "minimum": 1 },
+    "id": { "$ref": "#/$defs/identifier" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "description": { "type": "string", "maxLength": 512 },
+    "exampleOnly": { "type": "boolean" },
+    "surface": { "const": "radial-overlay" },
+    "renderStrategy": { "const": "universal-radial" },
+    "authoring": {
+      "type": "object",
+      "required": ["method"],
+      "properties": {
+        "method": { "enum": ["external-artwork", "procedural", "mixed"] }
+      },
+      "additionalProperties": false
+    },
+    "layoutProfile": { "$ref": "#/$defs/layoutProfile" },
+    "compatibleLayouts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/layoutProfile" }
+    },
+    "slotCount": { "enum": [6, 8] },
+    "referenceCanvas": { "$ref": "#/$defs/canvas" },
+    "referenceScale": {
+      "type": "object",
+      "required": ["logicalWidth", "logicalHeight", "fit", "contentOrigin"],
+      "properties": {
+        "logicalWidth": { "const": 280 },
+        "logicalHeight": { "const": 280 },
+        "fit": { "const": "contain" },
+        "contentOrigin": {
+          "type": "object",
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "const": 0 },
+            "y": { "const": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "placement": {
+      "type": "object",
+      "required": ["activationAnchor"],
+      "properties": {
+        "activationAnchor": {
+          "type": "object",
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "number", "minimum": 0, "maximum": 280 },
+            "y": { "type": "number", "minimum": 0, "maximum": 280 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "radialGeometry": { "$ref": "#/$defs/radialGeometry" },
+    "identityStates": {
+      "type": "object",
+      "minProperties": 7,
+      "maxProperties": 9,
+      "propertyNames": { "pattern": "^(idle|selected-[1-8])$" },
+      "additionalProperties": { "$ref": "#/$defs/identityState" }
+    },
+    "semanticLayers": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/semanticLayer" }
+    },
+    "masks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/mask" }
+    },
+    "dynamicGroups": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 9,
+      "items": { "$ref": "#/$defs/dynamicGroup" }
+    },
+    "fallback": {
+      "type": "object",
+      "required": ["onInvalidCandidate", "onUnsupportedVersion", "startupThemeId"],
+      "properties": {
+        "onInvalidCandidate": { "const": "retain-active" },
+        "onUnsupportedVersion": { "const": "retain-active" },
+        "startupThemeId": { "$ref": "#/$defs/identifier" }
+      },
+      "additionalProperties": false
+    },
+    "capabilities": {
+      "type": "object",
+      "required": ["required", "optional"],
+      "properties": {
+        "required": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/capability" },
+          "allOf": [
+            { "contains": { "const": "universalRadial" } },
+            { "contains": { "const": "semanticLayers" } },
+            { "contains": { "const": "dynamicAnchors" } },
+            { "contains": { "const": "instantTransitions" } }
+          ]
+        },
+        "optional": {
+          "type": "array",
+          "maxItems": 0,
+          "items": { "$ref": "#/$defs/capability" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "transitions": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": { "mode": { "const": "instant" } },
+      "additionalProperties": false
+    },
+    "assetHashes": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/packagePath" },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[A-Fa-f0-9]{64}$"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]*$"
+    },
+    "packagePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "pattern": "^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\\.png$"
+    },
+    "layoutProfile": { "enum": ["radial-6", "radial-8"] },
+    "capability": {
+      "enum": [
+        "universalRadial",
+        "semanticLayers",
+        "dynamicAnchors",
+        "instantTransitions"
+      ]
+    },
+    "canvas": {
+      "type": "object",
+      "required": ["width", "height", "colorSpace", "alphaMode"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1, "maximum": 8192 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 8192 },
+        "colorSpace": { "const": "sRGB" },
+        "alphaMode": { "const": "straight" }
+      },
+      "additionalProperties": false
+    },
+    "point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "radialGeometry": {
+      "type": "object",
+      "required": [
+        "canonicalUnitWidth",
+        "center",
+        "neutralHubRadius",
+        "neutralInnerRadius",
+        "neutralOuterRadius",
+        "neutralGapDegrees",
+        "slotCenters",
+        "outerWarpEnvelope"
+      ],
+      "properties": {
+        "canonicalUnitWidth": { "const": 280 },
+        "center": {
+          "type": "object",
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "const": 140 },
+            "y": { "const": 140 }
+          },
+          "additionalProperties": false
+        },
+        "neutralHubRadius": { "const": 35 },
+        "neutralInnerRadius": { "const": 42 },
+        "neutralOuterRadius": { "const": 103 },
+        "neutralGapDegrees": { "const": 4 },
+        "slotCenters": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": ["slotId", "angleDegreesClockwiseFromTop"],
+            "properties": {
+              "slotId": { "type": "integer", "minimum": 1, "maximum": 8 },
+              "angleDegreesClockwiseFromTop": {
+                "type": "number",
+                "minimum": 0,
+                "exclusiveMaximum": 360
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "outerWarpEnvelope": {
+          "type": "object",
+          "required": ["authoredRadius", "targetRule", "overflowPolicy"],
+          "properties": {
+            "authoredRadius": {
+              "type": "number",
+              "exclusiveMinimum": 103,
+              "maximum": 140
+            },
+            "targetRule": { "const": "scale-padding-by-petal-thickness" },
+            "overflowPolicy": { "const": "expand-transparent" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "identityState": {
+      "type": "object",
+      "required": ["slotId", "asset"],
+      "properties": {
+        "slotId": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 1, "maximum": 8 }
+          ]
+        },
+        "asset": { "$ref": "#/$defs/packagePath" }
+      },
+      "additionalProperties": false
+    },
+    "semanticLayer": {
+      "type": "object",
+      "required": ["id", "role", "slotId", "asset", "zIndex"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "role": {
+          "enum": [
+            "STATIC_RESIDUAL",
+            "HUB",
+            "PETAL_FILL",
+            "PETAL_BORDER",
+            "PETAL_DETAIL",
+            "SELECTED_EMPHASIS"
+          ]
+        },
+        "slotId": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 1, "maximum": 8 }
+          ]
+        },
+        "asset": { "$ref": "#/$defs/packagePath" },
+        "maskId": { "$ref": "#/$defs/identifier" },
+        "zIndex": { "type": "integer", "minimum": -32768, "maximum": 32767 }
+      },
+      "additionalProperties": false
+    },
+    "mask": {
+      "type": "object",
+      "required": ["id", "asset", "coordinateSpace", "width", "height"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "asset": { "$ref": "#/$defs/packagePath" },
+        "coordinateSpace": { "const": "reference" },
+        "width": { "type": "integer", "minimum": 1, "maximum": 8192 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 8192 }
+      },
+      "additionalProperties": false
+    },
+    "dynamicGroup": {
+      "type": "object",
+      "required": ["id", "role", "slotId", "zIndex", "anchor", "glyph", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "role": { "enum": ["DYNAMIC_SLOT_CONTENT", "DYNAMIC_SELECTED_CONTENT"] },
+        "slotId": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 1, "maximum": 8 }
+          ]
+        },
+        "zIndex": { "type": "integer", "minimum": -32768, "maximum": 32767 },
+        "anchor": {
+          "type": "object",
+          "required": ["radius", "angleDegreesClockwiseFromTop"],
+          "properties": {
+            "radius": { "type": "number", "minimum": 0, "maximum": 4096 },
+            "angleDegreesClockwiseFromTop": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMaximum": 360
+            }
+          },
+          "additionalProperties": false
+        },
+        "glyph": { "$ref": "#/$defs/glyphBox" },
+        "label": { "$ref": "#/$defs/labelBox" }
+      },
+      "additionalProperties": false
+    },
+    "glyphBox": {
+      "type": "object",
+      "required": ["offsetX", "offsetY", "width", "height", "rotationDegrees", "alignment"],
+      "properties": {
+        "offsetX": { "type": "number" },
+        "offsetY": { "type": "number" },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "rotationDegrees": { "type": "number" },
+        "alignment": { "enum": ["center", "near", "far"] }
+      },
+      "additionalProperties": false
+    },
+    "labelBox": {
+      "type": "object",
+      "required": [
+        "offsetX",
+        "offsetY",
+        "width",
+        "height",
+        "rotationDegrees",
+        "alignment",
+        "authoredFontSize",
+        "maxLines"
+      ],
+      "properties": {
+        "offsetX": { "type": "number" },
+        "offsetY": { "type": "number" },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "rotationDegrees": { "type": "number" },
+        "alignment": { "enum": ["center", "near", "far"] },
+        "authoredFontSize": { "type": "number", "exclusiveMinimum": 0, "maximum": 256 },
+        "maxLines": { "type": "integer", "minimum": 1, "maximum": 8 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

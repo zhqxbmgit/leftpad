@@ -1,0 +1,259 @@
+{
+  "protocolVersion": 3,
+  "packageRevision": 1,
+  "id": "example-universal-radial8-v3",
+  "name": "Universal Radial 8 V3 Contract Example",
+  "description": "Non-production manifest-only example. Paths and hashes illustrate the V3 contract and are not installed runtime assets. Its authored outer envelope is calibrated to 140 CRU; other valid themes may declare a smaller R0 above O0.",
+  "exampleOnly": true,
+  "surface": "radial-overlay",
+  "renderStrategy": "universal-radial",
+  "authoring": {
+    "method": "external-artwork"
+  },
+  "layoutProfile": "radial-8",
+  "compatibleLayouts": [
+    "radial-8"
+  ],
+  "slotCount": 8,
+  "referenceCanvas": {
+    "width": 1024,
+    "height": 1024,
+    "colorSpace": "sRGB",
+    "alphaMode": "straight"
+  },
+  "referenceScale": {
+    "logicalWidth": 280,
+    "logicalHeight": 280,
+    "fit": "contain",
+    "contentOrigin": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "placement": {
+    "activationAnchor": {
+      "x": 140,
+      "y": 140
+    }
+  },
+  "radialGeometry": {
+    "canonicalUnitWidth": 280,
+    "center": {
+      "x": 140,
+      "y": 140
+    },
+    "neutralHubRadius": 35,
+    "neutralInnerRadius": 42,
+    "neutralOuterRadius": 103,
+    "neutralGapDegrees": 4,
+    "slotCenters": [
+      { "slotId": 1, "angleDegreesClockwiseFromTop": 0 },
+      { "slotId": 2, "angleDegreesClockwiseFromTop": 45 },
+      { "slotId": 3, "angleDegreesClockwiseFromTop": 90 },
+      { "slotId": 4, "angleDegreesClockwiseFromTop": 135 },
+      { "slotId": 5, "angleDegreesClockwiseFromTop": 180 },
+      { "slotId": 6, "angleDegreesClockwiseFromTop": 225 },
+      { "slotId": 7, "angleDegreesClockwiseFromTop": 270 },
+      { "slotId": 8, "angleDegreesClockwiseFromTop": 315 }
+    ],
+    "outerWarpEnvelope": {
+      "authoredRadius": 140,
+      "targetRule": "scale-padding-by-petal-thickness",
+      "overflowPolicy": "expand-transparent"
+    }
+  },
+  "identityStates": {
+    "idle": { "slotId": null, "asset": "states/idle.png" },
+    "selected-1": { "slotId": 1, "asset": "states/selected-1.png" },
+    "selected-2": { "slotId": 2, "asset": "states/selected-2.png" },
+    "selected-3": { "slotId": 3, "asset": "states/selected-3.png" },
+    "selected-4": { "slotId": 4, "asset": "states/selected-4.png" },
+    "selected-5": { "slotId": 5, "asset": "states/selected-5.png" },
+    "selected-6": { "slotId": 6, "asset": "states/selected-6.png" },
+    "selected-7": { "slotId": 7, "asset": "states/selected-7.png" },
+    "selected-8": { "slotId": 8, "asset": "states/selected-8.png" }
+  },
+  "semanticLayers": [
+    { "id": "static-residual", "role": "STATIC_RESIDUAL", "slotId": null, "asset": "semantic/static-residual.png", "zIndex": 0 },
+    { "id": "hub", "role": "HUB", "slotId": null, "asset": "semantic/hub.png", "zIndex": 10 },
+    { "id": "slot-1-fill", "role": "PETAL_FILL", "slotId": 1, "asset": "semantic/slot-1-fill.png", "zIndex": 21 },
+    { "id": "slot-2-fill", "role": "PETAL_FILL", "slotId": 2, "asset": "semantic/slot-2-fill.png", "zIndex": 22 },
+    { "id": "slot-3-fill", "role": "PETAL_FILL", "slotId": 3, "asset": "semantic/slot-3-fill.png", "zIndex": 23 },
+    { "id": "slot-4-fill", "role": "PETAL_FILL", "slotId": 4, "asset": "semantic/slot-4-fill.png", "zIndex": 24 },
+    { "id": "slot-5-fill", "role": "PETAL_FILL", "slotId": 5, "asset": "semantic/slot-5-fill.png", "zIndex": 25 },
+    { "id": "slot-6-fill", "role": "PETAL_FILL", "slotId": 6, "asset": "semantic/slot-6-fill.png", "zIndex": 26 },
+    { "id": "slot-7-fill", "role": "PETAL_FILL", "slotId": 7, "asset": "semantic/slot-7-fill.png", "zIndex": 27 },
+    { "id": "slot-8-fill", "role": "PETAL_FILL", "slotId": 8, "asset": "semantic/slot-8-fill.png", "zIndex": 28 },
+    { "id": "slot-1-border", "role": "PETAL_BORDER", "slotId": 1, "asset": "semantic/slot-1-border.png", "zIndex": 31 },
+    { "id": "slot-2-border", "role": "PETAL_BORDER", "slotId": 2, "asset": "semantic/slot-2-border.png", "zIndex": 32 },
+    { "id": "slot-3-border", "role": "PETAL_BORDER", "slotId": 3, "asset": "semantic/slot-3-border.png", "zIndex": 33 },
+    { "id": "slot-4-border", "role": "PETAL_BORDER", "slotId": 4, "asset": "semantic/slot-4-border.png", "zIndex": 34 },
+    { "id": "slot-5-border", "role": "PETAL_BORDER", "slotId": 5, "asset": "semantic/slot-5-border.png", "zIndex": 35 },
+    { "id": "slot-6-border", "role": "PETAL_BORDER", "slotId": 6, "asset": "semantic/slot-6-border.png", "zIndex": 36 },
+    { "id": "slot-7-border", "role": "PETAL_BORDER", "slotId": 7, "asset": "semantic/slot-7-border.png", "zIndex": 37 },
+    { "id": "slot-8-border", "role": "PETAL_BORDER", "slotId": 8, "asset": "semantic/slot-8-border.png", "zIndex": 38 },
+    { "id": "slot-1-selected", "role": "SELECTED_EMPHASIS", "slotId": 1, "asset": "semantic/slot-1-selected.png", "maskId": "slot-1-selection-mask", "zIndex": 41 },
+    { "id": "slot-2-selected", "role": "SELECTED_EMPHASIS", "slotId": 2, "asset": "semantic/slot-2-selected.png", "maskId": "slot-2-selection-mask", "zIndex": 42 },
+    { "id": "slot-3-selected", "role": "SELECTED_EMPHASIS", "slotId": 3, "asset": "semantic/slot-3-selected.png", "maskId": "slot-3-selection-mask", "zIndex": 43 },
+    { "id": "slot-4-selected", "role": "SELECTED_EMPHASIS", "slotId": 4, "asset": "semantic/slot-4-selected.png", "maskId": "slot-4-selection-mask", "zIndex": 44 },
+    { "id": "slot-5-selected", "role": "SELECTED_EMPHASIS", "slotId": 5, "asset": "semantic/slot-5-selected.png", "maskId": "slot-5-selection-mask", "zIndex": 45 },
+    { "id": "slot-6-selected", "role": "SELECTED_EMPHASIS", "slotId": 6, "asset": "semantic/slot-6-selected.png", "maskId": "slot-6-selection-mask", "zIndex": 46 },
+    { "id": "slot-7-selected", "role": "SELECTED_EMPHASIS", "slotId": 7, "asset": "semantic/slot-7-selected.png", "maskId": "slot-7-selection-mask", "zIndex": 47 },
+    { "id": "slot-8-selected", "role": "SELECTED_EMPHASIS", "slotId": 8, "asset": "semantic/slot-8-selected.png", "maskId": "slot-8-selection-mask", "zIndex": 48 }
+  ],
+  "masks": [
+    { "id": "slot-1-selection-mask", "asset": "masks/slot-1-selection.png", "coordinateSpace": "reference", "width": 1024, "height": 1024 },
+    { "id": "slot-2-selection-mask", "asset": "masks/slot-2-selection.png", "coordinateSpace": "reference", "width": 1024, "height": 1024 },
+    { "id": "slot-3-selection-mask", "asset": "masks/slot-3-selection.png", "coordinateSpace": "reference", "width": 1024, "height": 1024 },
+    { "id": "slot-4-selection-mask", "asset": "masks/slot-4-selection.png", "coordinateSpace": "reference", "width": 1024, "height": 1024 },
+    { "id": "slot-5-selection-mask", "asset": "masks/slot-5-selection.png", "coordinateSpace": "reference", "width": 1024, "height": 1024 },
+    { "id": "slot-6-selection-mask", "asset": "masks/slot-6-selection.png", "coordinateSpace": "reference", "width": 1024, "height": 1024 },
+    { "id": "slot-7-selection-mask", "asset": "masks/slot-7-selection.png", "coordinateSpace": "reference", "width": 1024, "height": 1024 },
+    { "id": "slot-8-selection-mask", "asset": "masks/slot-8-selection.png", "coordinateSpace": "reference", "width": 1024, "height": 1024 }
+  ],
+  "dynamicGroups": [
+    {
+      "id": "slot-1-content",
+      "role": "DYNAMIC_SLOT_CONTENT",
+      "slotId": 1,
+      "zIndex": 61,
+      "anchor": { "radius": 73, "angleDegreesClockwiseFromTop": 0 },
+      "glyph": { "offsetX": 0, "offsetY": -8, "width": 24, "height": 24, "rotationDegrees": 0, "alignment": "center" },
+      "label": { "offsetX": 0, "offsetY": 14, "width": 58, "height": 18, "rotationDegrees": 0, "alignment": "center", "authoredFontSize": 15, "maxLines": 1 }
+    },
+    {
+      "id": "slot-2-content",
+      "role": "DYNAMIC_SLOT_CONTENT",
+      "slotId": 2,
+      "zIndex": 62,
+      "anchor": { "radius": 73, "angleDegreesClockwiseFromTop": 45 },
+      "glyph": { "offsetX": 0, "offsetY": -8, "width": 24, "height": 24, "rotationDegrees": 0, "alignment": "center" },
+      "label": { "offsetX": 0, "offsetY": 14, "width": 58, "height": 18, "rotationDegrees": 0, "alignment": "center", "authoredFontSize": 15, "maxLines": 1 }
+    },
+    {
+      "id": "slot-3-content",
+      "role": "DYNAMIC_SLOT_CONTENT",
+      "slotId": 3,
+      "zIndex": 63,
+      "anchor": { "radius": 73, "angleDegreesClockwiseFromTop": 90 },
+      "glyph": { "offsetX": 0, "offsetY": -8, "width": 24, "height": 24, "rotationDegrees": 0, "alignment": "center" },
+      "label": { "offsetX": 0, "offsetY": 14, "width": 58, "height": 18, "rotationDegrees": 0, "alignment": "center", "authoredFontSize": 15, "maxLines": 1 }
+    },
+    {
+      "id": "slot-4-content",
+      "role": "DYNAMIC_SLOT_CONTENT",
+      "slotId": 4,
+      "zIndex": 64,
+      "anchor": { "radius": 73, "angleDegreesClockwiseFromTop": 135 },
+      "glyph": { "offsetX": 0, "offsetY": -8, "width": 24, "height": 24, "rotationDegrees": 0, "alignment": "center" },
+      "label": { "offsetX": 0, "offsetY": 14, "width": 58, "height": 18, "rotationDegrees": 0, "alignment": "center", "authoredFontSize": 15, "maxLines": 1 }
+    },
+    {
+      "id": "slot-5-content",
+      "role": "DYNAMIC_SLOT_CONTENT",
+      "slotId": 5,
+      "zIndex": 65,
+      "anchor": { "radius": 73, "angleDegreesClockwiseFromTop": 180 },
+      "glyph": { "offsetX": 0, "offsetY": -8, "width": 24, "height": 24, "rotationDegrees": 0, "alignment": "center" },
+      "label": { "offsetX": 0, "offsetY": 14, "width": 58, "height": 18, "rotationDegrees": 0, "alignment": "center", "authoredFontSize": 15, "maxLines": 1 }
+    },
+    {
+      "id": "slot-6-content",
+      "role": "DYNAMIC_SLOT_CONTENT",
+      "slotId": 6,
+      "zIndex": 66,
+      "anchor": { "radius": 73, "angleDegreesClockwiseFromTop": 225 },
+      "glyph": { "offsetX": 0, "offsetY": -8, "width": 24, "height": 24, "rotationDegrees": 0, "alignment": "center" },
+      "label": { "offsetX": 0, "offsetY": 14, "width": 58, "height": 18, "rotationDegrees": 0, "alignment": "center", "authoredFontSize": 15, "maxLines": 1 }
+    },
+    {
+      "id": "slot-7-content",
+      "role": "DYNAMIC_SLOT_CONTENT",
+      "slotId": 7,
+      "zIndex": 67,
+      "anchor": { "radius": 73, "angleDegreesClockwiseFromTop": 270 },
+      "glyph": { "offsetX": 0, "offsetY": -8, "width": 24, "height": 24, "rotationDegrees": 0, "alignment": "center" },
+      "label": { "offsetX": 0, "offsetY": 14, "width": 58, "height": 18, "rotationDegrees": 0, "alignment": "center", "authoredFontSize": 15, "maxLines": 1 }
+    },
+    {
+      "id": "slot-8-content",
+      "role": "DYNAMIC_SLOT_CONTENT",
+      "slotId": 8,
+      "zIndex": 68,
+      "anchor": { "radius": 73, "angleDegreesClockwiseFromTop": 315 },
+      "glyph": { "offsetX": 0, "offsetY": -8, "width": 24, "height": 24, "rotationDegrees": 0, "alignment": "center" },
+      "label": { "offsetX": 0, "offsetY": 14, "width": 58, "height": 18, "rotationDegrees": 0, "alignment": "center", "authoredFontSize": 15, "maxLines": 1 }
+    },
+    {
+      "id": "selected-content",
+      "role": "DYNAMIC_SELECTED_CONTENT",
+      "slotId": null,
+      "zIndex": 70,
+      "anchor": { "radius": 0, "angleDegreesClockwiseFromTop": 0 },
+      "glyph": { "offsetX": 0, "offsetY": -10, "width": 30, "height": 30, "rotationDegrees": 0, "alignment": "center" },
+      "label": { "offsetX": 0, "offsetY": 18, "width": 90, "height": 22, "rotationDegrees": 0, "alignment": "center", "authoredFontSize": 15, "maxLines": 2 }
+    }
+  ],
+  "fallback": {
+    "onInvalidCandidate": "retain-active",
+    "onUnsupportedVersion": "retain-active",
+    "startupThemeId": "radial-v5"
+  },
+  "capabilities": {
+    "required": [
+      "universalRadial",
+      "semanticLayers",
+      "dynamicAnchors",
+      "instantTransitions"
+    ],
+    "optional": []
+  },
+  "transitions": {
+    "mode": "instant"
+  },
+  "assetHashes": {
+    "states/idle.png": "0000000000000000000000000000000000000000000000000000000000000000",
+    "states/selected-1.png": "0101010101010101010101010101010101010101010101010101010101010101",
+    "states/selected-2.png": "0202020202020202020202020202020202020202020202020202020202020202",
+    "states/selected-3.png": "0303030303030303030303030303030303030303030303030303030303030303",
+    "states/selected-4.png": "0404040404040404040404040404040404040404040404040404040404040404",
+    "states/selected-5.png": "0505050505050505050505050505050505050505050505050505050505050505",
+    "states/selected-6.png": "0606060606060606060606060606060606060606060606060606060606060606",
+    "states/selected-7.png": "0707070707070707070707070707070707070707070707070707070707070707",
+    "states/selected-8.png": "0808080808080808080808080808080808080808080808080808080808080808",
+    "semantic/static-residual.png": "1010101010101010101010101010101010101010101010101010101010101010",
+    "semantic/hub.png": "1111111111111111111111111111111111111111111111111111111111111111",
+    "semantic/slot-1-fill.png": "2121212121212121212121212121212121212121212121212121212121212121",
+    "semantic/slot-2-fill.png": "2222222222222222222222222222222222222222222222222222222222222222",
+    "semantic/slot-3-fill.png": "2323232323232323232323232323232323232323232323232323232323232323",
+    "semantic/slot-4-fill.png": "2424242424242424242424242424242424242424242424242424242424242424",
+    "semantic/slot-5-fill.png": "2525252525252525252525252525252525252525252525252525252525252525",
+    "semantic/slot-6-fill.png": "2626262626262626262626262626262626262626262626262626262626262626",
+    "semantic/slot-7-fill.png": "2727272727272727272727272727272727272727272727272727272727272727",
+    "semantic/slot-8-fill.png": "2828282828282828282828282828282828282828282828282828282828282828",
+    "semantic/slot-1-border.png": "3131313131313131313131313131313131313131313131313131313131313131",
+    "semantic/slot-2-border.png": "3232323232323232323232323232323232323232323232323232323232323232",
+    "semantic/slot-3-border.png": "3333333333333333333333333333333333333333333333333333333333333333",
+    "semantic/slot-4-border.png": "3434343434343434343434343434343434343434343434343434343434343434",
+    "semantic/slot-5-border.png": "3535353535353535353535353535353535353535353535353535353535353535",
+    "semantic/slot-6-border.png": "3636363636363636363636363636363636363636363636363636363636363636",
+    "semantic/slot-7-border.png": "3737373737373737373737373737373737373737373737373737373737373737",
+    "semantic/slot-8-border.png": "3838383838383838383838383838383838383838383838383838383838383838",
+    "semantic/slot-1-selected.png": "4141414141414141414141414141414141414141414141414141414141414141",
+    "semantic/slot-2-selected.png": "4242424242424242424242424242424242424242424242424242424242424242",
+    "semantic/slot-3-selected.png": "4343434343434343434343434343434343434343434343434343434343434343",
+    "semantic/slot-4-selected.png": "4444444444444444444444444444444444444444444444444444444444444444",
+    "semantic/slot-5-selected.png": "4545454545454545454545454545454545454545454545454545454545454545",
+    "semantic/slot-6-selected.png": "4646464646464646464646464646464646464646464646464646464646464646",
+    "semantic/slot-7-selected.png": "4747474747474747474747474747474747474747474747474747474747474747",
+    "semantic/slot-8-selected.png": "4848484848484848484848484848484848484848484848484848484848484848",
+    "masks/slot-1-selection.png": "5151515151515151515151515151515151515151515151515151515151515151",
+    "masks/slot-2-selection.png": "5252525252525252525252525252525252525252525252525252525252525252",
+    "masks/slot-3-selection.png": "5353535353535353535353535353535353535353535353535353535353535353",
+    "masks/slot-4-selection.png": "5454545454545454545454545454545454545454545454545454545454545454",
+    "masks/slot-5-selection.png": "5555555555555555555555555555555555555555555555555555555555555555",
+    "masks/slot-6-selection.png": "5656565656565656565656565656565656565656565656565656565656565656",
+    "masks/slot-7-selection.png": "5757575757575757575757575757575757575757575757575757575757575757",
+    "masks/slot-8-selection.png": "5858585858585858585858585858585858585858585858585858585858585858"
+  }
+}

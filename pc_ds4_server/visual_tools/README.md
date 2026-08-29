@@ -146,6 +146,41 @@ is enabled by repeating `--supported-capability`; otherwise the tool validates
 portable package coherence without claiming current V2 runtime support. V1
 validation and generation commands below remain unchanged.
 
+## Universal Radial Protocol V3 contract (Phase 0)
+
+V3 is a new, independent contract for Universal radial settings and semantic
+theme ownership. It does not alter the V1 or V2 validators or Runtime paths.
+The normative Phase 0 files are:
+
+- UNIVERSAL_RADIAL_PROTOCOL_V3.md — CRU, product setting, migration,
+  semantic ownership, geometry, sampling, compiler, fidelity, and
+  compatibility requirements;
+- schemas/ui-theme-v3.schema.json — closed Draft 2020-12 package shape;
+- examples/reference-theme-v3.example.json — non-production radial-8
+  manifest-only example;
+- validate_theme_v3.py — independent schema/semantic/package validator;
+- universal_radial_settings_migration.py — isolated, non-production prototype
+  of the frozen Base/Scale and legacy-alpha migration formulas;
+- tests/test_validate_theme_v3.py — real temporary radial-6/radial-8 package
+  fixtures, rejection gates, and isolated settings-migration formula tests.
+
+Manifest-only contract validation:
+
+```powershell
+python .\validate_theme_v3.py .\examples\reference-theme-v3.example.json
+```
+
+A compiler-produced package candidate must also pass file containment, PNG
+metadata/dimensions, and SHA-256 verification:
+
+```powershell
+python .\validate_theme_v3.py C:\reviews\universal-v3\manifest.json --check-assets
+```
+
+V3 authoring is reference artwork to reviewed decomposition to semantic assets
+and explicit masks to a validated package. Runtime decomposition and
+image-analysis ownership guessing are outside the contract.
+
 ## Supported Profiles
 
 The current Toolchain accepts:
