@@ -43,7 +43,7 @@ public sealed class DreamscapeSettingsBasicTests
         Assert.Equal(210, root.GetProperty("petalOpacity").GetInt32());
         Assert.Equal(110, root.GetProperty("borderOpacity").GetInt32());
         Assert.Equal(230, root.GetProperty("textOpacity").GetInt32());
-        Assert.Equal(2, root.GetProperty("visualPackOptions").GetArrayLength());
+        Assert.Equal(3, root.GetProperty("visualPackOptions").GetArrayLength());
         Assert.Equal(5, root.GetProperty("receiverUiScaleOptions").GetArrayLength());
         Assert.True(root.GetProperty("enabled").GetBoolean());
     }
@@ -301,8 +301,12 @@ public sealed class DreamscapeSettingsBasicTests
         RadialVisualPackCatalogSnapshot catalog = new RadialVisualPackCatalog().Discover();
 
         Assert.Empty(catalog.Issues);
-        Assert.Equal(["radial-v5", "radial-8-minimal-v1"], catalog.Packs.Select(pack => pack.Id));
-        Assert.Equal(["Tactical HUD V5", "Radial 8 Minimal V1"], catalog.Packs.Select(pack => pack.Name));
+        Assert.Equal(
+            ["radial-v5", "dark-fantasy-radial8-v1", "radial-8-minimal-v1"],
+            catalog.Packs.Select(pack => pack.Id));
+        Assert.Equal(
+            ["Tactical HUD V5", "Dark Fantasy Radial 8", "Radial 8 Minimal V1"],
+            catalog.Packs.Select(pack => pack.Name));
     }
 
     [Fact]

@@ -8,6 +8,8 @@ namespace PcDs4Server.Tests;
 
 public sealed class Radial8MinimalProductionIntegrationTests
 {
+    private const string DarkFantasyProductionPackId = "dark-fantasy-radial8-v1";
+    private const string DarkFantasyProductionPackName = "Dark Fantasy Radial 8";
     private const string ProductionPackId = "radial-8-minimal-v1";
     private const string ProductionPackName = "Radial 8 Minimal V1";
     private const string ExpectedBaseSha =
@@ -24,10 +26,15 @@ public sealed class Radial8MinimalProductionIntegrationTests
 
         Assert.Empty(snapshot.Issues);
         Assert.Equal(
-            new[] { RadialVisualPackContract.DefaultVisualPackId, ProductionPackId },
+            new[]
+            {
+                RadialVisualPackContract.DefaultVisualPackId,
+                DarkFantasyProductionPackId,
+                ProductionPackId
+            },
             snapshot.Packs.Select(pack => pack.Id));
         Assert.Equal(
-            new[] { "Tactical HUD V5", ProductionPackName },
+            new[] { "Tactical HUD V5", DarkFantasyProductionPackName, ProductionPackName },
             snapshot.Packs.Select(pack => pack.Name));
         Assert.Null(snapshot.Find("radial-8-minimal-test"));
         Assert.Null(snapshot.Find("radial-8-orange-v2"));
@@ -98,7 +105,7 @@ public sealed class Radial8MinimalProductionIntegrationTests
             var visualPack = Assert.IsType<ComboBox>(Assert.Single(
                 form.Controls.Find("visualPack", searchAllChildren: true)));
             Assert.Equal(
-                new[] { "Tactical HUD V5", ProductionPackName },
+                new[] { "Tactical HUD V5", DarkFantasyProductionPackName, ProductionPackName },
                 visualPack.Items.Cast<RadialVisualPackCatalogEntry>()
                     .Select(pack => pack.Name));
             Assert.Equal(
