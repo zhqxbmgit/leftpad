@@ -1,0 +1,765 @@
+{
+  "baseRawPArgbSha256": "DA9BD30AC886B123B9E1F153C6B54FD98B6501FB5E3687C7CE1836A36D4D45DE",
+  "compiler": {
+    "dependencies": {
+      "NumPy": "2.3.5",
+      "Pillow": "12.3.0"
+    },
+    "interpolation": "channel=(base*(255-strength)+selected*strength+127)//255",
+    "maskAuthority": "offline binary PArgb difference support",
+    "maskValues": [
+      0,
+      255
+    ],
+    "name": "build_selected_emphasis_companion.py",
+    "runtimeInference": false,
+    "semanticRole": "SELECTED_EMPHASIS"
+  },
+  "coverageGate": {
+    "missingChangedPixelCount": 0,
+    "passed": true
+  },
+  "referenceCanvas": {
+    "colorMode": "sRGB",
+    "height": 1254,
+    "width": 1254
+  },
+  "slots": [
+    {
+      "bounds": {
+        "bottom": 1071,
+        "height": 957,
+        "left": 162,
+        "right": 1090,
+        "top": 115,
+        "width": 929
+      },
+      "changedPixelCount": 383541,
+      "connectedComponents": {
+        "connectivity": 8,
+        "count": 4018,
+        "largest": [
+          {
+            "bottom": 807,
+            "left": 427,
+            "pixelCount": 178541,
+            "right": 828,
+            "top": 115
+          },
+          {
+            "bottom": 739,
+            "left": 167,
+            "pixelCount": 29736,
+            "right": 357,
+            "top": 499
+          },
+          {
+            "bottom": 730,
+            "left": 898,
+            "pixelCount": 28758,
+            "right": 1084,
+            "top": 500
+          },
+          {
+            "bottom": 481,
+            "left": 264,
+            "pixelCount": 28422,
+            "right": 463,
+            "top": 253
+          },
+          {
+            "bottom": 475,
+            "left": 787,
+            "pixelCount": 28338,
+            "right": 992,
+            "top": 253
+          },
+          {
+            "bottom": 985,
+            "left": 275,
+            "pixelCount": 27201,
+            "right": 467,
+            "top": 756
+          },
+          {
+            "bottom": 984,
+            "left": 791,
+            "pixelCount": 26474,
+            "right": 980,
+            "top": 756
+          },
+          {
+            "bottom": 1071,
+            "left": 525,
+            "pixelCount": 25726,
+            "right": 736,
+            "top": 854
+          }
+        ]
+      },
+      "extraMaskPixelCount": 0,
+      "maskCoveragePercent": 24.39027647,
+      "maskPixelCount": 383541,
+      "missingChangedPixelCount": 0,
+      "rawPArgbSha256ByStrength": {
+        "0": "DA9BD30AC886B123B9E1F153C6B54FD98B6501FB5E3687C7CE1836A36D4D45DE",
+        "128": "C255E6EC440B0CB4B6BD56A46DBED936EDFBEB470C27FF35FCC597790EB9E49E",
+        "192": "5F6675C2AF4F5E4BE101DC4463FB5DB3328C822C5C9F94BC7D6E14DC7078C2A3",
+        "255": "D7B8B7986E75923B54E2D9EBAE014A5E8DA0D34B08BB1858E944D087632E18F6",
+        "64": "9F517B77CBEAFE8F8B899B1FB261E04D3267ADF5E5AC2959CD9B885C51EC0420"
+      },
+      "slotId": 1
+    },
+    {
+      "bounds": {
+        "bottom": 1071,
+        "height": 897,
+        "left": 162,
+        "right": 1090,
+        "top": 175,
+        "width": 929
+      },
+      "changedPixelCount": 366526,
+      "connectedComponents": {
+        "connectivity": 8,
+        "count": 4096,
+        "largest": [
+          {
+            "bottom": 807,
+            "left": 427,
+            "pixelCount": 150689,
+            "right": 828,
+            "top": 182
+          },
+          {
+            "bottom": 478,
+            "left": 740,
+            "pixelCount": 38909,
+            "right": 1008,
+            "top": 234
+          },
+          {
+            "bottom": 739,
+            "left": 167,
+            "pixelCount": 29736,
+            "right": 357,
+            "top": 499
+          },
+          {
+            "bottom": 730,
+            "left": 898,
+            "pixelCount": 28758,
+            "right": 1084,
+            "top": 500
+          },
+          {
+            "bottom": 481,
+            "left": 264,
+            "pixelCount": 28422,
+            "right": 463,
+            "top": 253
+          },
+          {
+            "bottom": 985,
+            "left": 275,
+            "pixelCount": 27201,
+            "right": 467,
+            "top": 756
+          },
+          {
+            "bottom": 984,
+            "left": 791,
+            "pixelCount": 26474,
+            "right": 980,
+            "top": 756
+          },
+          {
+            "bottom": 1071,
+            "left": 525,
+            "pixelCount": 25726,
+            "right": 736,
+            "top": 854
+          }
+        ]
+      },
+      "extraMaskPixelCount": 0,
+      "maskCoveragePercent": 23.30825251,
+      "maskPixelCount": 366526,
+      "missingChangedPixelCount": 0,
+      "rawPArgbSha256ByStrength": {
+        "0": "DA9BD30AC886B123B9E1F153C6B54FD98B6501FB5E3687C7CE1836A36D4D45DE",
+        "128": "0FD28B49893ADB52DED85E015EC47AA970AB262F646B055F050958630FAECCDF",
+        "192": "6F3689185C5253860C67F53D235331AD481C5F88FD45F6B382C6FF947240E98D",
+        "255": "CAB7B9922F83BFDE1A302024D2CD69C7F3E1DBF16C7792A049A91EA7C8922326",
+        "64": "F77D183C239AF84D9558B9C4172188F4E250185CF75FB595A30CC3A8A3321B7F"
+      },
+      "slotId": 2
+    },
+    {
+      "bounds": {
+        "bottom": 1071,
+        "height": 897,
+        "left": 162,
+        "right": 1124,
+        "top": 175,
+        "width": 963
+      },
+      "changedPixelCount": 366203,
+      "connectedComponents": {
+        "connectivity": 8,
+        "count": 4128,
+        "largest": [
+          {
+            "bottom": 807,
+            "left": 427,
+            "pixelCount": 150689,
+            "right": 828,
+            "top": 182
+          },
+          {
+            "bottom": 730,
+            "left": 878,
+            "pixelCount": 38854,
+            "right": 1121,
+            "top": 475
+          },
+          {
+            "bottom": 739,
+            "left": 167,
+            "pixelCount": 29736,
+            "right": 357,
+            "top": 499
+          },
+          {
+            "bottom": 481,
+            "left": 264,
+            "pixelCount": 28422,
+            "right": 463,
+            "top": 253
+          },
+          {
+            "bottom": 475,
+            "left": 787,
+            "pixelCount": 28369,
+            "right": 992,
+            "top": 253
+          },
+          {
+            "bottom": 985,
+            "left": 275,
+            "pixelCount": 27201,
+            "right": 467,
+            "top": 756
+          },
+          {
+            "bottom": 984,
+            "left": 791,
+            "pixelCount": 26474,
+            "right": 980,
+            "top": 756
+          },
+          {
+            "bottom": 1071,
+            "left": 525,
+            "pixelCount": 25726,
+            "right": 736,
+            "top": 854
+          }
+        ]
+      },
+      "extraMaskPixelCount": 0,
+      "maskCoveragePercent": 23.28771218,
+      "maskPixelCount": 366203,
+      "missingChangedPixelCount": 0,
+      "rawPArgbSha256ByStrength": {
+        "0": "DA9BD30AC886B123B9E1F153C6B54FD98B6501FB5E3687C7CE1836A36D4D45DE",
+        "128": "8B82F3A927790281FF10AEF5DCEA07B2A99DA16C41D9FC13BB0DEBEA77C45C67",
+        "192": "A89F3EB2ADDF9DA5B7BC54935C7C3DAC05BC66EAA875CEF44684CA0E63DE861E",
+        "255": "184C60E74D9EB7E6E685280566C52311CCFF0DE6F53BC8D41A47A9D898B59511",
+        "64": "437EDABAF66FAB6DB2D745E66A9CD33C18591DC4F8B3E1897BEA84FEB1647D16"
+      },
+      "slotId": 3
+    },
+    {
+      "bounds": {
+        "bottom": 1071,
+        "height": 897,
+        "left": 162,
+        "right": 1090,
+        "top": 175,
+        "width": 929
+      },
+      "changedPixelCount": 365011,
+      "connectedComponents": {
+        "connectivity": 8,
+        "count": 4133,
+        "largest": [
+          {
+            "bottom": 807,
+            "left": 427,
+            "pixelCount": 150764,
+            "right": 828,
+            "top": 182
+          },
+          {
+            "bottom": 984,
+            "left": 744,
+            "pixelCount": 35055,
+            "right": 988,
+            "top": 691
+          },
+          {
+            "bottom": 739,
+            "left": 167,
+            "pixelCount": 29736,
+            "right": 357,
+            "top": 499
+          },
+          {
+            "bottom": 739,
+            "left": 898,
+            "pixelCount": 28879,
+            "right": 1084,
+            "top": 500
+          },
+          {
+            "bottom": 481,
+            "left": 264,
+            "pixelCount": 28422,
+            "right": 463,
+            "top": 253
+          },
+          {
+            "bottom": 475,
+            "left": 787,
+            "pixelCount": 28338,
+            "right": 992,
+            "top": 253
+          },
+          {
+            "bottom": 985,
+            "left": 275,
+            "pixelCount": 27201,
+            "right": 467,
+            "top": 756
+          },
+          {
+            "bottom": 1071,
+            "left": 525,
+            "pixelCount": 25726,
+            "right": 736,
+            "top": 854
+          }
+        ]
+      },
+      "extraMaskPixelCount": 0,
+      "maskCoveragePercent": 23.21191009,
+      "maskPixelCount": 365011,
+      "missingChangedPixelCount": 0,
+      "rawPArgbSha256ByStrength": {
+        "0": "DA9BD30AC886B123B9E1F153C6B54FD98B6501FB5E3687C7CE1836A36D4D45DE",
+        "128": "30B5492772BC45CB5BEE49FC07996F3DE1DE0EE125805076D5798D5700E76576",
+        "192": "175AE3DD785C8301E596E3DEB76152843781D717CE4CA617F1C947C391A5B097",
+        "255": "52BD360C7E22826F6EBC5E708356417B12C74B8200A9FED3D17617FDF8EFE528",
+        "64": "D56716743EDD3337988EB6BC9F41A2F622E783E6A3FDD29F1BD079DE6C1F0AFF"
+      },
+      "slotId": 4
+    },
+    {
+      "bounds": {
+        "bottom": 1071,
+        "height": 897,
+        "left": 162,
+        "right": 1090,
+        "top": 175,
+        "width": 929
+      },
+      "changedPixelCount": 364253,
+      "connectedComponents": {
+        "connectivity": 8,
+        "count": 4060,
+        "largest": [
+          {
+            "bottom": 812,
+            "left": 427,
+            "pixelCount": 150913,
+            "right": 828,
+            "top": 182
+          },
+          {
+            "bottom": 1071,
+            "left": 496,
+            "pixelCount": 34075,
+            "right": 735,
+            "top": 819
+          },
+          {
+            "bottom": 739,
+            "left": 167,
+            "pixelCount": 29736,
+            "right": 357,
+            "top": 499
+          },
+          {
+            "bottom": 730,
+            "left": 898,
+            "pixelCount": 28758,
+            "right": 1084,
+            "top": 500
+          },
+          {
+            "bottom": 481,
+            "left": 264,
+            "pixelCount": 28422,
+            "right": 463,
+            "top": 253
+          },
+          {
+            "bottom": 475,
+            "left": 787,
+            "pixelCount": 28338,
+            "right": 992,
+            "top": 253
+          },
+          {
+            "bottom": 985,
+            "left": 275,
+            "pixelCount": 27201,
+            "right": 467,
+            "top": 756
+          },
+          {
+            "bottom": 984,
+            "left": 791,
+            "pixelCount": 26474,
+            "right": 980,
+            "top": 756
+          }
+        ]
+      },
+      "extraMaskPixelCount": 0,
+      "maskCoveragePercent": 23.16370708,
+      "maskPixelCount": 364253,
+      "missingChangedPixelCount": 0,
+      "rawPArgbSha256ByStrength": {
+        "0": "DA9BD30AC886B123B9E1F153C6B54FD98B6501FB5E3687C7CE1836A36D4D45DE",
+        "128": "167C1D4864DBA972C9574517F6D962DDF892BFDE7CC6B16CDD47B87F98CCD84A",
+        "192": "38EBF2C4367FFE90C2FD762F8E250A5B737B0895C7ED2567DF9486D803705E5E",
+        "255": "8C1A399A59E2764F4C00D36EBAA81FF14E1B8F18F4D3C88C3EC72279A3967888",
+        "64": "760971C4E276187BFCE0E4139E006725E1059710C8295C163B29F5B608E5C3FB"
+      },
+      "slotId": 5
+    },
+    {
+      "bounds": {
+        "bottom": 1071,
+        "height": 897,
+        "left": 162,
+        "right": 1090,
+        "top": 175,
+        "width": 929
+      },
+      "changedPixelCount": 366224,
+      "connectedComponents": {
+        "connectivity": 8,
+        "count": 4121,
+        "largest": [
+          {
+            "bottom": 807,
+            "left": 427,
+            "pixelCount": 150731,
+            "right": 828,
+            "top": 182
+          },
+          {
+            "bottom": 985,
+            "left": 246,
+            "pixelCount": 37324,
+            "right": 514,
+            "top": 693
+          },
+          {
+            "bottom": 741,
+            "left": 167,
+            "pixelCount": 29864,
+            "right": 357,
+            "top": 499
+          },
+          {
+            "bottom": 730,
+            "left": 898,
+            "pixelCount": 28758,
+            "right": 1084,
+            "top": 500
+          },
+          {
+            "bottom": 481,
+            "left": 264,
+            "pixelCount": 28422,
+            "right": 463,
+            "top": 253
+          },
+          {
+            "bottom": 475,
+            "left": 787,
+            "pixelCount": 28338,
+            "right": 992,
+            "top": 253
+          },
+          {
+            "bottom": 984,
+            "left": 791,
+            "pixelCount": 26474,
+            "right": 980,
+            "top": 756
+          },
+          {
+            "bottom": 1071,
+            "left": 525,
+            "pixelCount": 25726,
+            "right": 736,
+            "top": 854
+          }
+        ]
+      },
+      "extraMaskPixelCount": 0,
+      "maskCoveragePercent": 23.28904762,
+      "maskPixelCount": 366224,
+      "missingChangedPixelCount": 0,
+      "rawPArgbSha256ByStrength": {
+        "0": "DA9BD30AC886B123B9E1F153C6B54FD98B6501FB5E3687C7CE1836A36D4D45DE",
+        "128": "8A8C3EC4080F5B993DCF34C664FD9E7AA2107EDA42A76C0E4393487B1A7F3FE2",
+        "192": "9A40DCF0CBFB3EC4358413F0F01F0C9D89D7C55F2B51A82CADEC168BE33DBB11",
+        "255": "70DCC71831B210A9C0B49FED0BB68FBFA86476A132B6B531C69315C56648C61C",
+        "64": "E9001BB40FF12E0272AEE1CE9393DCD29F5483CCF17EF3165A1457758E099907"
+      },
+      "slotId": 6
+    },
+    {
+      "bounds": {
+        "bottom": 1071,
+        "height": 897,
+        "left": 132,
+        "right": 1090,
+        "top": 175,
+        "width": 959
+      },
+      "changedPixelCount": 367123,
+      "connectedComponents": {
+        "connectivity": 8,
+        "count": 4080,
+        "largest": [
+          {
+            "bottom": 807,
+            "left": 427,
+            "pixelCount": 150689,
+            "right": 828,
+            "top": 182
+          },
+          {
+            "bottom": 739,
+            "left": 133,
+            "pixelCount": 40581,
+            "right": 378,
+            "top": 446
+          },
+          {
+            "bottom": 730,
+            "left": 898,
+            "pixelCount": 28758,
+            "right": 1084,
+            "top": 500
+          },
+          {
+            "bottom": 481,
+            "left": 264,
+            "pixelCount": 28627,
+            "right": 463,
+            "top": 253
+          },
+          {
+            "bottom": 475,
+            "left": 787,
+            "pixelCount": 28338,
+            "right": 992,
+            "top": 253
+          },
+          {
+            "bottom": 985,
+            "left": 275,
+            "pixelCount": 27201,
+            "right": 467,
+            "top": 756
+          },
+          {
+            "bottom": 984,
+            "left": 791,
+            "pixelCount": 26474,
+            "right": 980,
+            "top": 756
+          },
+          {
+            "bottom": 1071,
+            "left": 525,
+            "pixelCount": 25726,
+            "right": 736,
+            "top": 854
+          }
+        ]
+      },
+      "extraMaskPixelCount": 0,
+      "maskCoveragePercent": 23.34621715,
+      "maskPixelCount": 367123,
+      "missingChangedPixelCount": 0,
+      "rawPArgbSha256ByStrength": {
+        "0": "DA9BD30AC886B123B9E1F153C6B54FD98B6501FB5E3687C7CE1836A36D4D45DE",
+        "128": "A392C63FF8DD927CF5E0807E7AA0E75C3F43C316B47D1A680EDA30ECDC5A7F78",
+        "192": "B9F2CC62B03CB547B1A18050BCF16AD6D1D6C46D1E26F7BBFE7DF5F6FD33998A",
+        "255": "0A8678A6C35B9A2CD2875D352F6CDFC13980A0CB196BE72D82F80B219BB7C49C",
+        "64": "6776A9322C01550ECD862BB30F910ABE5B45B2D1833924DC31523EDF3FD85F11"
+      },
+      "slotId": 7
+    },
+    {
+      "bounds": {
+        "bottom": 1071,
+        "height": 897,
+        "left": 162,
+        "right": 1090,
+        "top": 175,
+        "width": 929
+      },
+      "changedPixelCount": 366647,
+      "connectedComponents": {
+        "connectivity": 8,
+        "count": 4099,
+        "largest": [
+          {
+            "bottom": 807,
+            "left": 427,
+            "pixelCount": 150689,
+            "right": 828,
+            "top": 182
+          },
+          {
+            "bottom": 481,
+            "left": 264,
+            "pixelCount": 38892,
+            "right": 514,
+            "top": 212
+          },
+          {
+            "bottom": 739,
+            "left": 167,
+            "pixelCount": 29736,
+            "right": 357,
+            "top": 499
+          },
+          {
+            "bottom": 730,
+            "left": 898,
+            "pixelCount": 28758,
+            "right": 1084,
+            "top": 500
+          },
+          {
+            "bottom": 475,
+            "left": 787,
+            "pixelCount": 28338,
+            "right": 992,
+            "top": 253
+          },
+          {
+            "bottom": 985,
+            "left": 275,
+            "pixelCount": 27201,
+            "right": 467,
+            "top": 756
+          },
+          {
+            "bottom": 984,
+            "left": 791,
+            "pixelCount": 26474,
+            "right": 980,
+            "top": 756
+          },
+          {
+            "bottom": 1071,
+            "left": 525,
+            "pixelCount": 25726,
+            "right": 736,
+            "top": 854
+          }
+        ]
+      },
+      "extraMaskPixelCount": 0,
+      "maskCoveragePercent": 23.31594718,
+      "maskPixelCount": 366647,
+      "missingChangedPixelCount": 0,
+      "rawPArgbSha256ByStrength": {
+        "0": "DA9BD30AC886B123B9E1F153C6B54FD98B6501FB5E3687C7CE1836A36D4D45DE",
+        "128": "7BBFE852B19AEBABA8E598AF9466704E4E8D804564BB0AA14F1072DB79EF7D06",
+        "192": "D347E295C2CEC0F6966C97981E16E028E83F15C04FE565F768B9D746062BBA9C",
+        "255": "62D9062B0E5E9BC3D18C9DAFA27DD6585DC6F2F000D5AB89FDB6180B4D3B0478",
+        "64": "13A973DEB0AFD6DAA8CF2D231223C634F3A552045A4D4FD35C0F7B6337E7DF40"
+      },
+      "slotId": 8
+    }
+  ],
+  "sourceAuthority": {
+    "dynamicContentExcluded": true,
+    "dynamicLayerCount": 18,
+    "idle": {
+      "path": "PcDs4Server/Assets/UIThemes/dark-fantasy-radial8-v1/states/idle.png",
+      "sha256": "F9BB31203C3DD502A2A593B9A2DFDBDE378C5704FB9879AD31D6979D5F126473"
+    },
+    "kind": "V2 frozen full-state static artwork",
+    "manifest": {
+      "path": "PcDs4Server/Assets/UIThemes/dark-fantasy-radial8-v1/manifest.json",
+      "sha256": "D144E468508C696CDFA7AF015FD839564C84B82AC9D66801432E11CCFFED7650"
+    },
+    "selected": [
+      {
+        "path": "PcDs4Server/Assets/UIThemes/dark-fantasy-radial8-v1/states/selected-1.png",
+        "sha256": "C6A8378AC500A5CAE25C059AC3300F0FC5AC1178A5E655CEE29F62CC3ADE1D9E",
+        "slotId": 1
+      },
+      {
+        "path": "PcDs4Server/Assets/UIThemes/dark-fantasy-radial8-v1/states/selected-2.png",
+        "sha256": "6CB984105AED60D47BB7BDED73957F2E9C5D24FFCA89EB0AC2EA77AAB8650483",
+        "slotId": 2
+      },
+      {
+        "path": "PcDs4Server/Assets/UIThemes/dark-fantasy-radial8-v1/states/selected-3.png",
+        "sha256": "4651625C11C5A6061C937D0C6854004411DA71BDBFF470CB98D34CA250937C2C",
+        "slotId": 3
+      },
+      {
+        "path": "PcDs4Server/Assets/UIThemes/dark-fantasy-radial8-v1/states/selected-4.png",
+        "sha256": "4DA0DDFAA58A093FE0216A7BBD8B7000C393C05B5541BC2922CF0F634712A3C3",
+        "slotId": 4
+      },
+      {
+        "path": "PcDs4Server/Assets/UIThemes/dark-fantasy-radial8-v1/states/selected-5.png",
+        "sha256": "57C8176D4852AC3FBCEC45DB37B77DB5BDD2D7115215884BF0E2A95C347A5BC8",
+        "slotId": 5
+      },
+      {
+        "path": "PcDs4Server/Assets/UIThemes/dark-fantasy-radial8-v1/states/selected-6.png",
+        "sha256": "82DF91FE6CE7563187ADEEDE11A4345745838A0366D7D4A289140584736921A3",
+        "slotId": 6
+      },
+      {
+        "path": "PcDs4Server/Assets/UIThemes/dark-fantasy-radial8-v1/states/selected-7.png",
+        "sha256": "90757B2E4756E52A824FD16409371F07E7201CEB0A0F2A4FD02BB34281B28EDD",
+        "slotId": 7
+      },
+      {
+        "path": "PcDs4Server/Assets/UIThemes/dark-fantasy-radial8-v1/states/selected-8.png",
+        "sha256": "4ED75F9321EA7080A30935EF52A75FD4551A0B734BEE7290B96351F89D78865A",
+        "slotId": 8
+      }
+    ]
+  },
+  "themeId": "dark-fantasy-radial8-v1"
+}

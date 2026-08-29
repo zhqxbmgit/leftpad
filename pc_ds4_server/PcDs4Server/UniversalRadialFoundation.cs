@@ -589,6 +589,7 @@ internal sealed record UniversalRadialCacheKey(
     double SurfaceScale,
     double FontScale,
     byte TextStrength,
+    byte HighlightStrength,
     double SlotContentRadiusCru,
     int Dpi,
     ThemeMappingSnapshot MappingSnapshot,

@@ -25,4 +25,15 @@
     <EmbeddedResource Include="TestData\phase1-parent-render-baseline.txt" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\visual_prototypes\universal_radial_v3\phase3-selected-emphasis\**\manifest.json;
+                   ..\visual_prototypes\universal_radial_v3\phase3-selected-emphasis\**\identity\*.png;
+                   ..\visual_prototypes\universal_radial_v3\phase3-selected-emphasis\**\identity\*.pargbz;
+                   ..\visual_prototypes\universal_radial_v3\phase3-selected-emphasis\**\selected\*.png;
+                   ..\visual_prototypes\universal_radial_v3\phase3-selected-emphasis\**\selected\*.pargbz"
+          Link="Assets\UniversalRadialV3\phase3-selected-emphasis\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

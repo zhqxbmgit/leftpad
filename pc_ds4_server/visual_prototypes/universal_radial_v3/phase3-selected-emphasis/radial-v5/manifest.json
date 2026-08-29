@@ -1,0 +1,98 @@
+{
+  "baseStatic": {
+    "pargbPath": "identity/base-static.pargbz",
+    "pargbSha256": "E85B10C6E7E802DFA9821644896A31EF5906EAF7F49170DDD3A16130F5BE9799",
+    "path": "identity/base-static.png",
+    "sha256": "16F88034043557A94EE8FCA2306A281AD52449B4EDCD23DBCC6F0EB06A831B60"
+  },
+  "referenceCanvas": {
+    "colorMode": "RGBA",
+    "height": 1254,
+    "width": 1254
+  },
+  "schemaVersion": 1,
+  "selected": [
+    {
+      "mask": {
+        "path": "selected/selected-1-mask.png",
+        "sha256": "CBCE210BF75497528B104255771F8FECE826C8CA491B934FB46CC326BA177886"
+      },
+      "slotId": 1,
+      "source": {
+        "pargbPath": "selected/selected-1-source.pargbz",
+        "pargbSha256": "CC398F0CD95DFA1C86A7406902BA30BB45D90A82ADDE42E1C4FB5E2AC7BD60E2",
+        "path": "selected/selected-1-source.png",
+        "sha256": "6C27009AB388D28808A02C3E30F6992A249FEC1972847DC304DC3346E5688DF9"
+      }
+    },
+    {
+      "mask": {
+        "path": "selected/selected-2-mask.png",
+        "sha256": "D3E0DCBEB41E73AB110082EE27D97CAB02BE157A611EACA37438263D69C0B697"
+      },
+      "slotId": 2,
+      "source": {
+        "pargbPath": "selected/selected-2-source.pargbz",
+        "pargbSha256": "B84CC705C7236F5FB09EA762BDF27D185CC44853B637838CB2B7141C66AE17E6",
+        "path": "selected/selected-2-source.png",
+        "sha256": "538A13AEAE48EE46A87A3164EADDFB8256D5250050FE5DEFA9F54DD2E5424E76"
+      }
+    },
+    {
+      "mask": {
+        "path": "selected/selected-3-mask.png",
+        "sha256": "13EEDDC9624BEF69AF2A8DB675DBA35CD43129480F149F40D4BCA95EFFC7054C"
+      },
+      "slotId": 3,
+      "source": {
+        "pargbPath": "selected/selected-3-source.pargbz",
+        "pargbSha256": "EF0DE695C13C53CA86FBB3D1D955603A7A82A43869B167ADE0656DD275177D4B",
+        "path": "selected/selected-3-source.png",
+        "sha256": "5B461F9DA2F5C4CA435718869485CBE293A678DC0D8A8525D2A2A35D4B12435C"
+      }
+    },
+    {
+      "mask": {
+        "path": "selected/selected-4-mask.png",
+        "sha256": "2B9B91E2E76A1CA63C745F04D0D960080A76402986EE6EE5709E93537D8DAA5E"
+      },
+      "slotId": 4,
+      "source": {
+        "pargbPath": "selected/selected-4-source.pargbz",
+        "pargbSha256": "65C9BE0EB0FDC6882F6E0C6751E9739DC7D4A3C289E406593C259958281D3D34",
+        "path": "selected/selected-4-source.png",
+        "sha256": "FB6E6F8D42173CD22A4F82B8D59038A28C47339A10A68E48595E412A67B38066"
+      }
+    },
+    {
+      "mask": {
+        "path": "selected/selected-5-mask.png",
+        "sha256": "FD074FE3EA7B904441EFD754A86D992AADC9E54C6B3B8DD856C29C2BCAD05D61"
+      },
+      "slotId": 5,
+      "source": {
+        "pargbPath": "selected/selected-5-source.pargbz",
+        "pargbSha256": "C7FC93A9EB284B29FD9F43157F832818AAADC50622ED5F6913FD370CF8DA2D74",
+        "path": "selected/selected-5-source.png",
+        "sha256": "6E6FDA623FC088254ADCB297214026EC8210DF9769F5BFDC2D1CC8A2B50B915B"
+      }
+    },
+    {
+      "mask": {
+        "path": "selected/selected-6-mask.png",
+        "sha256": "8337339D6196F455A2BC0227A90AF36ABF7C2F8A8AB04E4A3F19855721CDB28B"
+      },
+      "slotId": 6,
+      "source": {
+        "pargbPath": "selected/selected-6-source.pargbz",
+        "pargbSha256": "D39FDD50E5C3D05473166869504D1CB9785D5E6963A263839E4A76A155F20649",
+        "path": "selected/selected-6-source.png",
+        "sha256": "E6EE9A85F8D62A6C713F01683A2345DC9B4A93F2BAB750E94008DA965734CE51"
+      }
+    }
+  ],
+  "slotCount": 6,
+  "sourcePackageRevision": 1,
+  "sourceProtocolVersion": 1,
+  "themeId": "radial-v5"
+}

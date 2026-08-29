@@ -181,6 +181,37 @@ V3 authoring is reference artwork to reviewed decomposition to semantic assets
 and explicit masks to a validated package. Runtime decomposition and
 image-analysis ownership guessing are outside the contract.
 
+## Universal Radial V3 Phase 3 selected-emphasis compiler
+
+`build_selected_emphasis_companion.py` is the offline authority compiler for
+the internal Phase 3 `SELECTED_EMPHASIS` migration checkpoint. It reads only
+the three frozen formal themes (`radial-v5`, `radial-8-minimal-v1`, and
+`dark-fantasy-radial8-v1`) and writes companions beneath
+`../visual_prototypes/universal_radial_v3/phase3-selected-emphasis/`.
+
+```powershell
+python .\build_selected_emphasis_companion.py
+```
+
+For V1, `render_selected_emphasis_v1.ps1` uses the same System.Drawing scale,
+slot rotation, and SourceOver composition as the legacy renderer. For V2, the
+compiler consumes the frozen idle and per-slot production state art directly.
+The compiler emits:
+
+- a reviewable base PNG and one full-selected PNG per slot;
+- deterministic zlib-compressed exact BGRA `Format32bppPArgb` sidecars,
+  because a straight-alpha PNG cannot losslessly represent every composed
+  antialiasing value;
+- explicit binary 0/255 masks calculated once from exact PArgb endpoints;
+- SHA-256 identities, endpoint/intermediate raw-pixel hashes, mask coverage,
+  bounds, and connected-component diagnostics;
+- one review sheet per theme with base, selected, mask overlay, strengths
+  255/128/0, checkerboard, and difference heatmap panels.
+
+Runtime does not compare base and selected art. It verifies and consumes the
+compiler-owned source, PArgb, and mask assets. Re-running the compiler is
+byte-deterministic and does not modify any V1/V2 production asset or manifest.
+
 ## Supported Profiles
 
 The current Toolchain accepts:

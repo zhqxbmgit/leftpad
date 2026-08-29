@@ -38,6 +38,7 @@ internal sealed class FullStateFrameCache : IDisposable
     private readonly FullStateFrameRenderPlan _model;
     private readonly ThemeFontSession? _fontSession;
     private readonly Action<ThemeMappingSnapshot>? _mappingBuildProbe;
+    private readonly UniversalSelectedEmphasisCache? _selectedEmphasis;
     private ThemeMappingSnapshot? _mappingSnapshot;
     private UniversalRadialParameters? _universalParameters;
     private bool _disposed;
@@ -49,7 +50,8 @@ internal sealed class FullStateFrameCache : IDisposable
     public FullStateFrameCache(NormalizedRenderPlan plan, RadialMenuSettings settings, int dpi,
         IThemeAssetDecoder? decoder = null,
         Action<ThemeMappingSnapshot>? mappingBuildProbe = null,
-        UniversalRadialParameters? universalParameters = null)
+        UniversalRadialParameters? universalParameters = null,
+        UniversalSelectedEmphasisDescriptor? selectedEmphasisDescriptor = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
         if (plan.RenderModel is not FullStateFrameRenderPlan model)
@@ -64,6 +66,15 @@ internal sealed class FullStateFrameCache : IDisposable
             plan.ReferenceScale.LogicalWidth * presentationScale,
             plan.ReferenceScale.LogicalHeight * presentationScale,
             Dpi);
+        if (universalParameters != null)
+        {
+            if (selectedEmphasisDescriptor == null)
+                throw new ArgumentNullException(nameof(selectedEmphasisDescriptor));
+            _selectedEmphasis = new(
+                selectedEmphasisDescriptor,
+                UniversalRadialRenderPlan.Create(plan, universalParameters),
+                Dpi);
+        }
         decoder ??= new GdiThemeAssetDecoder();
 
         Dictionary<string, VerifiedThemeAsset> assetSources = model.OrderedLayers
@@ -100,6 +111,7 @@ internal sealed class FullStateFrameCache : IDisposable
             foreach (Bitmap bitmap in _dynamicLayers.Values) bitmap.Dispose();
             foreach (Bitmap bitmap in _authoredLayers.Values) bitmap.Dispose();
             _fontSession?.Dispose();
+            _selectedEmphasis?.Dispose();
             throw;
         }
         finally
@@ -117,6 +129,11 @@ internal sealed class FullStateFrameCache : IDisposable
     public int MappingRebuildCount { get; private set; }
     public int HotPathDynamicWorkCount { get; private set; }
     public int AuthoredLayerCount => _authoredLayers.Count;
+    public int SelectedEmphasisDecodedAssetCount => _selectedEmphasis?.DecodedAssetCount ?? 0;
+    public int SelectedEmphasisArtworkBuildCount => _selectedEmphasis?.ArtworkBuildCount ?? 0;
+    public int HighlightRebuildCount { get; private set; }
+    public UniversalSelectedEmphasisCache SelectedEmphasisCache => _selectedEmphasis ??
+        throw new InvalidOperationException("This cache was not built through the Universal opt-in path.");
     public ThemeMappingSnapshot? MappingSnapshot => _mappingSnapshot;
     public string FontEnvironment => _fontSession == null
         ? "none"
@@ -166,20 +183,48 @@ internal sealed class FullStateFrameCache : IDisposable
         bool styleChanged = parameters.FontScale != _universalParameters.FontScale ||
             parameters.TextStrength != _universalParameters.TextStrength ||
             parameters.SlotContentRadiusCru != _universalParameters.SlotContentRadiusCru;
-        if (!mappingChanged && !styleChanged) return false;
+        bool highlightChanged = parameters.HighlightStrength != _universalParameters.HighlightStrength;
+        if (!mappingChanged && !styleChanged && !highlightChanged) return false;
+        byte previousHighlight = _universalParameters.HighlightStrength;
+        try
+        {
+            if (highlightChanged)
+                _selectedEmphasis!.EnsureStrength(parameters.HighlightStrength);
 
-        (Dictionary<string, Bitmap> dynamic, Dictionary<string, Bitmap> states) =
-            BuildDynamicCandidate(candidateSnapshot, parameters);
-        Dictionary<string, Bitmap> previousDynamic = _dynamicLayers;
-        Dictionary<string, Bitmap> previousStates = _states;
-        _dynamicLayers = dynamic;
-        _states = states;
-        _mappingSnapshot = candidateSnapshot;
-        _universalParameters = parameters;
-        if (mappingChanged) MappingRebuildCount++;
-        foreach (Bitmap bitmap in previousDynamic.Values) bitmap.Dispose();
-        foreach (Bitmap bitmap in previousStates.Values) bitmap.Dispose();
-        return true;
+            if (!mappingChanged && !styleChanged)
+            {
+                Dictionary<string, Bitmap> selectedStates = BuildSelectedStateCandidate(_dynamicLayers);
+                foreach ((string name, Bitmap replacement) in selectedStates)
+                {
+                    Bitmap previous = _states[name];
+                    _states[name] = replacement;
+                    previous.Dispose();
+                }
+                _universalParameters = parameters;
+                HighlightRebuildCount++;
+                return true;
+            }
+
+            (Dictionary<string, Bitmap> dynamic, Dictionary<string, Bitmap> states) =
+                BuildDynamicCandidate(candidateSnapshot, parameters);
+            Dictionary<string, Bitmap> previousDynamic = _dynamicLayers;
+            Dictionary<string, Bitmap> previousStates = _states;
+            _dynamicLayers = dynamic;
+            _states = states;
+            _mappingSnapshot = candidateSnapshot;
+            _universalParameters = parameters;
+            if (mappingChanged) MappingRebuildCount++;
+            if (highlightChanged) HighlightRebuildCount++;
+            foreach (Bitmap bitmap in previousDynamic.Values) bitmap.Dispose();
+            foreach (Bitmap bitmap in previousStates.Values) bitmap.Dispose();
+            return true;
+        }
+        catch
+        {
+            if (highlightChanged)
+                _selectedEmphasis!.EnsureStrength(previousHighlight);
+            throw;
+        }
     }
 
     public void Dispose()
@@ -190,6 +235,7 @@ internal sealed class FullStateFrameCache : IDisposable
         foreach (Bitmap bitmap in _dynamicLayers.Values) bitmap.Dispose();
         foreach (Bitmap bitmap in _authoredLayers.Values) bitmap.Dispose();
         _fontSession?.Dispose();
+        _selectedEmphasis?.Dispose();
     }
 
     private Bitmap BuildLegacyCompatibleState(FullStateFrameState state, IReadOnlyDictionary<string, Bitmap> masters)
@@ -297,9 +343,20 @@ internal sealed class FullStateFrameCache : IDisposable
         {
             using Graphics graphics = Graphics.FromImage(target);
             ConfigureGraphics(graphics);
+            bool semanticSelected = state.SlotId.HasValue &&
+                _selectedEmphasis != null &&
+                _selectedEmphasis.HighlightStrength != byte.MaxValue;
+            if (semanticSelected)
+            {
+                Bitmap staticArtwork = _selectedEmphasis!.HighlightStrength == 0
+                    ? _selectedEmphasis.BaseStatic
+                    : _selectedEmphasis.GetIntermediateSelected(state.SlotId!.Value);
+                graphics.DrawImageUnscaled(staticArtwork, 0, 0);
+            }
             foreach (FullStateFrameLayer layer in _model.OrderedLayers)
             {
                 if (!IsVisible(layer.VisibleStates, state.Name, state.SlotId)) continue;
+                if (semanticSelected && layer.Kind is ("staticAsset" or "stateAsset")) continue;
                 Bitmap source;
                 if (layer.Kind is "dynamicText" or "dynamicGlyph")
                     source = dynamic[DynamicKey(state.Name, layer.Id)];
@@ -313,6 +370,25 @@ internal sealed class FullStateFrameCache : IDisposable
             return target;
         }
         catch { target.Dispose(); throw; }
+    }
+
+    private Dictionary<string, Bitmap> BuildSelectedStateCandidate(
+        IReadOnlyDictionary<string, Bitmap> dynamic)
+    {
+        var states = new Dictionary<string, Bitmap>(StringComparer.Ordinal);
+        try
+        {
+            foreach (FullStateFrameState state in _model.States.Values
+                         .Where(x => x.SlotId.HasValue)
+                         .OrderBy(x => x.SlotId))
+                states.Add(state.Name, ComposeDynamicState(state, dynamic));
+            return states;
+        }
+        catch
+        {
+            foreach (Bitmap bitmap in states.Values) bitmap.Dispose();
+            throw;
+        }
     }
 
     private static void ConfigureGraphics(Graphics graphics)
@@ -352,6 +428,7 @@ internal sealed class RuntimeRenderBundle : IDisposable
     private readonly RadialVisualPackCache? _assetCache;
     private readonly RadialDynamicContentCache? _dynamicContent;
     private readonly FullStateFrameCache? _fullStateCache;
+    private readonly UniversalSelectedEmphasisCache? _selectedEmphasis;
     private Bitmap[]? _universalLegacyStates;
     private UniversalRadialRenderPlan? _universalPlan;
     private bool _disposed;
@@ -359,13 +436,15 @@ internal sealed class RuntimeRenderBundle : IDisposable
     private RuntimeRenderBundle(NormalizedRenderPlan plan, RadialVisualPackCache assetCache,
         RadialDynamicContentCache dynamicContent, int dpi,
         UniversalRadialRenderPlan? universalPlan = null,
-        Bitmap[]? universalLegacyStates = null)
+        Bitmap[]? universalLegacyStates = null,
+        UniversalSelectedEmphasisCache? selectedEmphasis = null)
     {
         Plan = plan;
         _assetCache = assetCache;
         _dynamicContent = dynamicContent;
         _universalPlan = universalPlan;
         _universalLegacyStates = universalLegacyStates;
+        _selectedEmphasis = selectedEmphasis;
         Dpi = dpi;
         PhysicalSurfaceSize = new(assetCache.TargetSize, assetCache.TargetSize);
     }
@@ -397,6 +476,10 @@ internal sealed class RuntimeRenderBundle : IDisposable
     public RadialVisualPackCache AssetCache => _assetCache ?? throw new InvalidOperationException("This is a V2 full-state bundle.");
     public RadialDynamicContentCache DynamicContent => _dynamicContent ?? throw new InvalidOperationException("This is a V2 full-state bundle.");
     public FullStateFrameCache FullStateCache => _fullStateCache ?? throw new InvalidOperationException("This is a V1 legacy bundle.");
+    public UniversalSelectedEmphasisCache SelectedEmphasisCache =>
+        _fullStateCache == null
+            ? _selectedEmphasis ?? throw new InvalidOperationException("This bundle has no selected-emphasis cache.")
+            : throw new InvalidOperationException("The V2 selected-emphasis cache is owned by the full-state cache.");
     internal bool IsDisposed => _disposed;
     internal int DisposeCount { get; private set; }
 
@@ -439,6 +522,8 @@ internal sealed class RuntimeRenderBundle : IDisposable
         ArgumentNullException.ThrowIfNull(settings);
         var stopwatch = Stopwatch.StartNew();
         NormalizedRenderPlan plan = universalPlan.SourcePlan;
+        UniversalSelectedEmphasisDescriptor selectedEmphasis =
+            UniversalSelectedEmphasisCatalog.LoadForPlan(plan);
         RuntimeRenderBundle bundle;
         if (plan.RenderModel is FullStateFrameRenderPlan)
         {
@@ -446,7 +531,8 @@ internal sealed class RuntimeRenderBundle : IDisposable
                 plan,
                 settings,
                 dpi,
-                universalParameters: universalPlan.Parameters);
+                universalParameters: universalPlan.Parameters,
+                selectedEmphasisDescriptor: selectedEmphasis);
             bundle = new RuntimeRenderBundle(plan, cache, universalPlan);
         }
         else
@@ -456,18 +542,33 @@ internal sealed class RuntimeRenderBundle : IDisposable
                 throw new InvalidDataException("The V1 Universal foundation requires a square logical surface.");
             var assets = new RadialVisualPackCache(plan, physical.Width);
             RadialDynamicContentCache? dynamic = null;
+            UniversalSelectedEmphasisCache? selectedCache = null;
             Bitmap[]? states = null;
             try
             {
+                selectedCache = new(selectedEmphasis, universalPlan, dpi);
                 dynamic = new RadialDynamicContentCache(plan, WindowsUiFontResolver.ResolveUiFontFamily());
                 dynamic.EnsureUniversal(settings, physical.Width, universalPlan);
-                states = BuildLegacyFinalStates(plan, assets, dynamic);
-                bundle = new RuntimeRenderBundle(plan, assets, dynamic, dpi, universalPlan, states);
+                states = BuildLegacyFinalStates(
+                    plan,
+                    assets,
+                    dynamic,
+                    selectedCache,
+                    universalPlan.Parameters.HighlightStrength);
+                bundle = new RuntimeRenderBundle(
+                    plan,
+                    assets,
+                    dynamic,
+                    dpi,
+                    universalPlan,
+                    states,
+                    selectedCache);
             }
             catch
             {
                 if (states != null) foreach (Bitmap state in states) state.Dispose();
                 dynamic?.Dispose();
+                selectedCache?.Dispose();
                 assets.Dispose();
                 throw;
             }
@@ -520,10 +621,17 @@ internal sealed class RuntimeRenderBundle : IDisposable
         else
         {
             UniversalRadialRenderPlan candidatePlan = _universalPlan.WithParameters(parameters);
-            rebuilt = _dynamicContent!.EnsureUniversal(settings, TargetSize, candidatePlan);
+            bool dynamicRebuilt = _dynamicContent!.EnsureUniversal(settings, TargetSize, candidatePlan);
+            bool highlightRebuilt = _selectedEmphasis!.EnsureStrength(parameters.HighlightStrength);
+            rebuilt = dynamicRebuilt || highlightRebuilt;
             if (rebuilt)
             {
-                Bitmap[] replacement = BuildLegacyFinalStates(Plan, _assetCache!, _dynamicContent);
+                Bitmap[] replacement = BuildLegacyFinalStates(
+                    Plan,
+                    _assetCache!,
+                    _dynamicContent,
+                    _selectedEmphasis,
+                    parameters.HighlightStrength);
                 Bitmap[]? previous = _universalLegacyStates;
                 _universalLegacyStates = replacement;
                 if (previous != null) foreach (Bitmap state in previous) state.Dispose();
@@ -556,6 +664,7 @@ internal sealed class RuntimeRenderBundle : IDisposable
         _disposed = true;
         DisposeCount++;
         _fullStateCache?.Dispose();
+        _selectedEmphasis?.Dispose();
         if (_universalLegacyStates != null)
             foreach (Bitmap state in _universalLegacyStates) state.Dispose();
         _dynamicContent?.Dispose();
@@ -574,6 +683,7 @@ internal sealed class RuntimeRenderBundle : IDisposable
             plan.Parameters.SurfaceScale,
             plan.Parameters.FontScale,
             plan.Parameters.TextStrength,
+            plan.Parameters.HighlightStrength,
             plan.Parameters.SlotContentRadiusCru,
             Dpi,
             mappings,
@@ -583,7 +693,9 @@ internal sealed class RuntimeRenderBundle : IDisposable
     private static Bitmap[] BuildLegacyFinalStates(
         NormalizedRenderPlan plan,
         RadialVisualPackCache assets,
-        RadialDynamicContentCache dynamic)
+        RadialDynamicContentCache dynamic,
+        UniversalSelectedEmphasisCache selectedEmphasis,
+        byte highlightStrength)
     {
         var states = new Bitmap[plan.LayoutDefinition.SlotCount + 1];
         try
@@ -593,9 +705,20 @@ internal sealed class RuntimeRenderBundle : IDisposable
                 var target = new Bitmap(assets.TargetSize, assets.TargetSize, PixelFormat.Format32bppPArgb);
                 using Graphics graphics = Graphics.FromImage(target);
                 graphics.CompositingMode = CompositingMode.SourceCopy;
-                graphics.DrawImageUnscaled(assets.ScaledBase, 0, 0);
+                if (slot > 0 && highlightStrength is > 0 and < byte.MaxValue)
+                {
+                    graphics.DrawImageUnscaled(selectedEmphasis.GetIntermediateSelected(slot), 0, 0);
+                }
+                else
+                {
+                    graphics.DrawImageUnscaled(assets.ScaledBase, 0, 0);
+                    if (slot > 0 && highlightStrength == byte.MaxValue)
+                    {
+                        graphics.CompositingMode = CompositingMode.SourceOver;
+                        graphics.DrawImageUnscaled(assets.GetSelectedSlot(slot), 0, 0);
+                    }
+                }
                 graphics.CompositingMode = CompositingMode.SourceOver;
-                if (slot > 0) graphics.DrawImageUnscaled(assets.GetSelectedSlot(slot), 0, 0);
                 graphics.DrawImageUnscaled(dynamic.Content, 0, 0);
                 states[slot] = target;
             }
