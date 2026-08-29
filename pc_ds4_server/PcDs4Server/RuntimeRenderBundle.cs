@@ -164,7 +164,8 @@ internal sealed class FullStateFrameCache : IDisposable
         ThemeMappingSnapshot candidateSnapshot = ThemeMappingSnapshot.Capture(settings, Plan.LayoutProfileId);
         bool mappingChanged = !candidateSnapshot.Equals(_mappingSnapshot);
         bool styleChanged = parameters.FontScale != _universalParameters.FontScale ||
-            parameters.TextStrength != _universalParameters.TextStrength;
+            parameters.TextStrength != _universalParameters.TextStrength ||
+            parameters.SlotContentRadiusCru != _universalParameters.SlotContentRadiusCru;
         if (!mappingChanged && !styleChanged) return false;
 
         (Dictionary<string, Bitmap> dynamic, Dictionary<string, Bitmap> states) =
@@ -459,7 +460,7 @@ internal sealed class RuntimeRenderBundle : IDisposable
             try
             {
                 dynamic = new RadialDynamicContentCache(plan, WindowsUiFontResolver.ResolveUiFontFamily());
-                dynamic.EnsureUniversal(settings, physical.Width, universalPlan.Parameters);
+                dynamic.EnsureUniversal(settings, physical.Width, universalPlan);
                 states = BuildLegacyFinalStates(plan, assets, dynamic);
                 bundle = new RuntimeRenderBundle(plan, assets, dynamic, dpi, universalPlan, states);
             }
@@ -518,7 +519,8 @@ internal sealed class RuntimeRenderBundle : IDisposable
         }
         else
         {
-            rebuilt = _dynamicContent!.EnsureUniversal(settings, TargetSize, parameters);
+            UniversalRadialRenderPlan candidatePlan = _universalPlan.WithParameters(parameters);
+            rebuilt = _dynamicContent!.EnsureUniversal(settings, TargetSize, candidatePlan);
             if (rebuilt)
             {
                 Bitmap[] replacement = BuildLegacyFinalStates(Plan, _assetCache!, _dynamicContent);
@@ -572,6 +574,7 @@ internal sealed class RuntimeRenderBundle : IDisposable
             plan.Parameters.SurfaceScale,
             plan.Parameters.FontScale,
             plan.Parameters.TextStrength,
+            plan.Parameters.SlotContentRadiusCru,
             Dpi,
             mappings,
             fontEnvironment);

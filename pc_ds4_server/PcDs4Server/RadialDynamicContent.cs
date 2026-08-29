@@ -104,6 +104,8 @@ internal sealed class RadialDynamicContentCache : IDisposable
     internal int RenderedSlotCount { get; private set; }
     internal NormalizedRenderPlan Plan => _plan;
     internal string FontEnvironment => _fontFamily.Name;
+    internal IReadOnlyDictionary<int, UniversalDynamicTranslation> LastUniversalSlotTranslations { get; private set; } =
+        new Dictionary<int, UniversalDynamicTranslation>();
 
     public bool Ensure(RadialMenuSettings settings, int targetSize)
     {
@@ -119,6 +121,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
             outputScale,
             settings.TextAlpha,
             UseLegacyTextClamp: true,
+            SlotContentRadiusCru: null,
             settings.GetProfileMappings(_plan.LayoutDefinition.ProfileId));
         if (_content != null && key == _key) return false;
 
@@ -134,13 +137,16 @@ internal sealed class RadialDynamicContentCache : IDisposable
     public bool EnsureUniversal(
         RadialMenuSettings settings,
         int targetSize,
-        UniversalRadialParameters parameters)
+        UniversalRadialRenderPlan universalPlan)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(universalPlan);
+        if (!ReferenceEquals(universalPlan.SourcePlan, _plan))
+            throw new ArgumentException("The Universal plan does not own this dynamic cache.", nameof(universalPlan));
         if (targetSize <= 0) throw new ArgumentOutOfRangeException(nameof(targetSize));
 
+        UniversalRadialParameters parameters = universalPlan.Parameters;
         float physicalPresentationScale = checked((float)(
             targetSize / _plan.ReferenceScale.LogicalWidth));
         var key = new DynamicContentKey(
@@ -150,10 +156,11 @@ internal sealed class RadialDynamicContentCache : IDisposable
             physicalPresentationScale,
             UniversalRadialSettingsNormalizer.ScaleAuthoredAlpha(235, parameters.TextStrength),
             UseLegacyTextClamp: false,
+            parameters.SlotContentRadiusCru,
             settings.GetProfileMappings(_plan.LayoutDefinition.ProfileId));
         if (_content != null && key == _key) return false;
 
-        Bitmap replacement = BuildContent(key);
+        Bitmap replacement = BuildContent(key, universalPlan);
         Bitmap? previous = _content;
         _content = replacement;
         _key = key;
@@ -171,7 +178,9 @@ internal sealed class RadialDynamicContentCache : IDisposable
         _fontFamily.Dispose();
     }
 
-    private Bitmap BuildContent(DynamicContentKey key)
+    private Bitmap BuildContent(
+        DynamicContentKey key,
+        UniversalRadialRenderPlan? universalPlan = null)
     {
         int workingSize = checked(key.TargetSize * SupersampleScale);
         using var working = new Bitmap(
@@ -186,13 +195,17 @@ internal sealed class RadialDynamicContentCache : IDisposable
             graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
             graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-            DrawSlotContent(graphics, key, workingSize);
+            DrawSlotContent(graphics, key, workingSize, universalPlan);
         }
 
         return Downsample(working, key.TargetSize);
     }
 
-    private void DrawSlotContent(Graphics graphics, DynamicContentKey key, int workingSize)
+    private void DrawSlotContent(
+        Graphics graphics,
+        DynamicContentKey key,
+        int workingSize,
+        UniversalRadialRenderPlan? universalPlan)
     {
         LayoutDefinition layout = _plan.LayoutDefinition;
         float masterScale = workingSize / (float)layout.Canvas.Width;
@@ -216,6 +229,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
         };
 
         int renderedSlotCount = 0;
+        var translations = new Dictionary<int, UniversalDynamicTranslation>();
         for (int index = 0; index < layout.Slots.Count; index++)
         {
             RadialSlotDefinition slot = layout.Slots[index];
@@ -224,10 +238,16 @@ internal sealed class RadialDynamicContentCache : IDisposable
                 : RadialSlotMapping.None;
             RadialActionDisplayText display = RadialActionDisplayText.FromMapping(
                 mapping);
+            UniversalDynamicTranslation translation = universalPlan == null
+                ? UniversalDynamicTranslation.Zero
+                : UniversalDynamicContentTransform.AuthoredGeometryTranslation(
+                    universalPlan,
+                    universalPlan.GetOuterDynamicContentGroup(slot.Id));
+            translations.Add(slot.Id, translation);
             float anchorScale = workingSize / (float)layout.Canvas.Width;
             PointF primaryAnchor = new(
-                (float)slot.GlyphAnchor.X * anchorScale,
-                (float)slot.GlyphAnchor.Y * anchorScale);
+                (float)(slot.GlyphAnchor.X + translation.X) * anchorScale,
+                (float)(slot.GlyphAnchor.Y + translation.Y) * anchorScale);
 
             DrawFittedText(
                 graphics,
@@ -241,6 +261,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
             renderedSlotCount++;
         }
         RenderedSlotCount = renderedSlotCount;
+        LastUniversalSlotTranslations = translations;
     }
 
     private void DrawFittedText(
@@ -317,5 +338,6 @@ internal sealed class RadialDynamicContentCache : IDisposable
         float OutputScale,
         int TextAlpha,
         bool UseLegacyTextClamp,
+        double? SlotContentRadiusCru,
         RadialSlotMappings SlotMappings);
 }

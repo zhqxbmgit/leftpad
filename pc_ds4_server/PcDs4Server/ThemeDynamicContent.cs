@@ -487,6 +487,7 @@ internal sealed class ThemeDynamicRasterizer
     private readonly ThemeFontSession _fonts;
     private readonly IThemeRuntimeSymbolProvider _symbols;
     private readonly UniversalRadialParameters? _universalParameters;
+    private readonly UniversalRadialRenderPlan? _universalPlan;
 
     public ThemeDynamicRasterizer(NormalizedRenderPlan plan, ThemeFontSession fonts,
         IThemeRuntimeSymbolProvider? symbols = null,
@@ -496,6 +497,9 @@ internal sealed class ThemeDynamicRasterizer
         _fonts=fonts;
         _symbols=symbols ?? new LeftPadRuntimeSymbolProvider();
         _universalParameters = universalParameters;
+        _universalPlan = universalParameters == null
+            ? null
+            : UniversalRadialRenderPlan.Create(plan, universalParameters);
     }
 
     public Bitmap RenderLayer(FullStateFrameLayer layer, FullStateFrameState state,
@@ -505,6 +509,8 @@ internal sealed class ThemeDynamicRasterizer
         NormalizedDynamicAnchor anchor = model.AnchorForLayer(layer.Id);
         if (!FullStateFrameCache.IsVisible(anchor.VisibleStates, state.Name, state.SlotId))
         { semantic = ThemeDynamicLayoutResult.NoDraw(); return EmptySurface(dpi); }
+        if (_universalPlan != null)
+            anchor = UniversalDynamicContentTransform.TranslateAnchor(_universalPlan, layer.Id, anchor);
         string key = model.OwnershipByLayer[layer.Id].ContentKey;
         ResolvedDynamicContent content = ThemeDynamicContentResolver.Resolve(key, state.SlotId ?? 0, mappings);
         if (content.IsEmpty) { semantic = ThemeDynamicLayoutResult.NoDraw(); return EmptySurface(dpi); }
