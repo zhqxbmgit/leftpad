@@ -77,7 +77,6 @@ public partial class MainForm
         switch (message.Command)
         {
             case ReceiverSettingsCommand.BasicChange:
-            case ReceiverSettingsCommand.AdvancedChange:
             case ReceiverSettingsCommand.MappingChange:
                 if (!_dreamscapeSettingsSession.TryApplyChange(message, out string rejectionReason))
                     AppendLog($"[WebView2 Settings] Rejected change: {rejectionReason}");
@@ -123,10 +122,6 @@ public partial class MainForm
                 break;
             case ReceiverSettingsCommand.ShowBasic:
                 _dreamscapeSettingsSession.ShowBasic();
-                _dreamscapeSettingsHost.PostState();
-                break;
-            case ReceiverSettingsCommand.ShowAdvanced:
-                _dreamscapeSettingsSession.ShowAdvanced();
                 _dreamscapeSettingsHost.PostState();
                 break;
             case ReceiverSettingsCommand.ShowMappings:
@@ -222,17 +217,10 @@ public partial class MainForm
                 $"window.leftpadSettings.postChange('overallSizePercent',{testScale}); true");
             await Task.Delay(200);
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
-                "window.leftpadSettings.postCommand('showSettingsAdvanced'); true");
-            await Task.Delay(200);
-            string? advancedCapture = Environment.GetEnvironmentVariable(
-                "LEFTPAD_WEBVIEW2_SETTINGS_ADVANCED_CAPTURE");
-            if (!string.IsNullOrWhiteSpace(advancedCapture))
-                await _dreamscapeSettingsHost.CapturePreviewAsync(advancedCapture);
-            await _dreamscapeSettingsHost.ExecuteScriptAsync(
-                $"window.leftpadSettings.postAdvancedChange('fontSize',{testFontSize}); true");
+                $"window.leftpadSettings.postChange('fontSize',{testFontSize}); true");
             await Task.Delay(250);
             bool sharedDraftPreserved =
-                _dreamscapeSettingsSession.ActiveSection == ReceiverSettingsSection.Advanced &&
+                _dreamscapeSettingsSession.ActiveSection == ReceiverSettingsSection.Basic &&
                 _dreamscapeSettingsSession.Draft.ScalePercent == testScale &&
                 _dreamscapeSettingsSession.Draft.FontSize == (float)testFontSize;
 
@@ -358,10 +346,7 @@ public partial class MainForm
                 $"window.leftpadSettings.postChange('overallSizePercent',{testScale}); true");
             await Task.Delay(200);
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
-                "window.leftpadSettings.postCommand('showSettingsAdvanced'); true");
-            await Task.Delay(150);
-            await _dreamscapeSettingsHost.ExecuteScriptAsync(
-                $"window.leftpadSettings.postAdvancedChange('fontSize',{testFontSize}); true");
+                $"window.leftpadSettings.postChange('fontSize',{testFontSize}); true");
             await Task.Delay(200);
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
                 "window.leftpadSettings.postChange('visualPackId','radial-8-minimal-v1'); true");
@@ -412,8 +397,6 @@ public partial class MainForm
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
                 "window.chrome.webview.postMessage({command:'settingsBasicChange',field:'notAllowed',value:1}); true");
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
-                "window.chrome.webview.postMessage({command:'settingsAdvancedChange',field:'notAllowed',value:1}); true");
-            await _dreamscapeSettingsHost.ExecuteScriptAsync(
                 "window.chrome.webview.postMessage({command:'settingsMappingChange',profileId:'radial-8',slotId:99,actionKind:'none'}); true");
             await Task.Delay(100);
 
@@ -431,17 +414,11 @@ public partial class MainForm
             NavigateTo(ReceiverPage.Settings);
             await Task.Delay(200);
             await _dreamscapeSettingsHost.ExecuteScriptAsync(
-                "window.leftpadSettings.postCommand('showSettingsAdvanced'); true");
-            await Task.Delay(200);
-            bool webAdvanced = _dreamscapeSettingsHost.Visible &&
-                _dreamscapeSettingsSession.ActiveSection == ReceiverSettingsSection.Advanced &&
-                !NativeSettingsTabIsSelected(1);
-            await _dreamscapeSettingsHost.ExecuteScriptAsync(
                 "window.leftpadSettings.postCommand('showSettingsMappings'); true");
             await Task.Delay(200);
             bool webMappings = _dreamscapeSettingsHost.Visible &&
                 _dreamscapeSettingsSession.ActiveSection == ReceiverSettingsSection.Mapping &&
-                !NativeSettingsTabIsSelected(2);
+                !NativeSettingsTabIsSelected(1);
 
             NavigateTo(ReceiverPage.Settings);
             await Task.Delay(200);
@@ -493,7 +470,6 @@ public partial class MainForm
                 receiverUiScalePercent = smokeReceiverUiScalePercent,
                 designCanvasScale = "uniform min(viewport/reference), independent of ReceiverUiScale/DPI",
                 capturePath,
-                advancedCapture,
                 overviewCapture,
                 mappingDefaultCapture,
                 mappingShortcutCapture,
@@ -517,7 +493,6 @@ public partial class MainForm
                 settingsToOverview,
                 nativeGamepad,
                 nativeLogs,
-                webAdvanced,
                 webMappings,
                 dragRoundTrip,
                 minimizeRoundTrip,
@@ -543,16 +518,10 @@ public partial class MainForm
                 {
                     int focusDelay = Math.Min(1500, inputProbeDelayMs);
                     await Task.Delay(focusDelay);
-                    bool probeAdvancedRange = Environment.GetEnvironmentVariable(
-                        "LEFTPAD_WEBVIEW2_SETTINGS_INPUT_ADVANCED") == "1";
-                    if (probeAdvancedRange)
-                    {
-                        _dreamscapeSettingsSession.ShowAdvanced();
-                        _dreamscapeSettingsHost.PostState();
-                        await Task.Delay(150);
-                    }
-                    string probeRangeId = probeAdvancedRange
-                        ? "advanced-font-size"
+                    bool probeFontRange = Environment.GetEnvironmentVariable(
+                        "LEFTPAD_WEBVIEW2_SETTINGS_INPUT_FONT") == "1";
+                    string probeRangeId = probeFontRange
+                        ? "font-size"
                         : "overall-size";
                     focusedRangeBounds = await _dreamscapeSettingsHost.ExecuteScriptAsync(
                         $"(() => {{ const e=document.getElementById('{probeRangeId}'); e.focus(); return JSON.stringify(e.getBoundingClientRect()); }})()");
@@ -612,7 +581,7 @@ public partial class MainForm
                             externalInputDirty,
                             externalInputChangedDraft =
                                 externalInputDraftScalePercent != originalSettings.ScalePercent,
-                            advancedInputChangedDraft =
+                            fontInputChangedDraft =
                                 externalInputDraftFontSize != originalSettings.FontSize,
                             unsavedExternalInputDiscarded =
                                 _dreamscapeSettingsSession.Draft.ScalePercent ==

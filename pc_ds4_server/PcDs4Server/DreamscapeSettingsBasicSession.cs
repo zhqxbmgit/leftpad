@@ -63,7 +63,6 @@ internal sealed class DreamscapeSettingsBasicSession
         rejectionReason = string.Empty;
         if (!IsActive ||
             (message.Command != ReceiverSettingsCommand.BasicChange &&
-             message.Command != ReceiverSettingsCommand.AdvancedChange &&
              message.Command != ReceiverSettingsCommand.MappingChange) ||
             (message.Command != ReceiverSettingsCommand.MappingChange && message.Field == null))
         {
@@ -75,7 +74,6 @@ internal sealed class DreamscapeSettingsBasicSession
         RadialMenuSettings candidate = message.Command switch
         {
             ReceiverSettingsCommand.BasicChange => ApplyBasicChange(message, out rejectionReason),
-            ReceiverSettingsCommand.AdvancedChange => ApplyAdvancedChange(message, out rejectionReason),
             ReceiverSettingsCommand.MappingChange => ApplyMappingChange(message, out rejectionReason),
             _ => _draft
         };
@@ -97,12 +95,6 @@ internal sealed class DreamscapeSettingsBasicSession
     {
         EnsureActive();
         ActiveSection = ReceiverSettingsSection.Basic;
-    }
-
-    public void ShowAdvanced()
-    {
-        EnsureActive();
-        ActiveSection = ReceiverSettingsSection.Advanced;
     }
 
     public void ShowMappings()
@@ -153,6 +145,10 @@ internal sealed class DreamscapeSettingsBasicSession
             {
                 ScalePercent = message.IntegerValue!.Value
             },
+            SettingsBasicFields.FontSize => _draft with
+            {
+                FontSize = (float)message.DecimalValue!.Value
+            },
             SettingsBasicFields.DoubleTapWindowMs => _draft with
             {
                 DoubleTapWindowMs = message.IntegerValue!.Value
@@ -160,45 +156,6 @@ internal sealed class DreamscapeSettingsBasicSession
             SettingsBasicFields.SelectionDeadZone => _draft with
             {
                 SelectionDeadZone = message.IntegerValue!.Value
-            },
-            SettingsBasicFields.SelectedIntensity => _draft with
-            {
-                HighlightAlpha = message.IntegerValue!.Value
-            },
-            SettingsBasicFields.PetalOpacity => _draft with
-            {
-                FillAlpha = message.IntegerValue!.Value
-            },
-            SettingsBasicFields.BorderOpacity => _draft with
-            {
-                BorderAlpha = message.IntegerValue!.Value
-            },
-            SettingsBasicFields.TextOpacity => _draft with
-            {
-                TextAlpha = message.IntegerValue!.Value
-            },
-            _ => RejectUnknownField(message.Field, out rejectionReason)
-        };
-    }
-
-    private RadialMenuSettings ApplyAdvancedChange(
-        ReceiverSettingsMessage message,
-        out string rejectionReason)
-    {
-        rejectionReason = string.Empty;
-        decimal value = message.DecimalValue!.Value;
-        return message.Field switch
-        {
-            SettingsAdvancedFields.CanvasSize => _draft with { BaseCanvasSize = decimal.ToInt32(value) },
-            SettingsAdvancedFields.CenterRadius => _draft with { HubRadius = decimal.ToInt32(value) },
-            SettingsAdvancedFields.PetalInnerRadius => _draft with { PetalInnerRadius = decimal.ToInt32(value) },
-            SettingsAdvancedFields.PetalOuterRadius => _draft with { PetalOuterRadius = decimal.ToInt32(value) },
-            SettingsAdvancedFields.TextRadius => _draft with { TextRadius = decimal.ToInt32(value) },
-            SettingsAdvancedFields.PetalGapDegrees => _draft with { PetalGapDegrees = (float)value },
-            SettingsAdvancedFields.FontSize => _draft with { FontSize = (float)value },
-            SettingsAdvancedFields.SelectionPollIntervalMs => _draft with
-            {
-                SelectionPollIntervalMs = decimal.ToInt32(value)
             },
             _ => RejectUnknownField(message.Field, out rejectionReason)
         };
@@ -296,14 +253,10 @@ internal sealed class DreamscapeSettingsBasicSession
             _draft.ReceiverUiScalePercent,
             ReceiverUiScaling.Presets.ToArray(),
             _draft.ScalePercent,
+            (decimal)_draft.FontSize,
             _draft.DoubleTapWindowMs,
             _draft.SelectionDeadZone,
-            _draft.HighlightAlpha,
-            _draft.FillAlpha,
-            _draft.BorderAlpha,
-            _draft.TextAlpha,
             SettingsBasicFields.Ranges,
-            SettingsAdvancedFields.CreateStates(_draft),
             _draft.MappingProfileId,
             ActiveLayoutDefinition().SlotCount,
             SettingsMappingLayout.SplitIndex(ActiveLayoutDefinition().SlotCount),
@@ -314,7 +267,6 @@ internal sealed class DreamscapeSettingsBasicSession
             SettingsMappingCatalogs.Ds4Actions,
             ActiveSection switch
             {
-                ReceiverSettingsSection.Advanced => "advanced",
                 ReceiverSettingsSection.Mapping => "mappings",
                 _ => "basic"
             },

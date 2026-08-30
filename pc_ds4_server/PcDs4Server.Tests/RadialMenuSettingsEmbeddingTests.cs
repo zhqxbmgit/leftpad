@@ -67,36 +67,27 @@ public sealed class RadialMenuSettingsEmbeddingTests
     }
 
     [Fact]
-    public void BasicAndAdvancedPages_UseTwoBalancedLogicalColumns()
+    public void SimplifiedBasicPage_PreservesGroupedWideLayout()
     {
         RunInSta(() =>
         {
             using var control = new RadialMenuSettingsControl();
             TableLayoutPanel basic = Find<TableLayoutPanel>(control, "basicTwoColumnLayout");
-            TableLayoutPanel basicLeft = Find<TableLayoutPanel>(
-                control,
-                "basicTwoColumnLayoutLeftColumn");
-            TableLayoutPanel basicRight = Find<TableLayoutPanel>(
-                control,
-                "basicTwoColumnLayoutRightColumn");
-            TableLayoutPanel advanced = Find<TableLayoutPanel>(control, "advancedTwoColumnLayout");
-            TableLayoutPanel advancedLeft = Find<TableLayoutPanel>(
-                control,
-                "advancedTwoColumnLayoutLeftColumn");
-            TableLayoutPanel advancedRight = Find<TableLayoutPanel>(
-                control,
-                "advancedTwoColumnLayoutRightColumn");
+            GroupBox radial = Find<GroupBox>(control, "radialMenuSettingsGroup");
+            GroupBox interaction = Find<GroupBox>(control, "radialInteractionSettingsGroup");
+            GroupBox receiver = Find<GroupBox>(control, "receiverInterfaceSettingsGroup");
+            TabControl tabs = Find<TabControl>(control, "settingsTabs");
+
+            control.ReflowBasicLayoutForTesting(control.RequiredWideBasicWidth);
 
             Assert.Equal(2, basic.ColumnCount);
-            Assert.Equal(5, basicLeft.RowCount);
-            Assert.Equal(4, basicRight.RowCount);
-            Assert.Equal(9, basicLeft.Controls.OfType<Label>().Count() +
-                basicRight.Controls.OfType<Label>().Count());
-            Assert.Equal(2, advanced.ColumnCount);
-            Assert.Equal(4, advancedLeft.RowCount);
-            Assert.Equal(4, advancedRight.RowCount);
-            Assert.Equal(8, advancedLeft.Controls.OfType<Label>().Count() +
-                advancedRight.Controls.OfType<Label>().Count());
+            Assert.False(control.IsBasicLayoutCompact);
+            Assert.Equal("环形菜单", radial.Text);
+            Assert.Equal("操作", interaction.Text);
+            Assert.Equal("接收器界面", receiver.Text);
+            Assert.Equal(2, tabs.TabCount);
+            Assert.Equal(["基础", "动作映射"], tabs.TabPages.Cast<TabPage>().Select(page => page.Text));
+            Assert.Empty(control.Controls.Find("advancedSettingsPage", searchAllChildren: true));
         });
     }
 
@@ -330,8 +321,7 @@ public sealed class RadialMenuSettingsEmbeddingTests
             foreach (string pageName in new[]
             {
                 "basicSettingsPage",
-                "mappingSettingsPage",
-                "advancedSettingsPage"
+                "mappingSettingsPage"
             })
             {
                 TabPage page = Find<TabPage>(control, pageName);

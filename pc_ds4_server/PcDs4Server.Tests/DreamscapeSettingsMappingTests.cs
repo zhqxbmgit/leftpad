@@ -173,13 +173,12 @@ public sealed class DreamscapeSettingsMappingTests
     }
 
     [Fact]
-    public void BasicAdvancedAndMapping_UseOneDraftAcrossTabs()
+    public void BasicAndMapping_UseOneDraftAcrossTabs()
     {
         SessionHarness harness = CreateHarness();
         harness.Session.Activate();
         ApplyBasic(harness.Session, SettingsBasicFields.OverallSizePercent, 120);
-        harness.Session.ShowAdvanced();
-        ApplyAdvanced(harness.Session, SettingsAdvancedFields.FontSize, 15.5m);
+        ApplyDecimalBasic(harness.Session, SettingsBasicFields.FontSize, 15.5m);
         harness.Session.ShowMappings();
         ApplyMapping(harness.Session, "radial-6", 1, "keyboardKey", key: "F1");
         harness.Session.ShowBasic();
@@ -398,7 +397,6 @@ public sealed class DreamscapeSettingsMappingTests
 
     [Theory]
     [InlineData("showSettingsBasic")]
-    [InlineData("showSettingsAdvanced")]
     [InlineData("showSettingsMappings")]
     public void SettingsTabs_AreOutsideTheNonHitTestingMappingOverlay(string command)
     {
@@ -447,58 +445,32 @@ public sealed class DreamscapeSettingsMappingTests
     }
 
     [Fact]
-    public void SettingsMarkup_HasNineBasicFieldsAndExactlyEightAdvancedFieldIcons()
+    public void SettingsMarkup_HasSixSimplifiedBasicFieldsAndNoAdvancedSection()
     {
         string html = Frontend("index.html");
         string basic = SectionBody(html, "settings-form");
-        string advanced = SectionBody(html, "advanced-form");
-        MatchCollection rows = Regex.Matches(
-            advanced,
-            @"(?ms)<div\s+class=""advanced-row\s+(?<side>advanced-(?:left|right)-row)""[^>]*>(?<body>.*?)</div>",
-            RegexOptions.CultureInvariant);
 
-        Assert.Equal(9, Regex.Matches(
+        Assert.Equal(6, Regex.Matches(
             basic, @"<div\s+class=""setting-row\b", RegexOptions.CultureInvariant).Count);
-        Assert.Equal(8, rows.Count);
-        Assert.Equal(4, rows.Cast<Match>().Count(row =>
-            row.Groups["side"].Value == "advanced-left-row"));
-        Assert.Equal(4, rows.Cast<Match>().Count(row =>
-            row.Groups["side"].Value == "advanced-right-row"));
-        Assert.All(rows.Cast<Match>(), row =>
-        {
-            Assert.Single(Regex.Matches(
-                row.Groups["body"].Value,
-                @"<span\s+class=""advanced-icon""",
-                RegexOptions.CultureInvariant).Cast<Match>());
-            Assert.Single(Regex.Matches(
-                row.Groups["body"].Value,
-                @"<input\s+[^>]*data-advanced-field=",
-                RegexOptions.CultureInvariant).Cast<Match>());
-        });
-        Assert.Equal(rows.Count, Regex.Matches(
-            advanced, @"<span\s+class=""advanced-icon""", RegexOptions.CultureInvariant).Count);
+        Assert.Contains("data-field=\"fontSize\"", basic);
+        Assert.Contains("环形菜单", basic);
+        Assert.Contains("操作", basic);
+        Assert.Contains("接收器界面", basic);
+        Assert.DoesNotContain("advanced-form", html);
+        Assert.DoesNotContain("data-advanced-field", html);
     }
 
     [Fact]
-    public void AdvancedStaticIconMasks_AreSectionScopedAndPreserveRealIconsAboveThem()
+    public void SimplifiedStyles_RemoveAdvancedRulesAndKeepMappingSectionIsolation()
     {
         string styles = Frontend("styles.css");
 
-        Assert.Equal("none", CssProperty(styles, "#advanced-form", "display"));
-        Assert.Equal("block", CssProperty(
-            styles, "html[data-section=\"advanced\"] #advanced-form", "display"));
-        Assert.Equal("none", CssProperty(
-            styles, "html[data-section=\"mappings\"] #advanced-form", "display"));
-        Assert.Equal("none", CssPropertyInRuleGroup(
-            styles, "html[data-section=\"advanced\"] #settings-form", "display"));
         Assert.Equal("none", CssPropertyInRuleGroup(
             styles, "html[data-section=\"mappings\"] #settings-form", "display"));
-        Assert.Equal("1", CssProperty(styles, ".advanced-row", "z-index"));
-        Assert.Equal("#fff9f7", CssProperty(styles, ".advanced-icon", "background"));
-        Assert.Equal("454px", CssPropertyInRuleGroup(
-            styles, "#advanced-form::before", "height"));
-        Assert.Equal("382px", CssPropertyInRuleGroup(
-            styles, "#advanced-form::after", "height"));
+        Assert.Equal("none", CssProperty(styles, "#mapping-section", "display"));
+        Assert.Contains(".receiver-section-note", styles);
+        Assert.DoesNotContain("advanced-row", styles);
+        Assert.DoesNotContain("data-section=\"advanced\"", styles);
     }
 
     [Fact]
@@ -602,13 +574,13 @@ public sealed class DreamscapeSettingsMappingTests
         Assert.True(session.TryApplyChange(message, out string error), error);
     }
 
-    private static void ApplyAdvanced(
+    private static void ApplyDecimalBasic(
         DreamscapeSettingsBasicSession session,
         string field,
         decimal value)
     {
         var message = new ReceiverSettingsMessage(
-            ReceiverSettingsCommand.AdvancedChange, field, DecimalValue: value);
+            ReceiverSettingsCommand.BasicChange, field, DecimalValue: value);
         Assert.True(session.TryApplyChange(message, out string error), error);
     }
 

@@ -2,6 +2,13 @@ namespace PcDs4Server;
 
 public sealed class RadialMenuSettingsControl : UserControl
 {
+    private const float RadialLabelColumnPercent = 38;
+    private const float DefaultLabelColumnPercent = 46;
+    private const int GroupHorizontalPadding = 12;
+    private const int GroupTopPadding = 18;
+    private const int GroupBottomPadding = 12;
+    private const int CompactGroupBottomPadding = 6;
+
     private RadialMenuController? _controller;
     private RadialMenuSettingsStore? _store;
     private Action<RadialMenuSettings>? _applySettings;
@@ -12,27 +19,31 @@ public sealed class RadialMenuSettingsControl : UserControl
 
     private readonly ComboBox _visualPack = VisualPackDropDown();
     private readonly ComboBox _receiverUiScale = ReceiverUiScaleDropDown();
-    private readonly NumericUpDown _scale = Editor(60, 140);
+    private readonly NumericUpDown _scale = Editor(
+        "scalePercent",
+        RadialMenuSettings.MinimumScalePercent,
+        RadialMenuSettings.MaximumScalePercent);
+    private readonly NumericUpDown _fontSize = Editor(
+        "fontSize",
+        6,
+        48,
+        decimalPlaces: 1,
+        increment: 0.5m);
     private readonly NumericUpDown _doubleTapWindow = Editor(
+        "doubleTapWindowMs",
         RadialMenuSettings.MinimumDoubleTapWindowMs,
         RadialMenuSettings.MaximumDoubleTapWindowMs);
     private readonly NumericUpDown _selectionDeadZone = Editor(
+        "selectionDeadZone",
         RadialMenuSettings.MinimumSelectionDeadZone,
         RadialMenuSettings.MaximumSelectionDeadZone);
-    private readonly NumericUpDown _highlightAlpha = Editor(0, 255);
-    private readonly NumericUpDown _fillAlpha = Editor(0, 255);
-    private readonly NumericUpDown _borderAlpha = Editor(0, 255);
-    private readonly NumericUpDown _textAlpha = Editor(0, 255);
-    private readonly NumericUpDown _canvas = Editor(160, 800);
-    private readonly NumericUpDown _hubRadius = Editor(1, 399);
-    private readonly NumericUpDown _innerRadius = Editor(1, 399);
-    private readonly NumericUpDown _outerRadius = Editor(2, 399);
-    private readonly NumericUpDown _textRadius = Editor(1, 399);
-    private readonly NumericUpDown _gap = Editor(0, 12, decimalPlaces: 1, increment: 0.5m);
-    private readonly NumericUpDown _fontSize = Editor(6, 48, decimalPlaces: 1, increment: 0.5m);
-    private readonly NumericUpDown _selectionPollInterval = Editor(
-        RadialMenuSettings.MinimumSelectionPollIntervalMs,
-        RadialMenuSettings.MaximumSelectionPollIntervalMs);
+    private TableLayoutPanel? _basicLayout;
+    private TableLayoutPanel? _basicRightSections;
+    private GroupBox? _radialSettingsGroup;
+    private GroupBox? _interactionSettingsGroup;
+    private GroupBox? _receiverSettingsGroup;
+    private bool? _basicLayoutCompact;
+    private bool _reflowingBasicLayout;
     private readonly TableLayoutPanel _mappingTable = new()
     {
         Name = "mappingTable",
@@ -78,7 +89,6 @@ public sealed class RadialMenuSettingsControl : UserControl
             Padding = new Point(18, 8)
         };
         tabs.TabPages.Add(CreateBasicPage());
-        tabs.TabPages.Add(CreateAdvancedPage());
         tabs.TabPages.Add(CreateMappingsPage());
 
         var buttons = new FlowLayoutPanel
@@ -124,6 +134,11 @@ public sealed class RadialMenuSettingsControl : UserControl
     internal string ActiveMappingProfileId => _mappingProfileId;
     internal string? SelectedVisualPackId =>
         (_visualPack.SelectedItem as RadialVisualPackCatalogEntry)?.Id;
+    internal bool IsBasicLayoutCompact => _basicLayoutCompact == true;
+    internal int RequiredWideBasicWidth => GetRequiredWideBasicWidth();
+
+    internal void ReflowBasicLayoutForTesting(int availableWidth) =>
+        ReflowBasicLayout(availableWidth);
 
     public void Initialize(
         RadialMenuController controller,
@@ -183,6 +198,8 @@ public sealed class RadialMenuSettingsControl : UserControl
                 $"[视觉主题] 忽略 '{issue.PackId ?? issue.DirectoryPath}'：" +
                 issue.Message);
         }
+
+        ReflowBasicLayout();
     }
 
     private void EnsureInitialized()
@@ -197,46 +214,18 @@ public sealed class RadialMenuSettingsControl : UserControl
         base.Dispose(disposing);
     }
 
+    protected override void OnLayout(LayoutEventArgs e)
+    {
+        base.OnLayout(e);
+        ReflowBasicLayout();
+    }
+
     private TabPage CreateBasicPage()
     {
         var page = Page("基础");
         page.Name = "basicSettingsPage";
-        page.Controls.Add(TwoColumnEditorLayout(
-            "basicTwoColumnLayout",
-            [
-                ("视觉主题", _visualPack),
-                ("接收器界面缩放", _receiverUiScale),
-                ("环形菜单整体大小 (%)", _scale),
-                ("环形菜单双击窗口 (ms)", _doubleTapWindow),
-                ("选择死区 (px)", _selectionDeadZone)
-            ],
-            [
-                ("选择高亮强度", _highlightAlpha),
-                ("花瓣透明度 (0-255)", _fillAlpha),
-                ("边框透明度 (0-255)", _borderAlpha),
-                ("文字透明度 (0-255)", _textAlpha)
-            ]));
-        return page;
-    }
-
-    private TabPage CreateAdvancedPage()
-    {
-        var page = Page("高级");
-        page.Name = "advancedSettingsPage";
-        page.Controls.Add(TwoColumnEditorLayout(
-            "advancedTwoColumnLayout",
-            [
-                ("画布大小 (px)", _canvas),
-                ("中心圆半径 (px)", _hubRadius),
-                ("花瓣内半径 (px)", _innerRadius),
-                ("花瓣外半径 (px)", _outerRadius)
-            ],
-            [
-                ("文字位置半径 (px)", _textRadius),
-                ("花瓣间隔角度 (°)", _gap),
-                ("字体大小 (px)", _fontSize),
-                ("选择检测间隔 (ms)", _selectionPollInterval)
-            ]));
+        page.Controls.Add(CreateBasicLayout());
+        page.ClientSizeChanged += (_, _) => ReflowBasicLayout();
         return page;
     }
 
@@ -303,7 +292,7 @@ public sealed class RadialMenuSettingsControl : UserControl
 
     private bool TryReadSettings(out RadialMenuSettings settings, bool showDialog)
     {
-        settings = new RadialMenuSettings
+        settings = _workingSettings with
         {
             VisualPackId = _visualPack.SelectedItem is RadialVisualPackCatalogEntry pack
                 ? pack.Id
@@ -312,22 +301,10 @@ public sealed class RadialMenuSettingsControl : UserControl
                 ? receiverUiScale
                 : ReceiverUiScaling.DefaultScalePercent,
             ScalePercent = Decimal.ToInt32(_scale.Value),
-            BaseCanvasSize = Decimal.ToInt32(_canvas.Value),
-            HubRadius = Decimal.ToInt32(_hubRadius.Value),
-            PetalInnerRadius = Decimal.ToInt32(_innerRadius.Value),
-            PetalOuterRadius = Decimal.ToInt32(_outerRadius.Value),
-            TextRadius = Decimal.ToInt32(_textRadius.Value),
-            PetalGapDegrees = (float)_gap.Value,
             FontSize = (float)_fontSize.Value,
-            FillAlpha = Decimal.ToInt32(_fillAlpha.Value),
-            BorderAlpha = Decimal.ToInt32(_borderAlpha.Value),
-            TextAlpha = Decimal.ToInt32(_textAlpha.Value),
             DoubleTapWindowMs = Decimal.ToInt32(_doubleTapWindow.Value),
             SelectionDeadZone = Decimal.ToInt32(_selectionDeadZone.Value),
-            HighlightAlpha = Decimal.ToInt32(_highlightAlpha.Value),
-            SelectionPollIntervalMs = Decimal.ToInt32(_selectionPollInterval.Value),
-            MappingProfileId = _mappingProfileId,
-            MappingsByProfile = _workingSettings.MappingsByProfile
+            MappingProfileId = _mappingProfileId
         };
         settings = settings.SetProfileMappings(_mappingProfileId, ReadMappings());
 
@@ -358,20 +335,9 @@ public sealed class RadialMenuSettingsControl : UserControl
             _receiverUiScale.SelectedItem = ReceiverUiScaling.Normalize(
                 settings.ReceiverUiScalePercent);
             _scale.Value = settings.ScalePercent;
+            _fontSize.Value = (decimal)settings.FontSize;
             _doubleTapWindow.Value = settings.DoubleTapWindowMs;
             _selectionDeadZone.Value = settings.SelectionDeadZone;
-            _highlightAlpha.Value = settings.HighlightAlpha;
-            _canvas.Value = settings.BaseCanvasSize;
-            _hubRadius.Value = settings.HubRadius;
-            _innerRadius.Value = settings.PetalInnerRadius;
-            _outerRadius.Value = settings.PetalOuterRadius;
-            _textRadius.Value = settings.TextRadius;
-            _gap.Value = (decimal)settings.PetalGapDegrees;
-            _fontSize.Value = (decimal)settings.FontSize;
-            _fillAlpha.Value = settings.FillAlpha;
-            _borderAlpha.Value = settings.BorderAlpha;
-            _textAlpha.Value = settings.TextAlpha;
-            _selectionPollInterval.Value = settings.SelectionPollIntervalMs;
             BindMappingsForSelectedVisualPack();
         }
         finally
@@ -384,11 +350,7 @@ public sealed class RadialMenuSettingsControl : UserControl
 
     private void SubscribeToLivePreviewChanges()
     {
-        foreach (NumericUpDown editor in new[]
-        {
-            _scale, _fillAlpha, _borderAlpha, _textAlpha, _canvas, _hubRadius,
-            _innerRadius, _outerRadius, _textRadius, _gap, _fontSize
-        })
+        foreach (NumericUpDown editor in new[] { _scale, _fontSize })
         {
             editor.ValueChanged += (_, _) => RefreshLivePreview();
         }
@@ -521,37 +483,282 @@ public sealed class RadialMenuSettingsControl : UserControl
         AutoScroll = true
     };
 
-    private static TableLayoutPanel TwoColumnEditorLayout(
-        string name,
-        (string Label, Control Editor)[] leftRows,
-        (string Label, Control Editor)[] rightRows)
+    private Control CreateBasicLayout()
     {
-        var layout = new TableLayoutPanel
+        _basicLayout = new TableLayoutPanel
         {
-            Name = name,
+            Name = "basicTwoColumnLayout",
             Dock = DockStyle.Top,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            ColumnCount = ReceiverUiLayoutMetrics.SettingsContentColumnCount,
-            RowCount = 1,
             Padding = new Padding(12, 4, 12, 4)
         };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _radialSettingsGroup = EditorGroup(
+            "radialMenuSettingsGroup",
+            "环形菜单",
+            labelColumnPercent: RadialLabelColumnPercent,
+            rows:
+            [
+                ("视觉主题", _visualPack),
+                ("菜单大小 (%)", _scale),
+                ("字体大小 (px)", _fontSize)
+            ]);
 
-        int halfGutter = ReceiverUiLayoutMetrics.SettingsContentColumnGutter / 2;
-        TableLayoutPanel left = EditorTable($"{name}LeftColumn", leftRows);
-        TableLayoutPanel right = EditorTable($"{name}RightColumn", rightRows);
-        left.Margin = new Padding(0, 0, halfGutter, 0);
-        right.Margin = new Padding(halfGutter, 0, 0, 0);
-        layout.Controls.Add(left, 0, 0);
-        layout.Controls.Add(right, 1, 0);
-        return layout;
+        _basicRightSections = new TableLayoutPanel
+        {
+            Name = "basicRightSections",
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1,
+            RowCount = 2
+        };
+        _interactionSettingsGroup = EditorGroup(
+            "radialInteractionSettingsGroup",
+            "操作",
+            rows:
+            [
+                ("双击判定时间 (ms)", _doubleTapWindow),
+                ("中心死区 (px)", _selectionDeadZone)
+            ]);
+        _receiverSettingsGroup = EditorGroup(
+            "receiverInterfaceSettingsGroup",
+            "接收器界面",
+            rows: [("接收器界面缩放", _receiverUiScale)]);
+
+        ApplyBasicLayout(compact: false);
+        return _basicLayout;
+    }
+
+    private void ReflowBasicLayout()
+    {
+        if (_basicLayout?.Parent is not Control parent) return;
+        int availableWidth = parent.ClientSize.Width - parent.Padding.Horizontal;
+        if (availableWidth > 0) ReflowBasicLayout(availableWidth);
+    }
+
+    private void ReflowBasicLayout(int availableWidth)
+    {
+        if (_reflowingBasicLayout || _basicLayout == null) return;
+        bool compact = availableWidth < GetRequiredWideBasicWidth();
+        if (_basicLayoutCompact == compact) return;
+
+        _reflowingBasicLayout = true;
+        try
+        {
+            ApplyBasicLayout(compact);
+        }
+        finally
+        {
+            _reflowingBasicLayout = false;
+        }
+    }
+
+    private int GetRequiredWideBasicWidth()
+    {
+        if (_basicLayout == null ||
+            _radialSettingsGroup == null ||
+            _interactionSettingsGroup == null ||
+            _receiverSettingsGroup == null)
+        {
+            return 0;
+        }
+
+        int radialWidth = GetRequiredGroupWidth(
+            _radialSettingsGroup,
+            RadialLabelColumnPercent);
+        int rightWidth = Math.Max(
+            GetRequiredGroupWidth(_interactionSettingsGroup, DefaultLabelColumnPercent),
+            GetRequiredGroupWidth(_receiverSettingsGroup, DefaultLabelColumnPercent));
+        int gutter = ScaleLogical(ReceiverUiLayoutMetrics.SettingsContentColumnGutter);
+        return _basicLayout.Padding.Horizontal + radialWidth + gutter + rightWidth;
+    }
+
+    private static int GetRequiredGroupWidth(GroupBox group, float labelColumnPercent)
+    {
+        TableLayoutPanel fields = group.Controls.OfType<TableLayoutPanel>().Single();
+        int labelWidth = 0;
+        int editorWidth = 0;
+        for (int row = 0; row < fields.RowCount; row++)
+        {
+            if (fields.GetControlFromPosition(0, row) is Label label)
+            {
+                labelWidth = Math.Max(
+                    labelWidth,
+                    MeasureSingleLine(label.Text, label.Font) + label.Margin.Horizontal);
+            }
+
+            if (fields.GetControlFromPosition(1, row) is Control editor)
+            {
+                int requiredEditorWidth = editor.GetPreferredSize(Size.Empty).Width;
+                if (editor is ComboBox combo)
+                {
+                    IEnumerable<string> displayNames = combo.Items.Cast<object>()
+                        .Select(item => combo.GetItemText(item) ?? string.Empty)
+                        .Append(combo.Text);
+                    int textWidth = displayNames
+                        .Select(name => MeasureSingleLine(name, combo.Font))
+                        .DefaultIfEmpty(0)
+                        .Max();
+                    requiredEditorWidth = Math.Max(
+                        requiredEditorWidth,
+                        textWidth + SystemInformation.VerticalScrollBarWidth + 12);
+                }
+
+                editorWidth = Math.Max(
+                    editorWidth,
+                    requiredEditorWidth + editor.Margin.Horizontal);
+            }
+        }
+
+        double labelShare = labelColumnPercent / 100d;
+        double editorShare = 1d - labelShare;
+        int requiredFieldsWidth = (int)Math.Ceiling(Math.Max(
+            labelWidth / labelShare,
+            editorWidth / editorShare));
+        return group.Padding.Horizontal + requiredFieldsWidth + 2;
+    }
+
+    private static int MeasureSingleLine(string text, Font font) =>
+        TextRenderer.MeasureText(
+            text,
+            font,
+            Size.Empty,
+            TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width;
+
+    private void ApplyBasicLayout(bool compact)
+    {
+        if (_basicLayout == null ||
+            _basicRightSections == null ||
+            _radialSettingsGroup == null ||
+            _interactionSettingsGroup == null ||
+            _receiverSettingsGroup == null)
+        {
+            return;
+        }
+
+        int halfGutter = ScaleLogical(ReceiverUiLayoutMetrics.SettingsContentColumnGutter / 2);
+        int compactGutter = 0;
+        int defaultMargin = ScaleLogical(3);
+        _basicLayout.SuspendLayout();
+        _basicRightSections.SuspendLayout();
+        try
+        {
+            _basicLayout.Controls.Clear();
+            _basicLayout.ColumnStyles.Clear();
+            _basicLayout.RowStyles.Clear();
+            _basicRightSections.Controls.Clear();
+            _basicRightSections.ColumnStyles.Clear();
+            _basicRightSections.RowStyles.Clear();
+
+            if (compact)
+            {
+                _basicLayout.Padding = new Padding(ScaleLogical(12), 0, ScaleLogical(12), 0);
+                Padding compactGroupPadding = new(
+                    ScaleLogical(GroupHorizontalPadding),
+                    ScaleLogical(GroupTopPadding),
+                    ScaleLogical(GroupHorizontalPadding),
+                    ScaleLogical(CompactGroupBottomPadding));
+                _radialSettingsGroup.Padding = compactGroupPadding;
+                _interactionSettingsGroup.Padding = compactGroupPadding;
+                _receiverSettingsGroup.Padding = compactGroupPadding;
+                _basicLayout.ColumnCount = 1;
+                _basicLayout.RowCount = 3;
+                _basicLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                for (int row = 0; row < 3; row++)
+                    _basicLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+                _radialSettingsGroup.Margin = new Padding(0, 0, 0, compactGutter);
+                _interactionSettingsGroup.Margin = new Padding(0, 0, 0, compactGutter);
+                _receiverSettingsGroup.Margin = Padding.Empty;
+                _basicLayout.Controls.Add(_radialSettingsGroup, 0, 0);
+                _basicLayout.Controls.Add(_interactionSettingsGroup, 0, 1);
+                _basicLayout.Controls.Add(_receiverSettingsGroup, 0, 2);
+            }
+            else
+            {
+                _basicLayout.Padding = new Padding(
+                    ScaleLogical(12),
+                    ScaleLogical(4),
+                    ScaleLogical(12),
+                    ScaleLogical(4));
+                Padding wideGroupPadding = new(
+                    ScaleLogical(GroupHorizontalPadding),
+                    ScaleLogical(GroupTopPadding),
+                    ScaleLogical(GroupHorizontalPadding),
+                    ScaleLogical(GroupBottomPadding));
+                _radialSettingsGroup.Padding = wideGroupPadding;
+                _interactionSettingsGroup.Padding = wideGroupPadding;
+                _receiverSettingsGroup.Padding = wideGroupPadding;
+                _basicLayout.ColumnCount = ReceiverUiLayoutMetrics.SettingsContentColumnCount;
+                _basicLayout.RowCount = 1;
+                _basicLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+                _basicLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+                _basicLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+                _basicRightSections.ColumnCount = 1;
+                _basicRightSections.RowCount = 2;
+                _basicRightSections.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                _basicRightSections.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                _basicRightSections.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                _basicRightSections.Margin = new Padding(halfGutter, 0, 0, 0);
+                _radialSettingsGroup.Margin = new Padding(0, 0, halfGutter, 0);
+                _interactionSettingsGroup.Margin = new Padding(defaultMargin);
+                _receiverSettingsGroup.Margin = new Padding(
+                    defaultMargin,
+                    halfGutter,
+                    defaultMargin,
+                    defaultMargin);
+                _basicRightSections.Controls.Add(_interactionSettingsGroup, 0, 0);
+                _basicRightSections.Controls.Add(_receiverSettingsGroup, 0, 1);
+                _basicLayout.Controls.Add(_radialSettingsGroup, 0, 0);
+                _basicLayout.Controls.Add(_basicRightSections, 1, 0);
+            }
+
+            _basicLayoutCompact = compact;
+        }
+        finally
+        {
+            _basicRightSections.ResumeLayout(performLayout: true);
+            _basicLayout.ResumeLayout(performLayout: true);
+        }
+    }
+
+    private int ScaleLogical(int baseline) =>
+        _hostUiScaling?.ScaleLogical(baseline) ?? baseline;
+
+    private static GroupBox EditorGroup(
+        string name,
+        string text,
+        float labelColumnPercent = DefaultLabelColumnPercent,
+        params (string Label, Control Editor)[] rows)
+    {
+        var group = new GroupBox
+        {
+            Name = name,
+            Text = text,
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(
+                GroupHorizontalPadding,
+                GroupTopPadding,
+                GroupHorizontalPadding,
+                GroupBottomPadding),
+            ForeColor = ThemeColors.TextMain
+        };
+        TableLayoutPanel fields = EditorTable(
+            $"{name}Fields",
+            labelColumnPercent,
+            rows);
+        fields.Dock = DockStyle.Top;
+        group.Controls.Add(fields);
+        return group;
     }
 
     private static TableLayoutPanel EditorTable(
         string name,
+        float labelColumnPercent,
         params (string Label, Control Editor)[] rows)
     {
         var table = new TableLayoutPanel
@@ -563,8 +770,8 @@ public sealed class RadialMenuSettingsControl : UserControl
             ColumnCount = 2,
             RowCount = rows.Length
         };
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46));
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, labelColumnPercent));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100 - labelColumnPercent));
 
         for (int row = 0; row < rows.Length; row++)
         {
@@ -608,11 +815,13 @@ public sealed class RadialMenuSettingsControl : UserControl
     }
 
     private static NumericUpDown Editor(
+        string name,
         decimal minimum,
         decimal maximum,
         int decimalPlaces = 0,
         decimal increment = 1m) => new()
     {
+        Name = name,
         Minimum = minimum,
         Maximum = maximum,
         DecimalPlaces = decimalPlaces,

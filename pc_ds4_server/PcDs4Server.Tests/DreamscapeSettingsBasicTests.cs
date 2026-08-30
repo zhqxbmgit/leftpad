@@ -23,7 +23,7 @@ public sealed class DreamscapeSettingsBasicTests
     }
 
     [Fact]
-    public void StateDto_SerializesAllNineBasicFieldsAndRuntimeOptions()
+    public void StateDto_SerializesTheSimplifiedBasicFieldsAndRuntimeOptions()
     {
         SessionHarness harness = CreateHarness();
         harness.Session.Activate();
@@ -37,94 +37,42 @@ public sealed class DreamscapeSettingsBasicTests
         Assert.Equal("radial-v5", root.GetProperty("visualPackId").GetString());
         Assert.Equal(150, root.GetProperty("receiverUiScalePercent").GetInt32());
         Assert.Equal(112, root.GetProperty("overallSizePercent").GetInt32());
+        Assert.Equal(15m, root.GetProperty("fontSize").GetDecimal());
         Assert.Equal(180, root.GetProperty("doubleTapWindowMs").GetInt32());
         Assert.Equal(32, root.GetProperty("selectionDeadZone").GetInt32());
-        Assert.Equal(90, root.GetProperty("selectedIntensity").GetInt32());
-        Assert.Equal(210, root.GetProperty("petalOpacity").GetInt32());
-        Assert.Equal(110, root.GetProperty("borderOpacity").GetInt32());
-        Assert.Equal(230, root.GetProperty("textOpacity").GetInt32());
+        Assert.False(root.TryGetProperty("selectedIntensity", out _));
+        Assert.False(root.TryGetProperty("petalOpacity", out _));
+        Assert.False(root.TryGetProperty("borderOpacity", out _));
+        Assert.False(root.TryGetProperty("textOpacity", out _));
+        Assert.False(root.TryGetProperty("advancedFields", out _));
         Assert.Equal(3, root.GetProperty("visualPackOptions").GetArrayLength());
         Assert.Equal(5, root.GetProperty("receiverUiScaleOptions").GetArrayLength());
         Assert.True(root.GetProperty("enabled").GetBoolean());
     }
 
     [Fact]
-    public void StateDto_SerializesAllEightAdvancedFieldsWithNativeDefinitions()
+    public void BasicFieldContract_HasExactlyTheSixVisibleFields()
     {
-        SessionHarness harness = CreateHarness();
-        harness.Session.Activate();
-        using JsonDocument document = JsonDocument.Parse(
-            harness.Session.CreateState("已连接").ToJson());
-        JsonElement fields = document.RootElement.GetProperty("advancedFields");
-
-        Assert.Equal(8, fields.EnumerateObject().Count());
-        Assert.Equal(160, fields.GetProperty("canvasSize").GetProperty("min").GetInt32());
-        Assert.Equal(800, fields.GetProperty("canvasSize").GetProperty("max").GetInt32());
-        Assert.Equal(280, fields.GetProperty("canvasSize").GetProperty("default").GetInt32());
-        Assert.Equal("px", fields.GetProperty("canvasSize").GetProperty("unit").GetString());
-        Assert.Equal(0.5m, fields.GetProperty("petalGapDegrees").GetProperty("step").GetDecimal());
-        Assert.Equal(0.5m, fields.GetProperty("fontSize").GetProperty("step").GetDecimal());
-        Assert.Equal(8, fields.GetProperty("selectionPollIntervalMs").GetProperty("min").GetInt32());
-        Assert.Equal(50, fields.GetProperty("selectionPollIntervalMs").GetProperty("max").GetInt32());
-        Assert.Equal("basic", document.RootElement.GetProperty("activeSection").GetString());
-    }
-
-    [Fact]
-    public void BasicFieldContract_HasExactlyTheRequestedNineFields()
-    {
-        Assert.Equal(9, SettingsBasicFields.All.Count);
-        Assert.Equal(9, SettingsBasicFields.All.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(6, SettingsBasicFields.All.Count);
+        Assert.Equal(6, SettingsBasicFields.All.Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(
             [
-                "visualPackId", "receiverUiScalePercent", "overallSizePercent",
-                "doubleTapWindowMs", "selectionDeadZone", "selectedIntensity",
-                "petalOpacity", "borderOpacity", "textOpacity"
+                "visualPackId", "overallSizePercent", "fontSize",
+                "doubleTapWindowMs", "selectionDeadZone", "receiverUiScalePercent"
             ],
             SettingsBasicFields.All);
     }
 
     [Fact]
-    public void AdvancedFieldContract_HasFrozenFourPlusFourOptionAStructure()
+    public void FontSizeBasicRange_PreservesTheExistingPrecisionAndLimits()
     {
         Assert.Equal(
-            ["canvasSize", "centerRadius", "petalInnerRadius", "petalOuterRadius"],
-            SettingsAdvancedFields.Left);
-        Assert.Equal(
-            ["textRadius", "petalGapDegrees", "fontSize", "selectionPollIntervalMs"],
-            SettingsAdvancedFields.Right);
-        Assert.Equal(8, SettingsAdvancedFields.All.Count);
-        Assert.Equal(8, SettingsAdvancedFields.All.Distinct(StringComparer.Ordinal).Count());
-    }
-
-    [Theory]
-    [InlineData("canvasSize", 160, 800, 1, 280, "px")]
-    [InlineData("centerRadius", 1, 399, 1, 35, "px")]
-    [InlineData("petalInnerRadius", 1, 399, 1, 42, "px")]
-    [InlineData("petalOuterRadius", 2, 399, 1, 103, "px")]
-    [InlineData("textRadius", 1, 399, 1, 73, "px")]
-    [InlineData("petalGapDegrees", 0, 12, 0.5, 4, "°")]
-    [InlineData("fontSize", 6, 48, 0.5, 15, "px")]
-    [InlineData("selectionPollIntervalMs", 8, 50, 1, 16, "ms")]
-    public void AdvancedDefinitions_MatchNativeEditorsAndRuntimeDefaults(
-        string field,
-        double min,
-        double max,
-        double step,
-        double defaultValue,
-        string unit)
-    {
-        SettingsAdvancedFieldState definition = SettingsAdvancedFields.Definition(field);
-
-        Assert.Equal((decimal)min, definition.Min);
-        Assert.Equal((decimal)max, definition.Max);
-        Assert.Equal((decimal)step, definition.Step);
-        Assert.Equal((decimal)defaultValue, definition.Default);
-        Assert.Equal(unit, definition.Unit);
+            new SettingsBasicRange(6, 48, 0.5m),
+            SettingsBasicFields.Ranges[SettingsBasicFields.FontSize]);
     }
 
     [Theory]
     [InlineData("settingsBasicChange", "BasicChange")]
-    [InlineData("settingsAdvancedChange", "AdvancedChange")]
     [InlineData("settingsMappingSelectSlot", "MappingSelectSlot")]
     [InlineData("settingsMappingChange", "MappingChange")]
     [InlineData("settingsPreview", "Preview")]
@@ -136,7 +84,6 @@ public sealed class DreamscapeSettingsBasicTests
     [InlineData("showGamepad", "ShowGamepad")]
     [InlineData("showLogs", "ShowLogs")]
     [InlineData("showSettingsBasic", "ShowBasic")]
-    [InlineData("showSettingsAdvanced", "ShowAdvanced")]
     [InlineData("showSettingsMappings", "ShowMappings")]
     [InlineData("beginDrag", "BeginDrag")]
     [InlineData("minimize", "Minimize")]
@@ -149,8 +96,6 @@ public sealed class DreamscapeSettingsBasicTests
         {
             "settingsBasicChange" =>
                 "{\"command\":\"settingsBasicChange\",\"field\":\"overallSizePercent\",\"value\":100}",
-            "settingsAdvancedChange" =>
-                "{\"command\":\"settingsAdvancedChange\",\"field\":\"fontSize\",\"value\":15.5}",
             "settingsMappingSelectSlot" =>
                 "{\"command\":\"settingsMappingSelectSlot\",\"profileId\":\"radial-6\",\"slotId\":1}",
             "settingsMappingChange" =>
@@ -195,8 +140,6 @@ public sealed class DreamscapeSettingsBasicTests
     [InlineData("doubleTapWindowMs", 501)]
     [InlineData("selectionDeadZone", 7)]
     [InlineData("selectionDeadZone", 81)]
-    [InlineData("selectedIntensity", -1)]
-    [InlineData("petalOpacity", 256)]
     public void BasicChange_RejectsValuesOutsideExistingRuntimeSemantics(string field, int value)
     {
         string json = JsonSerializer.Serialize(new
@@ -211,22 +154,15 @@ public sealed class DreamscapeSettingsBasicTests
     }
 
     [Theory]
-    [InlineData("canvasSize", 159)]
-    [InlineData("canvasSize", 801)]
-    [InlineData("centerRadius", 0)]
-    [InlineData("petalOuterRadius", 1)]
-    [InlineData("petalGapDegrees", 12.5)]
-    [InlineData("petalGapDegrees", 4.25)]
-    [InlineData("fontSize", 5.5)]
-    [InlineData("fontSize", 48.5)]
-    [InlineData("selectionPollIntervalMs", 7)]
-    [InlineData("selectionPollIntervalMs", 51)]
-    public void AdvancedChange_RejectsInvalidRangeOrStep(string field, double value)
+    [InlineData(5.5)]
+    [InlineData(48.5)]
+    [InlineData(15.25)]
+    public void FontSizeBasicChange_RejectsInvalidRangeOrStep(double value)
     {
         string json = JsonSerializer.Serialize(new
         {
-            command = "settingsAdvancedChange",
-            field,
+            command = "settingsBasicChange",
+            field = "fontSize",
             value
         });
 
@@ -285,7 +221,8 @@ public sealed class DreamscapeSettingsBasicTests
         Assert.Equal(
             new SettingsBasicRange(RadialMenuSettings.MinimumSelectionDeadZone, RadialMenuSettings.MaximumSelectionDeadZone, 1),
             SettingsBasicFields.Ranges[SettingsBasicFields.SelectionDeadZone]);
-        Assert.Equal(new SettingsBasicRange(0, 255, 1), SettingsBasicFields.Ranges[SettingsBasicFields.TextOpacity]);
+        Assert.Equal(new SettingsBasicRange(6, 48, 0.5m),
+            SettingsBasicFields.Ranges[SettingsBasicFields.FontSize]);
     }
 
     [Fact]
@@ -330,10 +267,6 @@ public sealed class DreamscapeSettingsBasicTests
     [InlineData("overallSizePercent", 120)]
     [InlineData("doubleTapWindowMs", 225)]
     [InlineData("selectionDeadZone", 40)]
-    [InlineData("selectedIntensity", 100)]
-    [InlineData("petalOpacity", 200)]
-    [InlineData("borderOpacity", 120)]
-    [InlineData("textOpacity", 220)]
     public void EveryNumericBasicField_ChangesTheDraft(string field, int value)
     {
         SessionHarness harness = CreateHarness();
@@ -345,83 +278,70 @@ public sealed class DreamscapeSettingsBasicTests
         Assert.Contains(value.ToString(), harness.Session.CreateState("ready").ToJson());
     }
 
-    [Theory]
-    [InlineData("canvasSize", 300)]
-    [InlineData("centerRadius", 34)]
-    [InlineData("petalInnerRadius", 43)]
-    [InlineData("petalOuterRadius", 104)]
-    [InlineData("textRadius", 74)]
-    [InlineData("petalGapDegrees", 4.5)]
-    [InlineData("fontSize", 15.5)]
-    [InlineData("selectionPollIntervalMs", 17)]
-    public void EveryAdvancedField_ChangesTheSharedDraft(string field, double value)
+    [Fact]
+    public void FontSizeBasicField_ChangesTheSharedDraft()
     {
         SessionHarness harness = CreateHarness();
         harness.Session.Activate();
 
-        ApplyAdvancedChange(harness.Session, field, (decimal)value);
+        ApplyDecimalBasicChange(harness.Session, SettingsBasicFields.FontSize, 15.5m);
 
         Assert.True(harness.Session.IsDirty);
-        Assert.Equal((decimal)value,
-            SettingsAdvancedFields.CreateStates(harness.Session.Draft)[field].Value);
+        Assert.Equal(15.5f, harness.Session.Draft.FontSize);
     }
 
     [Fact]
-    public void BasicAndAdvancedTabs_PreserveOneSharedDraft()
+    public void SimplifiedBasicFields_PreserveOneSharedDraft()
     {
         SessionHarness harness = CreateHarness();
         harness.Session.Activate();
         ApplyIntegerChange(harness.Session, SettingsBasicFields.OverallSizePercent, 120);
-        harness.Session.ShowAdvanced();
-        ApplyAdvancedChange(harness.Session, SettingsAdvancedFields.FontSize, 15.5m);
+        ApplyDecimalBasicChange(harness.Session, SettingsBasicFields.FontSize, 15.5m);
         harness.Session.ShowBasic();
 
         Assert.Equal(120, harness.Session.Draft.ScalePercent);
         Assert.Equal(15.5f, harness.Session.Draft.FontSize);
         Assert.Equal(ReceiverSettingsSection.Basic, harness.Session.ActiveSection);
-        harness.Session.ShowAdvanced();
-        Assert.Equal(ReceiverSettingsSection.Advanced, harness.Session.ActiveSection);
-        Assert.Equal(120, harness.Session.Draft.ScalePercent);
     }
 
     [Fact]
-    public void PreviewAndApply_IncludeBasicAndAdvancedDraftChangesTogether()
+    public void PreviewAndApply_IncludeScaleAndFontDraftChangesTogether()
     {
         SessionHarness harness = CreateHarness();
         harness.Session.Activate();
-        ApplyIntegerChange(harness.Session, SettingsBasicFields.TextOpacity, 220);
-        ApplyAdvancedChange(harness.Session, SettingsAdvancedFields.FontSize, 15.5m);
+        ApplyIntegerChange(harness.Session, SettingsBasicFields.OverallSizePercent, 120);
+        ApplyDecimalBasicChange(harness.Session, SettingsBasicFields.FontSize, 15.5m);
 
         harness.Session.Preview();
-        Assert.Equal(220, harness.LastPreview!.TextAlpha);
+        Assert.Equal(120, harness.LastPreview!.ScalePercent);
         Assert.Equal(15.5f, harness.LastPreview.FontSize);
         Assert.True(harness.Session.ApplyAndSave(out string error), error);
-        Assert.Equal(220, harness.Active.TextAlpha);
+        Assert.Equal(120, harness.Active.ScalePercent);
         Assert.Equal(15.5f, harness.Active.FontSize);
     }
 
     [Fact]
-    public void Deactivate_DiscardsUnsavedBasicAndAdvancedChanges()
+    public void Deactivate_DiscardsUnsavedSimplifiedBasicChanges()
     {
         SessionHarness harness = CreateHarness();
         harness.Session.Activate();
         ApplyIntegerChange(harness.Session, SettingsBasicFields.OverallSizePercent, 120);
-        ApplyAdvancedChange(harness.Session, SettingsAdvancedFields.CanvasSize, 300m);
+        ApplyDecimalBasicChange(harness.Session, SettingsBasicFields.FontSize, 15.5m);
         harness.Session.Deactivate();
         harness.Session.Activate();
 
         Assert.Equal(112, harness.Session.Draft.ScalePercent);
-        Assert.Equal(RadialMenuSettings.Default.BaseCanvasSize, harness.Session.Draft.BaseCanvasSize);
+        Assert.Equal(RadialMenuSettings.Default.FontSize, harness.Session.Draft.FontSize);
         Assert.False(harness.Session.IsDirty);
     }
 
     [Fact]
-    public void RestoreDefault_ResetsBasicAndAdvancedInTheSharedDraft()
+    public void RestoreDefault_ResetsAllSettingsInTheSharedDraft()
     {
         SessionHarness harness = CreateHarness();
         harness.Session.Activate();
         ApplyIntegerChange(harness.Session, SettingsBasicFields.OverallSizePercent, 120);
-        ApplyAdvancedChange(harness.Session, SettingsAdvancedFields.FontSize, 15.5m);
+        ApplyDecimalBasicChange(harness.Session, SettingsBasicFields.FontSize, 15.5m);
 
         harness.Session.RestoreDefault();
 
@@ -431,19 +351,23 @@ public sealed class DreamscapeSettingsBasicTests
     }
 
     [Fact]
-    public void OptionAFrontend_ContainsInteractiveFourPlusFourRangesAndKeyboardFocusStyling()
+    public void SimplifiedFrontend_ContainsOnlyBasicAndMappingBindings()
     {
         string html = File.ReadAllText(Path.Combine(DreamscapeSettingsFeature.AssetDirectory, "index.html"));
         string script = File.ReadAllText(Path.Combine(DreamscapeSettingsFeature.AssetDirectory, "app.js"));
         string styles = File.ReadAllText(Path.Combine(DreamscapeSettingsFeature.AssetDirectory, "styles.css"));
 
-        Assert.Equal(8, System.Text.RegularExpressions.Regex.Matches(
-            html, "data-advanced-field=\\\"").Count);
-        Assert.Equal(4, System.Text.RegularExpressions.Regex.Matches(html, "advanced-left-row").Count);
-        Assert.Equal(4, System.Text.RegularExpressions.Regex.Matches(html, "advanced-right-row").Count);
-        Assert.Contains("settingsAdvancedChange", script);
+        Assert.Equal(4, System.Text.RegularExpressions.Regex.Matches(
+            html, "type=\\\"range\\\" data-field=\\\"").Count);
+        Assert.Contains("data-field=\"fontSize\"", html);
+        Assert.DoesNotContain("data-advanced-field", html);
+        Assert.DoesNotContain("settingsAdvancedChange", script);
+        Assert.DoesNotContain("postAdvancedChange", script);
+        Assert.DoesNotContain("advanced-form", styles);
         Assert.Contains("addEventListener('input'", script);
-        Assert.Contains(".advanced-row input[type=\"range\"]:focus-visible", styles);
+        Assert.Contains(".slider-row input[type=\"range\"]:focus-visible", styles);
+        Assert.Contains("width: 82px; min-width: 82px;", styles);
+        Assert.Contains("text-align: right; white-space: nowrap; flex-shrink: 0;", styles);
         Assert.DoesNotContain("type=\"number\"", html);
     }
 
@@ -500,11 +424,11 @@ public sealed class DreamscapeSettingsBasicTests
         SessionHarness harness = CreateHarness();
         harness.Session.Activate();
         harness.Session.Preview();
-        ApplyIntegerChange(harness.Session, SettingsBasicFields.TextOpacity, 200);
+        ApplyDecimalBasicChange(harness.Session, SettingsBasicFields.FontSize, 16m);
 
         Assert.True(harness.Session.ApplyAndSave(out string error), error);
         Assert.Equal(1, harness.SaveCount);
-        Assert.Equal(200, harness.Active.TextAlpha);
+        Assert.Equal(16f, harness.Active.FontSize);
         Assert.False(harness.Session.IsDirty);
         Assert.True(harness.Session.IsPreviewActive);
         Assert.Equal(0, harness.HidePreviewCount);
@@ -515,12 +439,12 @@ public sealed class DreamscapeSettingsBasicTests
     {
         SessionHarness harness = CreateHarness(saveSucceeds: false);
         harness.Session.Activate();
-        ApplyIntegerChange(harness.Session, SettingsBasicFields.BorderOpacity, 130);
+        ApplyIntegerChange(harness.Session, SettingsBasicFields.OverallSizePercent, 120);
 
         Assert.False(harness.Session.ApplyAndSave(out string error));
         Assert.Equal("simulated save failure", error);
         Assert.True(harness.Session.IsDirty);
-        Assert.Equal(130, harness.Session.Draft.BorderAlpha);
+        Assert.Equal(120, harness.Session.Draft.ScalePercent);
     }
 
     [Fact]
@@ -634,13 +558,13 @@ public sealed class DreamscapeSettingsBasicTests
         Assert.True(session.TryApplyChange(message, out string error), error);
     }
 
-    private static void ApplyAdvancedChange(
+    private static void ApplyDecimalBasicChange(
         DreamscapeSettingsBasicSession session,
         string field,
         decimal value)
     {
         var message = new ReceiverSettingsMessage(
-            ReceiverSettingsCommand.AdvancedChange,
+            ReceiverSettingsCommand.BasicChange,
             field,
             DecimalValue: value);
         Assert.True(session.TryApplyChange(message, out string error), error);

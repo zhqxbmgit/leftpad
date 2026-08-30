@@ -3,21 +3,21 @@
 
   const propertyByField = Object.freeze({
     overallSizePercent: 'overallSizePercent',
+    fontSize: 'fontSize',
     doubleTapWindowMs: 'doubleTapWindowMs',
-    selectionDeadZone: 'selectionDeadZone',
-    selectedIntensity: 'selectedIntensity',
-    petalOpacity: 'petalOpacity',
-    borderOpacity: 'borderOpacity',
-    textOpacity: 'textOpacity'
+    selectionDeadZone: 'selectionDeadZone'
   });
   const outputByField = Object.freeze({
     overallSizePercent: 'overall-size-value',
+    fontSize: 'font-size-value',
     doubleTapWindowMs: 'double-tap-value',
-    selectionDeadZone: 'dead-zone-value',
-    selectedIntensity: 'highlight-value',
-    petalOpacity: 'petal-opacity-value',
-    borderOpacity: 'border-opacity-value',
-    textOpacity: 'text-opacity-value'
+    selectionDeadZone: 'dead-zone-value'
+  });
+  const unitByField = Object.freeze({
+    overallSizePercent: '%',
+    fontSize: ' px',
+    doubleTapWindowMs: ' ms',
+    selectionDeadZone: ' px'
   });
   let lastState = null;
   let bridgeMessagesSent = 0;
@@ -28,7 +28,6 @@
   let pollingTimerStops = 0;
   let statusTimer = null;
   const form = document.getElementById('settings-form');
-  const advancedForm = document.getElementById('advanced-form');
   const mappingSection = document.getElementById('mapping-section');
   const mappingGrid = document.getElementById('mapping-grid');
   const mappingDetail = document.getElementById('mapping-detail');
@@ -75,10 +74,6 @@
 
   function postChange(field, value) {
     postMessage({ command: 'settingsBasicChange', field, value });
-  }
-
-  function postAdvancedChange(field, value) {
-    postMessage({ command: 'settingsAdvancedChange', field, value });
   }
 
   function postMappingSelection(profileId, slotId) {
@@ -135,37 +130,15 @@
     const value = Number(input.value);
     const fill = max === min ? 0 : ((value - min) / (max - min)) * 100;
     input.style.setProperty('--fill', `${fill}%`);
-    document.getElementById(outputByField[input.dataset.field]).textContent = String(value);
-  }
-
-  function updateAdvancedRange(input, definition) {
-    input.min = String(definition.min);
-    input.max = String(definition.max);
-    input.step = String(definition.step);
-    input.value = String(definition.value);
-    input.dataset.unit = definition.unit;
-    updateAdvancedRangePresentation(input);
-  }
-
-  function updateAdvancedRangePresentation(input) {
-    const min = Number(input.min);
-    const max = Number(input.max);
-    const value = Number(input.value);
-    const fill = max === min ? 0 : ((value - min) / (max - min)) * 100;
-    input.style.setProperty('--fill', `${fill}%`);
-    const output = document.getElementById(`${input.id}-value`);
-    output.textContent = `${value}${input.dataset.unit === '°' ? '' : ' '}${input.dataset.unit}`;
+    document.getElementById(outputByField[input.dataset.field]).textContent =
+      `${value}${unitByField[input.dataset.field]}`;
   }
 
   function applySection(section) {
-    const activeSection = section === 'advanced'
-      ? 'advanced'
-      : section === 'mappings' ? 'mappings' : 'basic';
+    const activeSection = section === 'mappings' ? 'mappings' : 'basic';
     document.documentElement.dataset.section = activeSection;
     document.querySelectorAll('.settings-tab').forEach(tab => {
-      const sectionForTab = tab.dataset.command === 'showSettingsAdvanced'
-        ? 'advanced'
-        : tab.dataset.command === 'showSettingsBasic' ? 'basic' : 'mappings';
+      const sectionForTab = tab.dataset.command === 'showSettingsBasic' ? 'basic' : 'mappings';
       tab.classList.toggle('active', sectionForTab === activeSection);
       tab.setAttribute('aria-current', sectionForTab === activeSection ? 'page' : 'false');
     });
@@ -331,8 +304,6 @@
       state.receiverUiScalePercent, option => option, option => `${option}%`);
     form.querySelectorAll('input[type="range"]').forEach(input =>
       updateRange(input, state, input.dataset.field));
-    advancedForm.querySelectorAll('input[type="range"]').forEach(input =>
-      updateAdvancedRange(input, state.advancedFields[input.dataset.advancedField]));
     renderMappingGrid(state);
     renderMappingDetail(state);
     applySection(state.activeSection);
@@ -341,7 +312,6 @@
     document.getElementById('connection-dot').classList.toggle(
       'connected', state.connectionStatus === '已连接');
     form.querySelectorAll('input,select').forEach(control => { control.disabled = !state.enabled; });
-    advancedForm.querySelectorAll('input').forEach(control => { control.disabled = !state.enabled; });
     document.getElementById('preview-button').disabled = !state.enabled;
     document.getElementById('hide-preview-button').disabled = !state.previewActive;
     document.getElementById('apply-button').disabled = !state.enabled || !state.dirty;
@@ -365,12 +335,6 @@
       postChange(input.dataset.field, Number(input.value));
     });
   });
-  document.querySelectorAll('input[type="range"][data-advanced-field]').forEach(input => {
-    input.addEventListener('input', () => {
-      updateAdvancedRangePresentation(input);
-      postAdvancedChange(input.dataset.advancedField, Number(input.value));
-    });
-  });
   window.chrome?.webview?.addEventListener('message', event => {
     if (applyPageActivation(event.data)) return;
     if (event.data?.type === 'receiverSettingsStatus') applyStatus(event.data);
@@ -384,7 +348,6 @@
     calculateScale: window.leftpadShell.calculateScale,
     postCommand,
     postChange,
-    postAdvancedChange,
     postMappingSelection,
     postMappingChange,
     diagnostics: () => {
@@ -398,13 +361,10 @@
       polling: pollingTimer !== null,
       pollingTimerStarts,
       pollingTimerStops,
-      visibleFields: document.documentElement.dataset.section === 'advanced'
-        ? advancedForm.querySelectorAll('[data-advanced-field]').length
-        : document.documentElement.dataset.section === 'mappings'
+      visibleFields: document.documentElement.dataset.section === 'mappings'
           ? mappingGrid.querySelectorAll('.mapping-row').length
           : form.querySelectorAll('[data-field]').length,
       basicFields: form.querySelectorAll('[data-field]').length,
-      advancedFields: advancedForm.querySelectorAll('[data-advanced-field]').length,
       mappingSlots: mappingGrid.querySelectorAll('.mapping-row').length,
       mappingColumns: {
         left: mappingGrid.querySelectorAll('.column-0').length,
