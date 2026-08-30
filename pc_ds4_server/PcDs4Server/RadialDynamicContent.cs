@@ -153,7 +153,7 @@ internal sealed class RadialDynamicContentCache : IDisposable
             targetSize,
             checked((float)(UniversalRadialParameters.NeutralFontSize *
                 parameters.FontScale * physicalPresentationScale)),
-            physicalPresentationScale,
+            checked((float)parameters.DynamicContentScale),
             UniversalRadialSettingsNormalizer.ScaleAuthoredAlpha(235, parameters.TextStrength),
             UseLegacyTextClamp: false,
             parameters.SlotContentRadiusCru,

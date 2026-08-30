@@ -26,7 +26,8 @@ internal sealed record UniversalRadialParameters
         byte fillStrength,
         byte borderStrength,
         byte textStrength,
-        byte highlightStrength)
+        byte highlightStrength,
+        double? dynamicContentScale = null)
     {
         if (!Enum.IsDefined(semanticRevision))
             throw new ArgumentOutOfRangeException(nameof(semanticRevision));
@@ -39,7 +40,18 @@ internal sealed record UniversalRadialParameters
         if (!double.IsFinite(slotContentRadiusCru) ||
             slotContentRadiusCru < innerRadiusCru || slotContentRadiusCru > outerRadiusCru)
             throw new ArgumentOutOfRangeException(nameof(slotContentRadiusCru));
-        RequireFiniteRange(fontScale, 6d / NeutralFontSize, 48d / NeutralFontSize, nameof(fontScale));
+        double effectiveDynamicContentScale = dynamicContentScale ?? surfaceScale;
+        RequireFiniteRange(
+            effectiveDynamicContentScale,
+            MinimumSurfaceScale,
+            MaximumSurfaceScale,
+            nameof(dynamicContentScale));
+        double authoredFontScale = fontScale * surfaceScale / effectiveDynamicContentScale;
+        RequireFiniteRangeWithTolerance(
+            authoredFontScale,
+            6d / NeutralFontSize,
+            48d / NeutralFontSize,
+            nameof(fontScale));
 
         SemanticRevision = semanticRevision;
         SurfaceScale = surfaceScale;
@@ -49,6 +61,7 @@ internal sealed record UniversalRadialParameters
         GapDegrees = gapDegrees;
         SlotContentRadiusCru = slotContentRadiusCru;
         FontScale = fontScale;
+        DynamicContentScale = effectiveDynamicContentScale;
         FillStrength = fillStrength;
         BorderStrength = borderStrength;
         TextStrength = textStrength;
@@ -77,6 +90,7 @@ internal sealed record UniversalRadialParameters
     public double GapDegrees { get; }
     public double SlotContentRadiusCru { get; }
     public double FontScale { get; }
+    public double DynamicContentScale { get; }
     public byte FillStrength { get; }
     public byte BorderStrength { get; }
     public byte TextStrength { get; }
@@ -98,6 +112,17 @@ internal sealed record UniversalRadialParameters
     private static void RequireFiniteRange(double value, double minimum, double maximum, string name)
     {
         if (!double.IsFinite(value) || value < minimum || value > maximum)
+            throw new ArgumentOutOfRangeException(name);
+    }
+
+    private static void RequireFiniteRangeWithTolerance(
+        double value,
+        double minimum,
+        double maximum,
+        string name)
+    {
+        const double tolerance = 1e-12;
+        if (!double.IsFinite(value) || value < minimum - tolerance || value > maximum + tolerance)
             throw new ArgumentOutOfRangeException(name);
     }
 }
@@ -588,6 +613,7 @@ internal sealed record UniversalRadialCacheKey(
     int SourcePackageRevision,
     double SurfaceScale,
     double FontScale,
+    double DynamicContentScale,
     byte TextStrength,
     byte HighlightStrength,
     double SlotContentRadiusCru,

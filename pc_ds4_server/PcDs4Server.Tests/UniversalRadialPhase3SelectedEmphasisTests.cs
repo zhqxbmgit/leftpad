@@ -85,8 +85,10 @@ public sealed class UniversalRadialPhase3SelectedEmphasisTests
     {
         RadialVisualPackCatalogEntry entry = Entry(themeId);
         RadialMenuSettings settings = ThemeSettings(themeId, SetAMappings(entry.LayoutDefinition.SlotCount));
-        using RuntimeRenderBundle bundle = Build(entry, settings, Parameters(settings, 255));
-        UniversalSelectedEmphasisCache semantic = SemanticCache(bundle);
+        using var semantic = new UniversalSelectedEmphasisCache(
+            UniversalSelectedEmphasisCatalog.LoadForPlan(entry.Plan),
+            UniversalRadialRenderPlan.Create(entry.Plan, Parameters(settings, 128)),
+            96);
         using Bitmap expectedBase = FrozenStatic(entry, 0);
 
         for (int slot = 1; slot <= entry.LayoutDefinition.SlotCount; slot++)
@@ -137,8 +139,10 @@ public sealed class UniversalRadialPhase3SelectedEmphasisTests
     {
         RadialVisualPackCatalogEntry entry = Entry(themeId);
         RadialMenuSettings settings = ThemeSettings(themeId, SetAMappings(entry.LayoutDefinition.SlotCount));
-        using RuntimeRenderBundle bundle = Build(entry, settings, Parameters(settings, 255));
-        UniversalSelectedEmphasisCache semantic = SemanticCache(bundle);
+        using var semantic = new UniversalSelectedEmphasisCache(
+            UniversalSelectedEmphasisCatalog.LoadForPlan(entry.Plan),
+            UniversalRadialRenderPlan.Create(entry.Plan, Parameters(settings, 128)),
+            96);
         UniversalSelectedEmphasisSlotDescriptor descriptor = semantic.Descriptor.GetSlot(1);
         Point support = FirstMaskPixel(descriptor.ExplicitMask);
         using Bitmap baseArtwork = semantic.BuildSourceArtwork(1, 0);
@@ -210,13 +214,18 @@ public sealed class UniversalRadialPhase3SelectedEmphasisTests
         using RuntimeRenderBundle bundle = Build(entry, settings, Parameters(settings, 255));
         int dynamicBuilds = bundle.DynamicContent.BuildCount;
         string dynamic = RawPixelSha(bundle.DynamicContent.Content);
-        int decoded = bundle.SelectedEmphasisCache.DecodedAssetCount;
+        Assert.Equal(0, bundle.SelectedEmphasisManifestReadCount);
+        Assert.Equal(0, bundle.SelectedEmphasisDecodedAssetCount);
+        Assert.False(bundle.HasSelectedEmphasisCache);
 
         Assert.True(bundle.EnsureUniversalContent(settings, Parameters(settings, 128)));
 
         Assert.Equal(dynamicBuilds, bundle.DynamicContent.BuildCount);
         Assert.Equal(dynamic, RawPixelSha(bundle.DynamicContent.Content));
-        Assert.Equal(decoded, bundle.SelectedEmphasisCache.DecodedAssetCount);
+        Assert.Equal(1, bundle.SelectedEmphasisManifestReadCount);
+        Assert.Equal(
+            1 + entry.LayoutDefinition.SlotCount * 2,
+            bundle.SelectedEmphasisDecodedAssetCount);
         Assert.Equal(1, bundle.SelectedEmphasisCache.ArtworkBuildCount);
     }
 
@@ -236,7 +245,9 @@ public sealed class UniversalRadialPhase3SelectedEmphasisTests
 
         Assert.Same(idle, bundle.GetFinalState(0));
         Assert.Equal(authoredDecoded, bundle.FullStateCache.DecodedAssetCount);
-        Assert.Equal(semanticDecoded, bundle.FullStateCache.SelectedEmphasisDecodedAssetCount);
+        Assert.Equal(0, semanticDecoded);
+        Assert.Equal(17, bundle.FullStateCache.SelectedEmphasisDecodedAssetCount);
+        Assert.Equal(1, bundle.SelectedEmphasisManifestReadCount);
         Assert.Equal(dynamicBuilds, bundle.FullStateCache.DynamicBuildCount);
         Assert.Equal(authoredLayers, bundle.FullStateCache.AuthoredLayerCount);
         Assert.Equal(1, bundle.FullStateCache.HighlightRebuildCount);
@@ -267,6 +278,7 @@ public sealed class UniversalRadialPhase3SelectedEmphasisTests
         Assert.NotEqual(before, RawPixelSha(bundle.GetFinalState(3)));
         Assert.Equal(authoredDecoded, bundle.FullStateCache.DecodedAssetCount);
         Assert.Equal(semanticDecoded, bundle.FullStateCache.SelectedEmphasisDecodedAssetCount);
+        Assert.Equal(1, bundle.SelectedEmphasisManifestReadCount);
         Assert.Equal(artworkBuilds, bundle.FullStateCache.SelectedEmphasisArtworkBuildCount);
         Assert.Equal(dynamicBuilds + 1, bundle.FullStateCache.DynamicBuildCount);
         Assert.Equal(1, bundle.FullStateCache.MappingRebuildCount);
@@ -366,7 +378,9 @@ public sealed class UniversalRadialPhase3SelectedEmphasisTests
         for (int index = 0; index < 128; index++) _ = bundle.GetFinalState(index % 9);
 
         Assert.Equal(authoredDecoded, bundle.FullStateCache.DecodedAssetCount);
-        Assert.Equal(semanticDecoded, bundle.FullStateCache.SelectedEmphasisDecodedAssetCount);
+        Assert.Equal(0, semanticDecoded);
+        Assert.Equal(17, bundle.FullStateCache.SelectedEmphasisDecodedAssetCount);
+        Assert.Equal(1, bundle.SelectedEmphasisManifestReadCount);
         Assert.Equal(artworkBuilds, bundle.FullStateCache.SelectedEmphasisArtworkBuildCount);
         Assert.Equal(dynamicBuilds, bundle.FullStateCache.DynamicBuildCount);
         Assert.Equal(0, bundle.SelectionHotPathWorkCount);

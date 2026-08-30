@@ -230,6 +230,38 @@ internal static partial class UniversalSelectedEmphasisCatalog
     }
 }
 
+internal sealed class UniversalSelectedEmphasisProvider
+{
+    private readonly NormalizedRenderPlan _plan;
+    private readonly string? _discoveryRoot;
+
+    public UniversalSelectedEmphasisProvider(
+        NormalizedRenderPlan plan,
+        string? discoveryRoot = null)
+    {
+        _plan = plan ?? throw new ArgumentNullException(nameof(plan));
+        _discoveryRoot = discoveryRoot;
+    }
+
+    public int ManifestReadCount { get; private set; }
+
+    public UniversalSelectedEmphasisDescriptor Load()
+    {
+        ManifestReadCount++;
+        try
+        {
+            return UniversalSelectedEmphasisCatalog.LoadForPlan(_plan, _discoveryRoot);
+        }
+        catch (Exception exception) when (
+            exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            throw new InvalidDataException(
+                $"Selected-emphasis semantic companion unavailable for theme '{_plan.ThemeId}'.",
+                exception);
+        }
+    }
+}
+
 internal sealed class UniversalSelectedEmphasisCache : IDisposable
 {
     private readonly UniversalSelectedEmphasisDescriptor _descriptor;

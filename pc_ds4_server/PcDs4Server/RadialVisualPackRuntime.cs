@@ -7,39 +7,59 @@ internal sealed class RadialVisualPackSession : IDisposable
 {
     private readonly RuntimeRenderBundleTargetBuilder _bundleBuilder;
     private readonly RadialVisualPackDefinition? _definition;
+    private readonly RadialRenderPolicy _renderPolicy;
     private RuntimeRenderBundle _bundle;
     private bool _disposed;
 
     public RadialVisualPackSession(RadialVisualPackDefinition definition,
         RadialMenuSettings settings, int targetSize)
         : this(definition, V1VisualPackCompatibilityAdapter.BuildPlan(definition), settings,
-            targetSize, RadialDpiScaling.DefaultDpi, RuntimeRenderBundle.Build) { }
+            targetSize, RadialDpiScaling.DefaultDpi, RadialRenderPolicy.Legacy,
+            RuntimeRenderBundle.Build) { }
 
     internal RadialVisualPackSession(RadialVisualPackDefinition definition,
         NormalizedRenderPlan plan, RadialMenuSettings settings, int targetSize,
         RuntimeRenderBundleBuilder builder)
         : this(definition, plan, settings, targetSize, RadialDpiScaling.DefaultDpi,
+            RadialRenderPolicy.Legacy,
             (candidate, candidateSettings, size, _) => builder(candidate, candidateSettings, size)) { }
 
     internal RadialVisualPackSession(RadialVisualPackCatalogEntry entry,
         RadialMenuSettings settings, int targetSize, int dpi,
         RuntimeRenderBundleTargetBuilder? builder = null)
         : this(entry.V1Definition, entry.Plan, settings, targetSize, dpi,
+            RadialRenderPolicy.Legacy,
             builder ?? RuntimeRenderBundle.Build) { }
+
+    internal RadialVisualPackSession(RadialVisualPackCatalogEntry entry,
+        RadialMenuSettings settings, int targetSize, int dpi,
+        RadialRenderPolicy renderPolicy,
+        RuntimeRenderBundleTargetBuilder? builder = null)
+        : this(entry.V1Definition, entry.Plan, settings, targetSize, dpi,
+            renderPolicy,
+            builder ?? RadialRenderPolicyAuthority.CreateBundleBuilder(renderPolicy)) { }
 
     private RadialVisualPackSession(RadialVisualPackDefinition? definition,
         NormalizedRenderPlan plan, RadialMenuSettings settings, int targetSize, int dpi,
+        RadialRenderPolicy renderPolicy,
         RuntimeRenderBundleTargetBuilder builder)
     {
         _definition = definition;
         Plan = plan ?? throw new ArgumentNullException(nameof(plan));
         ArgumentNullException.ThrowIfNull(settings);
+        if (!Enum.IsDefined(renderPolicy)) throw new ArgumentOutOfRangeException(nameof(renderPolicy));
+        _renderPolicy = renderPolicy;
         _bundleBuilder = builder ?? throw new ArgumentNullException(nameof(builder));
         if (definition != null && !string.Equals(definition.Manifest.Id, plan.ThemeId, StringComparison.Ordinal))
             throw new InvalidDataException("V1 definition and normalized plan IDs do not match.");
         Mappings = settings.GetProfileMappings(LayoutDefinition.ProfileId);
         _bundle = _bundleBuilder(Plan, settings, targetSize, dpi) ??
             throw new InvalidDataException("Runtime render bundle builder returned no bundle.");
+        if (_renderPolicy == RadialRenderPolicy.UniversalInitial && !_bundle.IsUniversal)
+        {
+            _bundle.Dispose();
+            throw new InvalidDataException("UniversalInitial policy returned a legacy render bundle.");
+        }
     }
 
     public RadialVisualPackDefinition Definition => _definition ??
@@ -51,6 +71,7 @@ internal sealed class RadialVisualPackSession : IDisposable
     public RadialDynamicContentCache DynamicContent => _bundle.DynamicContent;
     public RadialSlotMappings Mappings { get; private set; }
     public string PackId => Plan.ThemeId;
+    internal RadialRenderPolicy RenderPolicy => _renderPolicy;
     internal bool IsDisposed => _disposed;
 
     public void EnsureContent(RadialMenuSettings settings, int targetSize) =>
@@ -60,19 +81,41 @@ internal sealed class RadialVisualPackSession : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(settings);
-        bool rebuild = Plan.IsFullStateFrame ? _bundle.Dpi != dpi : _bundle.TargetSize != targetSize;
+        bool rebuild;
+        UniversalRadialParameters? effectiveParameters = null;
+        if (_renderPolicy == RadialRenderPolicy.UniversalInitial)
+        {
+            effectiveParameters = ProductionUniversalRadialParametersAdapter.Adapt(settings, Plan);
+            Size expectedSurface = UniversalRadialRenderPlan.Create(Plan, effectiveParameters)
+                .PhysicalSurfaceSize(dpi);
+            rebuild = _bundle.Dpi != dpi ||
+                _bundle.UniversalPlan.Parameters.SurfaceScale != effectiveParameters.SurfaceScale ||
+                _bundle.PhysicalSurfaceSize != expectedSurface;
+        }
+        else
+        {
+            rebuild = Plan.IsFullStateFrame ? _bundle.Dpi != dpi : _bundle.TargetSize != targetSize;
+        }
         if (rebuild)
         {
             RadialSlotMappings mappings = settings.GetProfileMappings(LayoutDefinition.ProfileId);
             RuntimeRenderBundle replacement = _bundleBuilder(Plan, settings, targetSize, dpi) ??
                 throw new InvalidDataException("Runtime render bundle builder returned no bundle.");
+            if (_renderPolicy == RadialRenderPolicy.UniversalInitial && !replacement.IsUniversal)
+            {
+                replacement.Dispose();
+                throw new InvalidDataException("UniversalInitial policy returned a legacy render bundle.");
+            }
             RuntimeRenderBundle previous = _bundle;
             _bundle = replacement;
             Mappings = mappings;
             previous.Dispose();
             return;
         }
-        _bundle.EnsureDynamicContent(settings);
+        if (effectiveParameters == null)
+            _bundle.EnsureDynamicContent(settings);
+        else
+            _ = _bundle.EnsureUniversalContent(settings, effectiveParameters);
         Mappings = settings.GetProfileMappings(LayoutDefinition.ProfileId);
     }
 
@@ -88,16 +131,36 @@ internal sealed class RadialVisualPackRuntime : IDisposable
 {
     private readonly RadialVisualPackCatalog _catalog;
     private readonly Action<string> _log;
+    private readonly RadialRenderPolicy _renderPolicy;
+    private readonly RuntimeRenderBundleTargetBuilder _bundleBuilder;
     private RadialVisualPackSession? _active;
     private string? _lastRequestedId;
     private bool _disposed;
 
     public RadialVisualPackRuntime(RadialVisualPackCatalog catalog, Action<string>? log = null)
-    { _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog)); _log = log ?? (message => Trace.TraceInformation(message)); }
+        : this(catalog, RadialRenderPolicyAuthority.ProductionDefault, null, log) { }
+
+    internal RadialVisualPackRuntime(RadialVisualPackCatalog catalog,
+        RadialRenderPolicy renderPolicy,
+        Action<string>? log = null)
+        : this(catalog, renderPolicy, null, log) { }
+
+    internal RadialVisualPackRuntime(RadialVisualPackCatalog catalog,
+        RadialRenderPolicy renderPolicy,
+        RuntimeRenderBundleTargetBuilder? bundleBuilder,
+        Action<string>? log = null)
+    {
+        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        if (!Enum.IsDefined(renderPolicy)) throw new ArgumentOutOfRangeException(nameof(renderPolicy));
+        _renderPolicy = renderPolicy;
+        _bundleBuilder = bundleBuilder ?? RadialRenderPolicyAuthority.CreateBundleBuilder(renderPolicy);
+        _log = log ?? (message => Trace.TraceInformation(message));
+    }
     public RadialVisualPackSession? Active => _active;
     public string? ActivePackId => _active?.PackId;
     public string? LastError { get; private set; }
     internal int InstallCount { get; private set; }
+    internal RadialRenderPolicy RenderPolicy => _renderPolicy;
 
     public RadialVisualPackSession? Ensure(RadialMenuSettings settings, int targetSize) =>
         Ensure(settings, targetSize, RadialDpiScaling.DefaultDpi);
@@ -172,7 +235,12 @@ internal sealed class RadialVisualPackRuntime : IDisposable
     private bool TryCreateSession(RadialVisualPackCatalogEntry entry, RadialMenuSettings settings,
         int targetSize, int dpi, out RadialVisualPackSession? session)
     {
-        try { session = new(entry, settings, targetSize, dpi); LastError = null; return true; }
+        try
+        {
+            session = new(entry, settings, targetSize, dpi, _renderPolicy, _bundleBuilder);
+            LastError = null;
+            return true;
+        }
         catch (Exception exception) when (IsRuntimePackException(exception))
         { LastError = exception.Message; session = null; return false; }
     }
