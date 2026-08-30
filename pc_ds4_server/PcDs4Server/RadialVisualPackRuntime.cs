@@ -3,6 +3,91 @@ using System.Runtime.InteropServices;
 
 namespace PcDs4Server;
 
+internal sealed record UniversalRenderAuthorityKey(
+    string RequestedThemeId,
+    string SourcePlanIdentity,
+    string MappingProfileId,
+    RadialMappingsByProfile MappingsByProfile,
+    UniversalRadialParameters? EffectiveParameters,
+    RadialMenuSettings? UnresolvedSettings,
+    int TargetSize,
+    int Dpi,
+    RadialRenderPolicy Policy);
+
+internal sealed class UniversalRenderRequestSnapshot :
+    IEquatable<UniversalRenderRequestSnapshot>
+{
+    public UniversalRenderRequestSnapshot(
+        RadialMenuSettings settings,
+        RadialVisualPackCatalogSnapshot catalog,
+        RadialVisualPackCatalogEntry? target,
+        UniversalRenderAuthorityKey authority,
+        int targetSize,
+        int dpi,
+        bool allowFallback,
+        UniversalRenderRequestIntent intent)
+    {
+        Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        Catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        Target = target;
+        Authority = authority ?? throw new ArgumentNullException(nameof(authority));
+        TargetSize = targetSize;
+        Dpi = dpi;
+        AllowFallback = allowFallback;
+        Intent = intent;
+    }
+
+    public RadialMenuSettings Settings { get; }
+    public RadialVisualPackCatalogSnapshot Catalog { get; }
+    public RadialVisualPackCatalogEntry? Target { get; }
+    public UniversalRenderAuthorityKey Authority { get; }
+    public int TargetSize { get; }
+    public int Dpi { get; }
+    public bool AllowFallback { get; }
+    public UniversalRenderRequestIntent Intent { get; }
+
+    public bool Equals(UniversalRenderRequestSnapshot? other) =>
+        other != null && Authority == other.Authority;
+
+    public override bool Equals(object? obj) =>
+        Equals(obj as UniversalRenderRequestSnapshot);
+
+    public override int GetHashCode() => Authority.GetHashCode();
+}
+
+internal sealed class UniversalDetachedRenderCandidate : IDisposable
+{
+    private RadialVisualPackSession? _session;
+
+    public UniversalDetachedRenderCandidate(
+        RadialVisualPackSession session,
+        string requestedThemeId,
+        IReadOnlyList<string> attemptedThemeIds,
+        string? fallbackReason = null)
+    {
+        _session = session ?? throw new ArgumentNullException(nameof(session));
+        RequestedThemeId = requestedThemeId;
+        AttemptedThemeIds = attemptedThemeIds ?? throw new ArgumentNullException(nameof(attemptedThemeIds));
+        FallbackReason = fallbackReason;
+    }
+
+    public string RequestedThemeId { get; }
+    public IReadOnlyList<string> AttemptedThemeIds { get; }
+    public string? FallbackReason { get; }
+    public bool IsDisposed { get; private set; }
+
+    public RadialVisualPackSession TransferSession() =>
+        Interlocked.Exchange(ref _session, null) ??
+        throw new InvalidOperationException("Universal candidate session ownership was already transferred.");
+
+    public void Dispose()
+    {
+        RadialVisualPackSession? session = Interlocked.Exchange(ref _session, null);
+        session?.Dispose();
+        IsDisposed = true;
+    }
+}
+
 internal sealed class RadialVisualPackSession : IDisposable
 {
     private readonly RuntimeRenderBundleTargetBuilder _bundleBuilder;
@@ -134,6 +219,13 @@ internal sealed class RadialVisualPackRuntime : IDisposable
     private readonly RadialRenderPolicy _renderPolicy;
     private readonly RuntimeRenderBundleTargetBuilder _bundleBuilder;
     private RadialVisualPackSession? _active;
+    private UniversalRenderRequestSnapshot? _activeAsyncSnapshot;
+    private bool _activeAsyncWasPreview;
+    private RadialVisualPackCatalogSnapshot? _asyncCatalogSnapshot;
+    private bool _asyncCatalogIssuesLogged;
+    private UniversalAsyncRenderCoordinator<
+        UniversalRenderRequestSnapshot,
+        UniversalDetachedRenderCandidate>? _asyncCoordinator;
     private string? _lastRequestedId;
     private bool _disposed;
 
@@ -161,6 +253,102 @@ internal sealed class RadialVisualPackRuntime : IDisposable
     public string? LastError { get; private set; }
     internal int InstallCount { get; private set; }
     internal RadialRenderPolicy RenderPolicy => _renderPolicy;
+    internal bool IsUniversalAsyncEnabled => _asyncCoordinator != null;
+    internal UniversalRenderRequestSnapshot? ActiveAsyncSnapshot => _activeAsyncSnapshot;
+    internal UniversalAsyncRenderDiagnostics AsyncDiagnostics =>
+        _asyncCoordinator?.Diagnostics ?? new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+    internal void EnableUniversalAsync(
+        IUniversalRenderDispatcher dispatcher,
+        Action<UniversalRenderRequestSnapshot> published,
+        Action<string>? failed = null,
+        IUniversalRenderWorkQueue? worker = null,
+        IUniversalRenderDebounceScheduler? scheduler = null,
+        TimeSpan? previewDebounce = null)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        ArgumentNullException.ThrowIfNull(published);
+        if (_renderPolicy != RadialRenderPolicy.UniversalInitial)
+            throw new InvalidOperationException(
+                "The async render coordinator is only valid for UniversalInitial policy.");
+        if (_asyncCoordinator != null)
+            throw new InvalidOperationException("The async render coordinator is already enabled.");
+
+        _asyncCoordinator = new(
+            BuildDetachedUniversalCandidate,
+            PublishDetachedUniversalCandidate,
+            snapshot =>
+            {
+                RadialVisualPackSession? active = _active;
+                if (active != null)
+                {
+                    _log($"[视觉主题] Loaded radial visual pack asynchronously: {active.PackId}");
+                }
+                published(snapshot);
+            },
+            (snapshot, exception) =>
+            {
+                LastError = exception.Message;
+                _lastRequestedId = snapshot.Settings.VisualPackId;
+                _log($"[视觉主题] Async Universal candidate '{snapshot.Settings.VisualPackId}' failed: {exception.Message}");
+                if (_active != null) LogRetained(snapshot.Settings.VisualPackId);
+                failed?.Invoke(exception.Message);
+            },
+            worker,
+            dispatcher,
+            scheduler,
+            previewDebounce);
+    }
+
+    internal long RequestUniversalAsync(
+        RadialMenuSettings settings,
+        int targetSize,
+        int dpi,
+        UniversalRenderRequestIntent intent)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(settings);
+        if (targetSize <= 0) throw new ArgumentOutOfRangeException(nameof(targetSize));
+        UniversalAsyncRenderCoordinator<
+            UniversalRenderRequestSnapshot,
+            UniversalDetachedRenderCandidate> coordinator = _asyncCoordinator ??
+            throw new InvalidOperationException("The async render coordinator is not enabled.");
+        UniversalRenderRequestSnapshot snapshot = CreateUniversalSnapshot(
+            settings,
+            targetSize,
+            dpi,
+            intent);
+
+        if (coordinator.TryGetLatest(
+                out UniversalRenderRequestSnapshot? latest,
+                out UniversalRenderRequestIntent? latestIntent,
+                out long latestGeneration) &&
+            latest!.Equals(snapshot) &&
+            (intent != UniversalRenderRequestIntent.Committed ||
+             latestIntent == UniversalRenderRequestIntent.Committed))
+        {
+            return latestGeneration;
+        }
+        if (_activeAsyncSnapshot?.Equals(snapshot) == true)
+        {
+            long generation = coordinator.ReassertPublished(snapshot, intent);
+            if (intent == UniversalRenderRequestIntent.Committed)
+                _activeAsyncWasPreview = false;
+            return generation;
+        }
+        return coordinator.Request(snapshot, intent);
+    }
+
+    internal void CancelUniversalPreview()
+    {
+        _asyncCoordinator?.CancelPreview();
+        if (_activeAsyncWasPreview)
+        {
+            _activeAsyncSnapshot = null;
+            _activeAsyncWasPreview = false;
+        }
+    }
 
     public RadialVisualPackSession? Ensure(RadialMenuSettings settings, int targetSize) =>
         Ensure(settings, targetSize, RadialDpiScaling.DefaultDpi);
@@ -218,7 +406,16 @@ internal sealed class RadialVisualPackRuntime : IDisposable
     }
 
     public void Dispose()
-    { if (_disposed) return; _disposed = true; _active?.Dispose(); _active = null; }
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _asyncCoordinator?.Dispose();
+        _asyncCoordinator = null;
+        _active?.Dispose();
+        _active = null;
+        _activeAsyncSnapshot = null;
+        _activeAsyncWasPreview = false;
+    }
 
     private RadialVisualPackSession EnsureExisting(RadialVisualPackSession session,
         RadialMenuSettings settings, int targetSize, int dpi, string requestedId)
@@ -249,11 +446,161 @@ internal sealed class RadialVisualPackRuntime : IDisposable
     {
         RadialVisualPackSession? previous = _active;
         _active = replacement;
+        _activeAsyncSnapshot = null;
+        _activeAsyncWasPreview = false;
         InstallCount++;
         LastError = null;
         _log($"[视觉主题] Loaded radial visual pack: {replacement.PackId}");
         previous?.Dispose();
         return replacement;
+    }
+
+    private UniversalRenderRequestSnapshot CreateUniversalSnapshot(
+        RadialMenuSettings settings,
+        int targetSize,
+        int dpi,
+        UniversalRenderRequestIntent intent)
+    {
+        RadialMenuSettings immutableSettings = settings.NormalizeMappings();
+        RadialVisualPackCatalogSnapshot catalog = _asyncCatalogSnapshot ??= _catalog.Discover();
+        LogCatalogIssuesOnce(catalog);
+        RadialVisualPackCatalogEntry? target = catalog.Find(immutableSettings.VisualPackId);
+        UniversalRadialParameters? effectiveParameters = target == null
+            ? null
+            : ProductionUniversalRadialParametersAdapter.Adapt(immutableSettings, target.Plan);
+        string sourceIdentity = target == null
+            ? $"missing:{immutableSettings.VisualPackId}"
+            : $"{target.Id}\0{target.Version}\0{target.DirectoryPath}";
+        string mappingProfileId = target?.LayoutDefinition.ProfileId ??
+            immutableSettings.MappingProfileId;
+        var authority = new UniversalRenderAuthorityKey(
+            immutableSettings.VisualPackId,
+            sourceIdentity,
+            mappingProfileId,
+            immutableSettings.MappingsByProfile,
+            effectiveParameters,
+            target == null ? immutableSettings : null,
+            targetSize,
+            dpi,
+            _renderPolicy);
+        return new(
+            immutableSettings,
+            catalog,
+            target,
+            authority,
+            targetSize,
+            dpi,
+            allowFallback: _active == null || _activeAsyncSnapshot == null,
+            intent: intent);
+    }
+
+    private void LogCatalogIssuesOnce(RadialVisualPackCatalogSnapshot snapshot)
+    {
+        if (_asyncCatalogIssuesLogged || !ReferenceEquals(snapshot, _asyncCatalogSnapshot)) return;
+        _asyncCatalogIssuesLogged = true;
+        foreach (var issue in snapshot.Issues)
+            _log($"[视觉主题] Ignored pack '{issue.PackId ?? issue.DirectoryPath}': {issue.Message}");
+    }
+
+    private UniversalDetachedRenderCandidate BuildDetachedUniversalCandidate(
+        UniversalRenderRequestSnapshot snapshot)
+    {
+        var attempts = new List<string>();
+        string requestedId = snapshot.Settings.VisualPackId;
+        string? firstFailure = null;
+        if (snapshot.Target != null)
+        {
+            attempts.Add(snapshot.Target.Id);
+            if (TryCreateDetachedSession(snapshot.Target, snapshot, out RadialVisualPackSession? session,
+                    out string failure))
+            {
+                return new(session!, requestedId, attempts.ToArray());
+            }
+            firstFailure = failure;
+            if (!snapshot.AllowFallback)
+                throw new InvalidDataException(
+                    $"Universal candidate '{requestedId}' failed: {failure}");
+        }
+        else
+        {
+            firstFailure = $"requested pack '{requestedId}' is unavailable or incompatible";
+            if (!snapshot.AllowFallback)
+                throw new InvalidDataException(firstFailure);
+        }
+
+        var visited = new HashSet<string>(attempts, StringComparer.Ordinal)
+        {
+            requestedId
+        };
+        string? preferredFallbackId = snapshot.Target?.Plan.Fallback.StartupFallbackThemeId;
+        foreach (string fallbackId in new[]
+                 {
+                     preferredFallbackId,
+                     RadialVisualPackContract.FallbackVisualPackId
+                 }
+                 .Where(id => !string.IsNullOrWhiteSpace(id))
+                 .Select(id => id!)
+                 .Where(visited.Add))
+        {
+            RadialVisualPackCatalogEntry? fallback = snapshot.Catalog.Find(fallbackId);
+            if (fallback == null) continue;
+            attempts.Add(fallback.Id);
+            if (TryCreateDetachedSession(fallback, snapshot, out RadialVisualPackSession? session,
+                    out string failure))
+            {
+                return new(session!, requestedId, attempts.ToArray(), firstFailure);
+            }
+            firstFailure += $"; fallback '{fallback.Id}' failed: {failure}";
+        }
+
+        throw new InvalidDataException(
+            firstFailure ?? $"No compatible Universal fallback was available for '{requestedId}'.");
+    }
+
+    private bool TryCreateDetachedSession(
+        RadialVisualPackCatalogEntry entry,
+        UniversalRenderRequestSnapshot snapshot,
+        out RadialVisualPackSession? session,
+        out string failure)
+    {
+        try
+        {
+            session = new(
+                entry,
+                snapshot.Settings,
+                snapshot.TargetSize,
+                snapshot.Dpi,
+                _renderPolicy,
+                _bundleBuilder);
+            failure = string.Empty;
+            return true;
+        }
+        catch (Exception exception) when (IsRuntimePackException(exception))
+        {
+            session = null;
+            failure = exception.Message;
+            return false;
+        }
+    }
+
+    private IDisposable? PublishDetachedUniversalCandidate(
+        UniversalRenderRequestSnapshot snapshot,
+        UniversalDetachedRenderCandidate candidate)
+    {
+        RadialVisualPackSession replacement = candidate.TransferSession();
+        if (candidate.FallbackReason != null)
+            LogFallback(
+                candidate.RequestedThemeId,
+                candidate.FallbackReason,
+                replacement.PackId);
+        RadialVisualPackSession? previous = _active;
+        _active = replacement;
+        _activeAsyncSnapshot = snapshot;
+        _activeAsyncWasPreview = snapshot.Intent == UniversalRenderRequestIntent.Preview;
+        _lastRequestedId = snapshot.Settings.VisualPackId;
+        LastError = null;
+        InstallCount++;
+        return previous;
     }
 
     private RadialVisualPackSession? TryInstallFallback(

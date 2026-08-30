@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 namespace PcDs4Server;
 
 public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutProvider,
-    IRadialDpiProvider
+    IRadialDpiProvider, IRadialPreviewRenderOverlay
 {
     private const byte AcSrcAlpha = 0x01;
     private const byte AcSrcOver = 0x00;
@@ -25,6 +25,8 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
     private int _activeDpi = RadialDpiScaling.DefaultDpi;
     private bool _overlayVisible;
     private bool _assetErrorLogged;
+    private UniversalRenderRequestIntent _lastRequestIntent =
+        UniversalRenderRequestIntent.Committed;
 
     public RadialMenuOverlay(
         RadialVisualPackCatalog? catalog = null,
@@ -41,6 +43,13 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
             catalog ?? new RadialVisualPackCatalog(),
             renderPolicy,
             _log);
+        if (renderPolicy == RadialRenderPolicy.UniversalInitial)
+        {
+            _visualPacks.EnableUniversalAsync(
+                new DelegateUniversalRenderDispatcher(PostUniversalPublish),
+                OnUniversalCandidatePublished,
+                OnUniversalCandidateFailed);
+        }
 
         AutoScaleMode = AutoScaleMode.None;
         BackColor = Color.Black;
@@ -90,6 +99,32 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
     }
 
     public void ShowAt(Point screenPoint, RadialMenuSettings settings, int selectedSlot)
+        => RequestShow(
+            screenPoint,
+            settings,
+            selectedSlot,
+            UniversalRenderRequestIntent.Committed);
+
+    public void ShowPreviewAt(
+        Point screenPoint,
+        RadialMenuSettings settings,
+        int selectedSlot) => RequestShow(
+            screenPoint,
+            settings,
+            selectedSlot,
+            UniversalRenderRequestIntent.Preview);
+
+    public void CancelPreviewRequests()
+    {
+        if (_visualPacks.IsUniversalAsyncEnabled)
+            _visualPacks.CancelUniversalPreview();
+    }
+
+    private void RequestShow(
+        Point screenPoint,
+        RadialMenuSettings settings,
+        int selectedSlot,
+        UniversalRenderRequestIntent intent)
     {
         ArgumentNullException.ThrowIfNull(settings);
         if (selectedSlot < 0) throw new ArgumentOutOfRangeException(nameof(selectedSlot));
@@ -109,9 +144,15 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
             _overlayVisible = true;
             _lastScreenPoint = screenPoint;
             _lastSettings = settings with { };
+            _lastRequestIntent = intent;
         }
 
-        RunOnUiThread(() => ShowCore(screenPoint, settings, metrics, selectedSlot));
+        RunOnUiThread(() => ShowCore(
+            screenPoint,
+            settings,
+            metrics,
+            selectedSlot,
+            intent));
     }
 
     public new void Hide()
@@ -130,8 +171,18 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
         RadialMenuRenderMetrics metrics = settings.CreateRenderMetrics();
         RunOnUiThread(() =>
         {
+            _ = Handle;
             int dpi = GetCurrentWindowDpi();
             int physicalSize = RadialDpiScaling.ToPhysicalPixels(metrics.CanvasSize, dpi);
+            if (_visualPacks.IsUniversalAsyncEnabled)
+            {
+                _visualPacks.RequestUniversalAsync(
+                    settings,
+                    physicalSize,
+                    dpi,
+                    UniversalRenderRequestIntent.Committed);
+                return;
+            }
             RadialVisualPackSession? session = _visualPacks.Ensure(
                 settings,
                 physicalSize,
@@ -178,6 +229,7 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
         RadialMenuSettings? settings;
         int selectedSlot;
         bool overlayVisible;
+        UniversalRenderRequestIntent intent;
         lock (_stateLock)
         {
             _activeDpi = e.DeviceDpiNew;
@@ -185,6 +237,7 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
             settings = _lastSettings;
             selectedSlot = _selectedSlot;
             overlayVisible = _overlayVisible;
+            intent = _lastRequestIntent;
         }
 
         if (!overlayVisible || screenPoint == null || settings == null) return;
@@ -192,20 +245,42 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
             screenPoint.Value,
             settings,
             settings.CreateRenderMetrics(),
-            selectedSlot));
+            selectedSlot,
+            intent));
     }
 
     private void ShowCore(
         Point screenPoint,
         RadialMenuSettings settings,
         RadialMenuRenderMetrics metrics,
-        int selectedSlot)
+        int selectedSlot,
+        UniversalRenderRequestIntent intent)
     {
         try
         {
             _ = Handle;
             int dpi = GetDpiAt(screenPoint);
             int physicalSize = RadialDpiScaling.ToPhysicalPixels(metrics.CanvasSize, dpi);
+            if (_visualPacks.IsUniversalAsyncEnabled)
+            {
+                _visualPacks.RequestUniversalAsync(
+                    settings,
+                    physicalSize,
+                    dpi,
+                    intent);
+                RadialVisualPackSession? active = _visualPacks.Active;
+                UniversalRenderRequestSnapshot? activeSnapshot =
+                    _visualPacks.ActiveAsyncSnapshot;
+                if (active == null || activeSnapshot == null)
+                    return;
+                PresentSession(
+                    active,
+                    screenPoint,
+                    activeSnapshot.Settings,
+                    selectedSlot,
+                    active.Bundle.Dpi);
+                return;
+            }
             RadialVisualPackSession? session = _visualPacks.Ensure(
                 settings,
                 physicalSize,
@@ -255,6 +330,73 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
         {
             FailSafely(exception.Message);
         }
+    }
+
+    private void OnUniversalCandidatePublished(UniversalRenderRequestSnapshot snapshot)
+    {
+        RadialVisualPackSession? active = _visualPacks.Active;
+        if (active == null || IsDisposed || Disposing) return;
+        Point? screenPoint;
+        int selectedSlot;
+        bool overlayVisible;
+        lock (_stateLock)
+        {
+            _layoutDefinition = active.LayoutDefinition;
+            _activeDpi = active.Bundle.Dpi;
+            screenPoint = _lastScreenPoint;
+            selectedSlot = _selectedSlot;
+            overlayVisible = _overlayVisible;
+        }
+        if (!overlayVisible || screenPoint == null) return;
+        try
+        {
+            PresentSession(
+                active,
+                screenPoint.Value,
+                snapshot.Settings,
+                selectedSlot,
+                active.Bundle.Dpi);
+        }
+        catch (Exception exception) when (IsAssetOrRenderingException(exception))
+        {
+            FailSafely(exception.Message);
+        }
+    }
+
+    private void OnUniversalCandidateFailed(string message)
+    {
+        if (_visualPacks.ActiveAsyncSnapshot == null)
+            FailSafely(message);
+    }
+
+    private void PresentSession(
+        RadialVisualPackSession session,
+        Point screenPoint,
+        RadialMenuSettings settings,
+        int selectedSlot,
+        int dpi)
+    {
+        LayoutDefinition layout = session.LayoutDefinition;
+        ValidateSelectedSlot(selectedSlot, layout);
+        Size surfaceSize = session.Bundle.PhysicalSurfaceSize;
+        Point topLeft = ComputeOverlayTopLeft(screenPoint, session.Bundle, dpi);
+        ClientSize = surfaceSize;
+        Location = topLeft;
+        RadialMenuRenderMetrics metrics = settings.CreateRenderMetrics();
+        lock (_stateLock)
+        {
+            _layoutDefinition = layout;
+            _activeDpi = dpi;
+        }
+        RenderLayeredWindow(
+            session.Bundle,
+            selectedSlot,
+            settings,
+            metrics,
+            screenPoint,
+            dpi,
+            topLeft);
+        if (!Visible) base.Show();
     }
 
     private void FailSafely(string message)
@@ -425,6 +567,17 @@ public sealed class RadialMenuOverlay : Form, IRadialMenuOverlay, IRadialLayoutP
         {
             action();
         }
+    }
+
+    private void PostUniversalPublish(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (IsDisposed || Disposing)
+            throw new ObjectDisposedException(nameof(RadialMenuOverlay));
+        if (!IsHandleCreated)
+            throw new InvalidOperationException(
+                "The radial overlay UI handle is unavailable for Universal publication.");
+        BeginInvoke(action);
     }
 
     private static bool IsAssetException(Exception exception) =>

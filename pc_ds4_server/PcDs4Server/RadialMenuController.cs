@@ -19,6 +19,12 @@ public interface IRadialDpiProvider
     int ActiveDpi { get; }
 }
 
+internal interface IRadialPreviewRenderOverlay
+{
+    void ShowPreviewAt(Point screenPoint, RadialMenuSettings settings, int selectedSlot);
+    void CancelPreviewRequests();
+}
+
 public sealed class RadialMenuController : IDisposable
 {
     private static readonly Lazy<LayoutDefinition> DefaultLayout = new(
@@ -135,7 +141,13 @@ public sealed class RadialMenuController : IDisposable
         EndNormalMenuSession();
         _previewAnchor = screenPoint;
         _isPreviewActive = true;
-        _overlay.ShowAt(screenPoint, temporarySettings with { }, selectedSlot: 0);
+        if (_overlay is IRadialPreviewRenderOverlay previewOverlay)
+            previewOverlay.ShowPreviewAt(
+                screenPoint,
+                temporarySettings with { },
+                selectedSlot: 0);
+        else
+            _overlay.ShowAt(screenPoint, temporarySettings with { }, selectedSlot: 0);
         if (normalMenuWasOpen) NormalMenuStateChanged?.Invoke();
     }
 
@@ -147,7 +159,10 @@ public sealed class RadialMenuController : IDisposable
             throw new ArgumentException(error, nameof(temporarySettings));
         if (!_isPreviewActive || _previewAnchor is not Point anchor) return;
 
-        _overlay.ShowAt(anchor, temporarySettings with { }, selectedSlot: 0);
+        if (_overlay is IRadialPreviewRenderOverlay previewOverlay)
+            previewOverlay.ShowPreviewAt(anchor, temporarySettings with { }, selectedSlot: 0);
+        else
+            _overlay.ShowAt(anchor, temporarySettings with { }, selectedSlot: 0);
     }
 
     public bool UpdateSelectionForCursor(Point cursor)
@@ -228,6 +243,8 @@ public sealed class RadialMenuController : IDisposable
 
     private void EndPreviewSession()
     {
+        if (_isPreviewActive && _overlay is IRadialPreviewRenderOverlay previewOverlay)
+            previewOverlay.CancelPreviewRequests();
         _isPreviewActive = false;
         _previewAnchor = null;
     }
