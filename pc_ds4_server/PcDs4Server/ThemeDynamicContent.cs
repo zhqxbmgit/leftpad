@@ -481,6 +481,11 @@ internal static class ThemeDynamicLayoutEngine
         value.Bottom <= bounds.Y+bounds.Height+FitTolerance;
 }
 
+internal sealed record ThemeDynamicSprite(Bitmap Bitmap, Point Location)
+{
+    public long Bytes => checked((long)Bitmap.Width * Bitmap.Height * 4L);
+}
+
 internal sealed class ThemeDynamicRasterizer
 {
     private readonly NormalizedRenderPlan _plan;
@@ -488,6 +493,10 @@ internal sealed class ThemeDynamicRasterizer
     private readonly IThemeRuntimeSymbolProvider _symbols;
     private readonly UniversalRadialParameters? _universalParameters;
     private readonly UniversalRadialRenderPlan? _universalPlan;
+
+    public int LayerRasterCount { get; private set; }
+    public int LocalSpriteBitmapCount { get; private set; }
+    public long LocalSpriteBytes { get; private set; }
 
     public ThemeDynamicRasterizer(NormalizedRenderPlan plan, ThemeFontSession fonts,
         IThemeRuntimeSymbolProvider? symbols = null,
@@ -505,16 +514,90 @@ internal sealed class ThemeDynamicRasterizer
     public Bitmap RenderLayer(FullStateFrameLayer layer, FullStateFrameState state,
         ThemeMappingSnapshot mappings, int dpi, out ThemeDynamicLayoutResult semantic)
     {
+        Bitmap? target = null;
+        _ = RenderLayerInto(
+            layer,
+            state,
+            mappings,
+            dpi,
+            () => EmptySurface(dpi),
+            ref target,
+            out semantic);
+        return target ?? EmptySurface(dpi);
+    }
+
+    public bool RenderLayerInto(
+        FullStateFrameLayer layer,
+        FullStateFrameState state,
+        ThemeMappingSnapshot mappings,
+        int dpi,
+        Func<Bitmap> targetFactory,
+        ref Bitmap? target,
+        out ThemeDynamicLayoutResult semantic)
+    {
+        ArgumentNullException.ThrowIfNull(targetFactory);
+        if (!TryLayout(layer, state, mappings, out NormalizedDynamicAnchor anchor,
+                out NormalizedDynamicStyle style, out semantic))
+            return false;
+        target ??= targetFactory();
+        LayerRasterCount++;
+        try
+        {
+            Draw(target, anchor, style, semantic, dpi);
+        }
+        catch
+        {
+            semantic.Dispose();
+            throw;
+        }
+        return true;
+    }
+
+    public ThemeDynamicSprite? RenderSprite(
+        FullStateFrameLayer layer,
+        FullStateFrameState state,
+        ThemeMappingSnapshot mappings,
+        int dpi,
+        out ThemeDynamicLayoutResult semantic)
+    {
+        if (!TryLayout(layer, state, mappings, out NormalizedDynamicAnchor anchor,
+                out NormalizedDynamicStyle style, out semantic))
+            return null;
+        ThemeDynamicSprite? sprite;
+        try
+        {
+            sprite = DrawSprite(anchor, style, semantic, dpi);
+        }
+        catch
+        {
+            semantic.Dispose();
+            throw;
+        }
+        if (sprite == null) return null;
+        LayerRasterCount++;
+        LocalSpriteBitmapCount++;
+        LocalSpriteBytes += sprite.Bytes;
+        return sprite;
+    }
+
+    private bool TryLayout(
+        FullStateFrameLayer layer,
+        FullStateFrameState state,
+        ThemeMappingSnapshot mappings,
+        out NormalizedDynamicAnchor anchor,
+        out NormalizedDynamicStyle style,
+        out ThemeDynamicLayoutResult semantic)
+    {
         NormalizedDynamicThemeModel model = _plan.DynamicTheme ?? throw new InvalidOperationException();
-        NormalizedDynamicAnchor anchor = model.AnchorForLayer(layer.Id);
+        anchor = model.AnchorForLayer(layer.Id);
+        style = model.Styles[anchor.StyleRole];
         if (!FullStateFrameCache.IsVisible(anchor.VisibleStates, state.Name, state.SlotId))
-        { semantic = ThemeDynamicLayoutResult.NoDraw(); return EmptySurface(dpi); }
+        { semantic = ThemeDynamicLayoutResult.NoDraw(); return false; }
         if (_universalPlan != null)
             anchor = UniversalDynamicContentTransform.TranslateAnchor(_universalPlan, layer.Id, anchor);
         string key = model.OwnershipByLayer[layer.Id].ContentKey;
         ResolvedDynamicContent content = ThemeDynamicContentResolver.Resolve(key, state.SlotId ?? 0, mappings);
-        if (content.IsEmpty) { semantic = ThemeDynamicLayoutResult.NoDraw(); return EmptySurface(dpi); }
-        NormalizedDynamicStyle style = model.Styles[anchor.StyleRole];
+        if (content.IsEmpty) { semantic = ThemeDynamicLayoutResult.NoDraw(); return false; }
         Func<float, GraphicsPath>? symbolFactory = null;
         string text = content.LabelText;
         if (anchor.Role == "glyph")
@@ -524,7 +607,7 @@ internal sealed class ThemeDynamicRasterizer
             {
                 System.Diagnostics.Trace.TraceWarning(
                     $"[V2 dynamic glyph] No declared source can render '{content.GlyphId}' for anchor '{anchor.Id}'.");
-                semantic = ThemeDynamicLayoutResult.NoDraw(); return EmptySurface(dpi);
+                semantic = ThemeDynamicLayoutResult.NoDraw(); return false;
             }
             if (source.StyleRole != null) style = model.Styles[source.StyleRole];
             text = source.Text;
@@ -535,10 +618,7 @@ internal sealed class ThemeDynamicRasterizer
         style = ApplyUniversalStyle(style, scaleFont: symbolFactory == null);
         FontFamily family = _fonts.Get(style.FontRole);
         semantic = ThemeDynamicLayoutEngine.Layout(anchor, style, family, text, symbolFactory);
-        Bitmap target = EmptySurface(dpi);
-        if (!semantic.Draw) return target;
-        Draw(target, anchor, style, semantic, dpi);
-        return target;
+        return semantic.Draw;
     }
 
     private Bitmap EmptySurface(int dpi)
@@ -588,6 +668,92 @@ internal sealed class ThemeDynamicRasterizer
             using var pen = new Pen(outline.Color.ToColor(), checked((float)(outline.Width*semantic.Scale*physicalScale)))
             { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round };
             graphics.DrawPath(pen, path);
+        }
+    }
+
+    private ThemeDynamicSprite? DrawSprite(
+        NormalizedDynamicAnchor anchor,
+        NormalizedDynamicStyle style,
+        ThemeDynamicLayoutResult semantic,
+        int dpi)
+    {
+        double presentationScale = _universalParameters?.SurfaceScale ?? 1d;
+        double referenceFactor = Math.Min(
+            _plan.ReferenceScale.LogicalWidth / _plan.ReferenceCanvas.Width,
+            _plan.ReferenceScale.LogicalHeight / _plan.ReferenceCanvas.Height) * presentationScale;
+        float physicalScale = checked((float)(referenceFactor * RadialDpiScaling.GetScale(dpi)));
+        float originX = checked((float)(
+            _plan.ReferenceScale.ContentOrigin.X * presentationScale * RadialDpiScaling.GetScale(dpi)));
+        float originY = checked((float)(
+            _plan.ReferenceScale.ContentOrigin.Y * presentationScale * RadialDpiScaling.GetScale(dpi)));
+        Size canvas = RadialDpiScaling.LogicalSizeToPhysical(
+            _plan.ReferenceScale.LogicalWidth * presentationScale,
+            _plan.ReferenceScale.LogicalHeight * presentationScale,
+            dpi);
+        Rectangle clip = RadialDpiScaling.LogicalRectToPhysical(
+            _plan.ReferenceScale.ContentOrigin.X * presentationScale + anchor.Bounds.X * referenceFactor,
+            _plan.ReferenceScale.ContentOrigin.Y * presentationScale + anchor.Bounds.Y * referenceFactor,
+            _plan.ReferenceScale.ContentOrigin.X * presentationScale +
+                (anchor.Bounds.X + anchor.Bounds.Width) * referenceFactor,
+            _plan.ReferenceScale.ContentOrigin.Y * presentationScale +
+                (anchor.Bounds.Y + anchor.Bounds.Height) * referenceFactor,
+            dpi);
+        clip.Intersect(new Rectangle(Point.Empty, canvas));
+        if (clip.Width <= 0 || clip.Height <= 0) return null;
+
+        using GraphicsPath physicalPath = (GraphicsPath)semantic.Path!.Clone();
+        using (var transform = new Matrix(physicalScale, 0, 0, physicalScale, originX, originY))
+            physicalPath.Transform(transform);
+
+        var target = new Bitmap(clip.Width, clip.Height, PixelFormat.Format32bppPArgb);
+        try
+        {
+            using Graphics graphics = Graphics.FromImage(target);
+            graphics.CompositingMode = CompositingMode.SourceOver;
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            graphics.SetClip(new Rectangle(Point.Empty, clip.Size));
+            if (style.Shadow is { Color.IsVisible: true } shadow)
+            {
+                using ShadowSprite shadowSprite = RenderShadowSprite(
+                    physicalPath,
+                    style.Outline,
+                    shadow,
+                    semantic.Scale,
+                    physicalScale,
+                    clip,
+                    canvas);
+                graphics.DrawImageUnscaled(
+                    shadowSprite.Bitmap,
+                    shadowSprite.Location.X - clip.X,
+                    shadowSprite.Location.Y - clip.Y);
+            }
+
+            using GraphicsPath localPath = (GraphicsPath)physicalPath.Clone();
+            using (var move = new Matrix())
+            {
+                move.Translate(-clip.X, -clip.Y);
+                localPath.Transform(move);
+            }
+            if (style.Color.IsVisible)
+            {
+                using var brush = new SolidBrush(style.Color.ToColor());
+                graphics.FillPath(brush, localPath);
+            }
+            if (style.Outline is { Color.IsVisible: true, Width: > 0d } outline)
+            {
+                using var pen = new Pen(
+                    outline.Color.ToColor(),
+                    checked((float)(outline.Width * semantic.Scale * physicalScale)))
+                { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round };
+                graphics.DrawPath(pen, localPath);
+            }
+            return new(target, clip.Location);
+        }
+        catch
+        {
+            target.Dispose();
+            throw;
         }
     }
 
@@ -647,6 +813,59 @@ internal sealed class ThemeDynamicRasterizer
         return Colorize(alpha, size.Width, size.Height, shadow.Color);
     }
 
+    private static ShadowSprite RenderShadowSprite(
+        GraphicsPath source,
+        NormalizedOutlineStyle? outline,
+        NormalizedShadowStyle shadow,
+        double scale,
+        float physicalScale,
+        Rectangle clip,
+        Size canvas)
+    {
+        int radius = checked((int)Math.Ceiling(3d * shadow.Blur * scale * physicalScale));
+        Rectangle region = clip;
+        region.Inflate(radius + 2, radius + 2);
+        region.Intersect(new Rectangle(Point.Empty, canvas));
+        var mask = new Bitmap(region.Width, region.Height, PixelFormat.Format32bppPArgb);
+        try
+        {
+            using (Graphics graphics = Graphics.FromImage(mask))
+            {
+                graphics.Clear(Color.Transparent);
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using GraphicsPath shifted = (GraphicsPath)source.Clone();
+                using var move = new Matrix();
+                move.Translate(
+                    checked((float)(shadow.OffsetX * scale * physicalScale - region.X)),
+                    checked((float)(shadow.OffsetY * scale * physicalScale - region.Y)));
+                shifted.Transform(move);
+                using var brush = new SolidBrush(Color.White);
+                graphics.FillPath(brush, shifted);
+                if (outline is { Color.IsVisible: true, Width: > 0d })
+                {
+                    using var pen = new Pen(
+                        Color.White,
+                        checked((float)(outline.Width * scale * physicalScale)))
+                    { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round };
+                    graphics.DrawPath(pen, shifted);
+                }
+            }
+            byte[] alpha = ReadAlpha(mask);
+            if (radius > 0)
+                alpha = GaussianBlur(
+                    alpha,
+                    region.Width,
+                    region.Height,
+                    shadow.Blur * scale * physicalScale,
+                    radius);
+            return new(Colorize(alpha, region.Width, region.Height, shadow.Color), region.Location);
+        }
+        finally
+        {
+            mask.Dispose();
+        }
+    }
+
     private static byte[] ReadAlpha(Bitmap bitmap)
     {
         Rectangle rect = new(0,0,bitmap.Width,bitmap.Height);
@@ -697,5 +916,10 @@ internal sealed class ThemeDynamicRasterizer
         }
         finally { bitmap.UnlockBits(data); }
         return bitmap;
+    }
+
+    private sealed record ShadowSprite(Bitmap Bitmap, Point Location) : IDisposable
+    {
+        public void Dispose() => Bitmap.Dispose();
     }
 }
