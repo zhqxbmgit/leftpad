@@ -17,7 +17,7 @@ public sealed class Radial8MinimalProductionIntegrationTests
     private const string ExpectedSelectedSha =
         "2516E30C60E8727AC6F173B8828708B454A9CC79A973BF6664180FB36D75A301";
     private const string ExpectedLayoutSha =
-        "4028D56EC789E0CED3514DAFD357FD160223BCDEF7082F1F2B3B31D2219CE4E1";
+        "2F280343D2DDA145EFC64AE45ECDA1459417471E6E3BE40A1F3650F58D44254A";
 
     [Fact]
     public void ProductionCatalog_ContainsOnlyTheReleasedRadialPacks()
@@ -59,7 +59,7 @@ public sealed class Radial8MinimalProductionIntegrationTests
             definition.LayoutDefinition.Slots.Select(slot => slot.AngleDegrees));
         Assert.Equal(ExpectedBaseSha, Sha256(definition.BasePath));
         Assert.Equal(ExpectedSelectedSha, Sha256(definition.SelectedPath));
-        Assert.Equal(ExpectedLayoutSha, Sha256(definition.LayoutPath));
+        Assert.Equal(ExpectedLayoutSha, CanonicalAssetHash.JsonSha256(definition.LayoutPath));
     }
 
     [Fact]

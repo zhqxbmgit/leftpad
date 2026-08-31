@@ -69,7 +69,7 @@ public sealed class ReferenceThemeRuntimePhase1BaselineTests
             $"{definition.LayoutDefinition.WheelCenter.X:0.####},{definition.LayoutDefinition.WheelCenter.Y:0.####}"));
         lines.Add($"SOURCE|{packId}|base|{FileSha256(definition.BasePath)}");
         lines.Add($"SOURCE|{packId}|selected|{FileSha256(definition.SelectedPath)}");
-        lines.Add($"SOURCE|{packId}|layout|{FileSha256(definition.LayoutPath)}");
+        lines.Add($"SOURCE|{packId}|layout|{CanonicalAssetHash.JsonSha256(definition.LayoutPath)}");
 
         foreach (int dpi in Dpis)
         {

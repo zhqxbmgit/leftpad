@@ -285,13 +285,13 @@ public sealed class ReferenceThemeRuntimePhase1Tests
     }
 
     [Theory]
-    [InlineData("radial-8-minimal-v1/manifest.json", "65512BACF70A0F3CAEE646309467DCB11B7E02118D2E012B700887340CD46986")]
+    [InlineData("radial-8-minimal-v1/manifest.json", "9F04EEECFD1D65C2E5EBF627BE9194658D8FEF3891D940A6827D8197FC2FAD95")]
     [InlineData("radial-8-minimal-v1/radial-base.png", "86236F861751A1A8944191E5F8BDC49B3096133DAF23CD588340163CCDF7DFF8")]
-    [InlineData("radial-8-minimal-v1/radial-layout.json", "4028D56EC789E0CED3514DAFD357FD160223BCDEF7082F1F2B3B31D2219CE4E1")]
+    [InlineData("radial-8-minimal-v1/radial-layout.json", "2F280343D2DDA145EFC64AE45ECDA1459417471E6E3BE40A1F3650F58D44254A")]
     [InlineData("radial-8-minimal-v1/radial-selected-card.png", "2516E30C60E8727AC6F173B8828708B454A9CC79A973BF6664180FB36D75A301")]
     [InlineData("radial-v5/manifest.json", "48630FF7FF3D1C51C8D1C62808CE8B7EB1E8D35109FC5220126025A5B393CFA7")]
     [InlineData("radial-v5/radial-base-v5.png", "FBB0B269DF351FC11357F154281E1F9D9D5ECFC637CF3068DAB3D059E1BD6A84")]
-    [InlineData("radial-v5/radial-layout-v5.json", "58C489F4C2463B94FB83E5D8EDFFACA7E178E0BFC6A4F481AEE615FCF06833A5")]
+    [InlineData("radial-v5/radial-layout-v5.json", "87EB85AE678C26E44C624CC8D612C747457E5A3225C4F85B738F505D1C6A68CF")]
     [InlineData("radial-v5/radial-selected-card-v5.png", "34A73FB156369E7A4F0A8AE6B95B9114ACF4114BB057083596FAECCBDF0CCB62")]
     public void ProductionPackFile_MatchesFrozenSha256(string relativePath, string expectedSha)
     {
@@ -299,7 +299,10 @@ public sealed class ReferenceThemeRuntimePhase1Tests
             RadialVisualPackContract.DiscoveryRoot,
             relativePath.Replace('/', Path.DirectorySeparatorChar));
 
-        Assert.Equal(expectedSha, Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))));
+        string actualSha = string.Equals(Path.GetExtension(path), ".json", StringComparison.OrdinalIgnoreCase)
+            ? CanonicalAssetHash.JsonSha256(path)
+            : Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+        Assert.Equal(expectedSha, actualSha);
     }
 
     [Fact]

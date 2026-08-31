@@ -628,15 +628,13 @@ public sealed class UniversalProductionAcceptanceTests
         foreach (string themeId in Themes)
         {
             string mainPath = Path.Combine(ArtifactRoot, $"review-{themeId}-matrix-dpi96.png");
-            if (!File.Exists(mainPath))
-                CreateMainReviewSheet(mainPath, catalog, discovered, builder, themeId);
+            CreateMainReviewSheet(mainPath, catalog, discovered, builder, themeId);
             ReviewArtifact main = Review(mainPath);
             Assert.Equal(1920, main.Width);
             Assert.Equal(1080, main.Height);
             artifacts.Add(main);
             string highDpiPath = Path.Combine(ArtifactRoot, $"review-{themeId}-scale140-font48-dpi192.png");
-            if (!File.Exists(highDpiPath))
-                CreateHighDpiReview(highDpiPath, catalog, discovered, builder, themeId);
+            CreateHighDpiReview(highDpiPath, catalog, discovered, builder, themeId);
             ReviewArtifact highDpi = Review(highDpiPath);
             Assert.Equal(1600, highDpi.Width);
             Assert.Equal(820, highDpi.Height);
@@ -1093,7 +1091,7 @@ public sealed class UniversalProductionAcceptanceTests
             using CandidateHarness candidate = BuildCandidate(catalog, settings, 96, builder);
             Rectangle cell = new(column * cellWidth, row * cellHeight, cellWidth, cellHeight);
             graphics.DrawRectangle(linePen, cell.X, cell.Y, cell.Width - 1, cell.Height - 1);
-            graphics.DrawString(
+            ReviewSheetCaption.Draw(graphics,
                 $"{themeId} | Scale {scale} | Font {font} | DPI 96 | Mapping B",
                 captionFont,
                 captionBrush,
@@ -1134,7 +1132,7 @@ public sealed class UniversalProductionAcceptanceTests
             MappingAuthority.Mixed,
             entry.LayoutDefinition.SlotCount);
         using CandidateHarness candidate = BuildCandidate(catalog, settings, 192, builder);
-        graphics.DrawString(
+        ReviewSheetCaption.Draw(graphics,
             $"{themeId} | Scale 140 | Font 48 | DPI 192 | Mapping B",
             captionFont,
             brush,
@@ -1183,7 +1181,7 @@ public sealed class UniversalProductionAcceptanceTests
             int drawHeight = Math.Max(1, (int)Math.Round(source.Height * scale));
             int drawX = x + (width - drawWidth) / 2;
             int drawY = bounds.Y + labelHeight + (availableHeight - drawHeight) / 2;
-            graphics.DrawString(label, labelFont, brush, x + 4, bounds.Y + 1);
+            ReviewSheetCaption.Draw(graphics, label, labelFont, brush, x + 4, bounds.Y + 1);
             graphics.DrawImage(source, new Rectangle(drawX, drawY, drawWidth, drawHeight));
         }
     }

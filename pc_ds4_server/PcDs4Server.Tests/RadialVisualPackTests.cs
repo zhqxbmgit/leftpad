@@ -12,7 +12,7 @@ public sealed class RadialVisualPackTests
     private const string ExpectedSelectedSha =
         "34A73FB156369E7A4F0A8AE6B95B9114ACF4114BB057083596FAECCBDF0CCB62";
     private const string ExpectedLayoutSha =
-        "58C489F4C2463B94FB83E5D8EDFFACA7E178E0BFC6A4F481AEE615FCF06833A5";
+        "87EB85AE678C26E44C624CC8D612C747457E5A3225C4F85B738F505D1C6A68CF";
 
     [Fact]
     public void ProductionPack_LoadsApprovedManifestAndLayout()
@@ -109,7 +109,7 @@ public sealed class RadialVisualPackTests
 
         Assert.Equal(ExpectedBaseSha, Sha256(pack.BasePath));
         Assert.Equal(ExpectedSelectedSha, Sha256(pack.SelectedPath));
-        Assert.Equal(ExpectedLayoutSha, Sha256(pack.LayoutPath));
+        Assert.Equal(ExpectedLayoutSha, CanonicalAssetHash.JsonSha256(pack.LayoutPath));
     }
 
     [Theory]
