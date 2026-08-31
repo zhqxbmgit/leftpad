@@ -34,7 +34,7 @@ public sealed class NativeReceiverProductionTests
             }
             Assert.Empty(form.OwnedForms);
             Assert.Equal(fixture.OriginalBytes, File.ReadAllBytes(fixture.Store.Path));
-            // Existing binding-editor initialization saves defaults through the injected memory store.
+            Assert.Equal(0, fixture.Keyboard.SaveCalls);
             Assert.All(KeyboardBindings.ProtocolActions,
                 action => Assert.Equal(KeyboardKey.None, fixture.Keyboard.Load().Get(action)));
         });

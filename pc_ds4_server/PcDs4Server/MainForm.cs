@@ -349,6 +349,9 @@ namespace PcDs4Server
                 {
                     Name = $"bindingEditor_{action}",
                     DropDownStyle = ComboBoxStyle.DropDownList,
+                    // Bind before assigning the loaded selection, while initialization is guarded.
+                    // An inherited context can defer binding until HWND creation and reset it.
+                    BindingContext = new BindingContext(),
                     Dock = DockStyle.Fill,
                     Margin = new Padding(0, 4, 12, 4)
                 };
