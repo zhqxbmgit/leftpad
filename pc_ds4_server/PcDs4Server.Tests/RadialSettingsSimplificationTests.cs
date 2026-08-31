@@ -74,98 +74,72 @@ public sealed class RadialSettingsSimplificationTests
     }
 
     [Fact]
-    public void DreamscapeFontEdit_PreservesAllHiddenFieldsAndMappingProfiles()
+    public void NativeFontEdit_PreservesAllHiddenFieldsAndMappingProfiles()
     {
-        RadialMenuSettings initial = SettingsWithHiddenValues(2);
-        RadialMenuSettings active = initial;
-        var session = new DreamscapeSettingsBasicSession(
-            () => active,
-            () => new RadialVisualPackCatalog().Discover(),
-            _ => { },
-            _ => { },
-            () => { },
-            settings =>
-            {
-                active = settings;
-                return (true, string.Empty);
-            },
-            _ => { });
-        session.Activate();
+        RunInSta(() =>
+        {
+            RadialMenuSettings initial = SettingsWithHiddenValues(2);
+            using var temporary = new TemporarySettingsPath();
+            using var controller = new RadialMenuController(new FakeOverlay(), initial);
+            using var control = new RadialMenuSettingsControl(controller,
+                new RadialMenuSettingsStore(temporary.FilePath), controller.ApplySettings, _ => { });
+            Find<NumericUpDown>(control, "fontSize").Value = 16.5m;
 
-        var message = new ReceiverSettingsMessage(
-            ReceiverSettingsCommand.BasicChange,
-            SettingsBasicFields.FontSize,
-            DecimalValue: 16.5m);
-        Assert.True(session.TryApplyChange(message, out string changeError), changeError);
-        AssertOnlyFontChanged(initial, session.Draft, 16.5f);
-        Assert.True(session.ApplyAndSave(out string saveError), saveError);
-        AssertOnlyFontChanged(initial, active, 16.5f);
+            Assert.True(control.TryReadSettingsForTesting(out RadialMenuSettings draft));
+            AssertOnlyFontChanged(initial, draft, 16.5f);
+            Assert.True(control.TryApplyAndSave(showDialog: false));
+            AssertOnlyFontChanged(initial, controller.ConfiguredSettings, 16.5f);
+        });
     }
 
     [Fact]
     public void ThemeSwitch_UsesAuthoritativeProfileAndPreservesBothProfileMappings()
     {
-        RadialMenuSettings active = SettingsWithHiddenValues(1);
-        var session = new DreamscapeSettingsBasicSession(
-            () => active,
-            () => new RadialVisualPackCatalog().Discover(),
-            _ => { },
-            _ => { },
-            () => { },
-            settings =>
-            {
-                active = settings;
-                return (true, string.Empty);
-            },
-            _ => { });
-        session.Activate();
-        RadialSlotMappings radial6Before = active.GetProfileMappings("radial-6");
-        RadialSlotMappings radial8Before = active.GetProfileMappings("radial-8");
+        RunInSta(() =>
+        {
+            RadialMenuSettings initial = SettingsWithHiddenValues(1);
+            using var temporary = new TemporarySettingsPath();
+            using var controller = new RadialMenuController(new FakeOverlay(), initial);
+            using var control = new RadialMenuSettingsControl(controller,
+                new RadialMenuSettingsStore(temporary.FilePath), controller.ApplySettings, _ => { });
+            ComboBox theme = Find<ComboBox>(control, "visualPack");
+            theme.SelectedItem = theme.Items.Cast<RadialVisualPackCatalogEntry>()
+                .Single(pack => pack.Id == "radial-8-minimal-v1");
 
-        var message = new ReceiverSettingsMessage(
-            ReceiverSettingsCommand.BasicChange,
-            SettingsBasicFields.VisualPackId,
-            "radial-8-minimal-v1");
-        Assert.True(session.TryApplyChange(message, out string error), error);
-
-        Assert.Equal("radial-8", session.Draft.MappingProfileId);
-        Assert.Equal(radial6Before, session.Draft.GetProfileMappings("radial-6"));
-        Assert.Equal(radial8Before, session.Draft.GetProfileMappings("radial-8"));
+            Assert.True(control.TryReadSettingsForTesting(out RadialMenuSettings draft));
+            Assert.Equal("radial-8", draft.MappingProfileId);
+            Assert.Equal(initial.GetProfileMappings("radial-6"), draft.GetProfileMappings("radial-6"));
+            Assert.Equal(initial.GetProfileMappings("radial-8"), draft.GetProfileMappings("radial-8"));
+        });
     }
 
     [Fact]
     public void RestoreDefaults_ResetsHiddenFieldsAndProducesNoneMappingsForKnownProfiles()
     {
-        RadialMenuSettings active = SettingsWithHiddenValues(2);
-        int saves = 0;
-        var session = new DreamscapeSettingsBasicSession(
-            () => active,
-            () => new RadialVisualPackCatalog().Discover(),
-            _ => { },
-            _ => { },
-            () => { },
-            settings =>
-            {
-                saves++;
-                active = settings;
-                return (true, string.Empty);
-            },
-            _ => { });
-        session.Activate();
+        RunInSta(() =>
+        {
+            RadialMenuSettings initial = SettingsWithHiddenValues(2);
+            using var temporary = new TemporarySettingsPath();
+            using var controller = new RadialMenuController(new FakeOverlay(), initial);
+            using var control = new RadialMenuSettingsControl(controller,
+                new RadialMenuSettingsStore(temporary.FilePath), controller.ApplySettings, _ => { });
 
-        session.RestoreDefault();
+            NativeReceiverTestThread.Click(control, "restoreDefaultSettingsButton");
 
-        Assert.Equal(RadialMenuSettings.Default.NormalizeMappings(), session.Draft);
-        Assert.Equal(RadialMenuSettings.Default.FillAlpha, session.Draft.FillAlpha);
-        Assert.Equal(RadialMenuSettings.Default.BorderAlpha, session.Draft.BorderAlpha);
-        Assert.Equal(RadialMenuSettings.Default.TextRadius, session.Draft.TextRadius);
-        Assert.Equal(RadialMenuSettings.Default.SelectionPollIntervalMs,
-            session.Draft.SelectionPollIntervalMs);
-        Assert.All(session.Draft.GetProfileMappings("radial-6"),
-            mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
-        Assert.All(session.Draft.GetProfileMappings("radial-8"),
-            mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
-        Assert.Equal(0, saves);
+            Assert.True(control.TryReadSettingsForTesting(out RadialMenuSettings draft));
+            Assert.Equal(RadialMenuSettings.Default.SetProfileMappings("radial-8",
+                RadialSlotMappings.Create(8)).NormalizeMappings(), draft);
+            Assert.Equal(RadialMenuSettings.Default.FillAlpha, draft.FillAlpha);
+            Assert.Equal(RadialMenuSettings.Default.BorderAlpha, draft.BorderAlpha);
+            Assert.Equal(RadialMenuSettings.Default.TextRadius, draft.TextRadius);
+            Assert.Equal(RadialMenuSettings.Default.SelectionPollIntervalMs, draft.SelectionPollIntervalMs);
+            Assert.All(draft.GetProfileMappings("radial-6"),
+                mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
+            Assert.All(draft.GetProfileMappings("radial-8"),
+                mapping => Assert.Equal(RadialActionKind.None, mapping.Kind));
+            Assert.Equal(initial, controller.ConfiguredSettings);
+            Assert.False(File.Exists(temporary.FilePath));
+        });
     }
 
     [Fact]
@@ -397,76 +371,6 @@ public sealed class RadialSettingsSimplificationTests
         Assert.Equal(16, RadialMenuSettings.Default.SelectionPollIntervalMs);
     }
 
-    [Fact]
-    public void DreamscapeMarkupAndBindings_ExposeOnlyTheSimplifiedFieldSet()
-    {
-        string html = Frontend("index.html");
-        string script = Frontend("app.js");
-        string styles = Frontend("styles.css");
-
-        Assert.Contains("data-field=\"visualPackId\"", html);
-        Assert.Contains("data-field=\"overallSizePercent\"", html);
-        Assert.Contains("data-field=\"fontSize\"", html);
-        Assert.Contains("data-field=\"doubleTapWindowMs\"", html);
-        Assert.Contains("data-field=\"selectionDeadZone\"", html);
-        Assert.Contains("data-field=\"receiverUiScalePercent\"", html);
-        Assert.Contains("数值越大，第二次点击允许的间隔越长。", html);
-        Assert.Contains("仅调整接收器窗口，不改变环形菜单画面。", html);
-        Assert.DoesNotContain("showSettingsAdvanced", html);
-        Assert.DoesNotContain("advanced-form", html);
-        Assert.DoesNotContain("selectedIntensity", html + script);
-        Assert.DoesNotContain("petalOpacity", html + script);
-        Assert.DoesNotContain("borderOpacity", html + script);
-        Assert.DoesNotContain("textOpacity", html + script);
-        Assert.DoesNotContain("selectionPollIntervalMs", html + script);
-        Assert.DoesNotContain("postAdvancedChange", script);
-        Assert.DoesNotContain("data-section=\"advanced\"", styles);
-    }
-
-    [Theory]
-    [InlineData("selectedIntensity")]
-    [InlineData("petalOpacity")]
-    [InlineData("borderOpacity")]
-    [InlineData("textOpacity")]
-    [InlineData("canvasSize")]
-    [InlineData("centerRadius")]
-    [InlineData("petalInnerRadius")]
-    [InlineData("petalOuterRadius")]
-    [InlineData("textRadius")]
-    [InlineData("petalGapDegrees")]
-    [InlineData("selectionPollIntervalMs")]
-    public void RemovedDreamscapeField_HasNoMarkupOrJavascriptBinding(string field)
-    {
-        string frontend = Frontend("index.html") + Frontend("app.js");
-
-        Assert.DoesNotContain(field, frontend, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void DreamscapeStateAndCommandContracts_DoNotExposeAdvancedOrRawHighlightControls()
-    {
-        RadialMenuSettings active = SettingsWithHiddenValues(null);
-        var session = new DreamscapeSettingsBasicSession(
-            () => active,
-            () => new RadialVisualPackCatalog().Discover(),
-            _ => { },
-            _ => { },
-            () => { },
-            _ => (true, string.Empty),
-            _ => { });
-        session.Activate();
-        string state = session.CreateState("ready").ToJson();
-
-        Assert.DoesNotContain("advancedFields", state);
-        Assert.DoesNotContain("selectedIntensity", state);
-        Assert.DoesNotContain("highlightAlpha", state);
-        Assert.DoesNotContain("petalOpacity", state);
-        Assert.DoesNotContain("borderOpacity", state);
-        Assert.DoesNotContain("textOpacity", state);
-        Assert.DoesNotContain("settingsAdvancedChange", ReceiverSettingsCommandAllowList.AllowedNames);
-        Assert.DoesNotContain("showSettingsAdvanced", ReceiverSettingsCommandAllowList.AllowedNames);
-    }
-
     private static RadialMenuSettings SettingsWithHiddenValues(int? revisionValue)
     {
         RadialSettingsSemanticRevision? revision = revisionValue.HasValue
@@ -521,9 +425,6 @@ public sealed class RadialSettingsSimplificationTests
         Assert.Equal(initial.GetProfileMappings("radial-6"), actual.GetProfileMappings("radial-6"));
         Assert.Equal(initial.GetProfileMappings("radial-8"), actual.GetProfileMappings("radial-8"));
     }
-
-    private static string Frontend(string file) =>
-        File.ReadAllText(Path.Combine(DreamscapeSettingsFeature.AssetDirectory, file));
 
     private static CompactLayoutSnapshot CaptureCompactLayout()
     {

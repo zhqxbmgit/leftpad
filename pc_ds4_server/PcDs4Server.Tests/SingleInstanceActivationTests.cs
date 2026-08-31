@@ -220,7 +220,7 @@ public sealed class SingleInstanceActivationTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true);
+            using var fixture = new MainFormFixture();
             fixture.Form.Show();
             fixture.Form.Hide();
 
@@ -239,7 +239,7 @@ public sealed class SingleInstanceActivationTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true);
+            using var fixture = new MainFormFixture();
             fixture.Form.Show();
             MainForm original = fixture.Form;
 
@@ -257,7 +257,7 @@ public sealed class SingleInstanceActivationTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true);
+            using var fixture = new MainFormFixture();
             fixture.Form.Show();
             fixture.Form.WindowState = FormWindowState.Minimized;
 
@@ -273,7 +273,7 @@ public sealed class SingleInstanceActivationTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true);
+            using var fixture = new MainFormFixture();
             fixture.Form.Show();
             fixture.Form.WindowState = FormWindowState.Maximized;
 
@@ -283,14 +283,12 @@ public sealed class SingleInstanceActivationTests
         });
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void TrayHiddenMainForm_IsRestoredAsNativeRegardlessOfLegacyOverride(bool nativeUi)
+    [Fact]
+    public void TrayHiddenMainForm_IsRestoredAsNative()
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi);
+            using var fixture = new MainFormFixture();
             fixture.Form.Show();
             fixture.Form.Hide();
             Assert.False(fixture.Form.Visible);
@@ -299,22 +297,19 @@ public sealed class SingleInstanceActivationTests
 
             Assert.True(fixture.Form.Visible);
             Assert.NotEqual(FormWindowState.Minimized, fixture.Form.WindowState);
-            Assert.Null(fixture.Form.DreamscapeOverviewHost);
+            Assert.True(Field<System.Windows.Forms.Control>(fixture.Form, "_overviewCards").Visible);
         });
     }
 
     [Theory]
-    [InlineData("Settings", true)]
-    [InlineData("Log", true)]
-    [InlineData("Gamepad", true)]
-    [InlineData("Settings", false)]
-    [InlineData("Log", false)]
-    [InlineData("Gamepad", false)]
-    public void TrayRestore_PreservesCurrentPage(string pageName, bool nativeUi)
+    [InlineData("Settings")]
+    [InlineData("Log")]
+    [InlineData("Gamepad")]
+    public void TrayRestore_PreservesCurrentPage(string pageName)
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi);
+            using var fixture = new MainFormFixture();
             FieldInfo pageField = Assert.IsAssignableFrom<FieldInfo>(
                 typeof(MainForm).GetField("_currentPage", PrivateInstance));
             object requestedPage = Enum.Parse(pageField.FieldType, pageName);
@@ -335,7 +330,7 @@ public sealed class SingleInstanceActivationTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true);
+            using var fixture = new MainFormFixture();
             fixture.Form.Show();
             fixture.Form.Hide();
             NotifyIcon trayBefore = Field<NotifyIcon>(fixture.Form, "_notifyIcon");
@@ -353,7 +348,7 @@ public sealed class SingleInstanceActivationTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true);
+            using var fixture = new MainFormFixture();
             _ = fixture.Form.Handle;
             fixture.Form.Dispose();
 
@@ -410,16 +405,8 @@ public sealed class SingleInstanceActivationTests
 
     private sealed class MainFormFixture : IDisposable
     {
-        private readonly string? _originalNativeUi;
-
-        public MainFormFixture(bool nativeUi)
+        public MainFormFixture()
         {
-            _originalNativeUi = Environment.GetEnvironmentVariable(
-                ReceiverFrontendPolicy.NativeUiEnvironmentVariable);
-            Environment.SetEnvironmentVariable(
-                ReceiverFrontendPolicy.NativeUiEnvironmentVariable,
-                nativeUi ? "1" : null);
-
             Factory = new FakeDirectDs4Factory();
             var service = new Ds4Service(
                 Factory,
@@ -442,9 +429,6 @@ public sealed class SingleInstanceActivationTests
         {
             Form.Dispose();
             Service.Dispose();
-            Environment.SetEnvironmentVariable(
-                ReceiverFrontendPolicy.NativeUiEnvironmentVariable,
-                _originalNativeUi);
         }
     }
 

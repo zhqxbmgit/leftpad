@@ -4,6 +4,7 @@ using Xunit;
 
 namespace PcDs4Server.Tests;
 
+[Collection("Radial settings WinForms geometry")]
 public sealed class AtomicSettingsPersistenceTests
 {
     [Fact]
@@ -233,45 +234,38 @@ public sealed class AtomicSettingsPersistenceTests
     }
 
     [Fact]
-    public void RadialDreamscapeFailure_PreservesDraftAndDirtyState()
+    public void RadialNativeSaveFailure_PreservesDraftForRetryAndExactStore()
     {
-        const string path = @"C:\isolated\radial.json";
-        var files = new MemoryAtomicFileOperations();
-        var store = new RadialMenuSettingsStore(path, files);
-        Assert.True(store.TrySave(RadialMenuSettings.Default, out string initialError), initialError);
-        files.FailNextReplace = true;
-        using var controller = Controller(RadialMenuSettings.Default);
-        var session = new DreamscapeSettingsBasicSession(
-            () => controller.ActiveSettings,
-            () => new RadialVisualPackCatalog().Discover(),
-            _ => { },
-            _ => { },
-            () => { },
-            draft =>
-            {
-                bool success = RadialMenuSettingsPersistence.TryApplyAndSave(
-                    controller,
-                    store,
-                    draft,
-                    controller.ApplySettings,
-                    out string saveError);
-                return (success, saveError);
-            },
-            _ => { });
-        session.Activate();
-        Assert.True(session.TryApplyChange(
-            new ReceiverSettingsMessage(
-                ReceiverSettingsCommand.BasicChange,
-                SettingsBasicFields.OverallSizePercent,
-                IntegerValue: 101),
-            out string changeError), changeError);
+        NativeReceiverTestThread.Run(() =>
+        {
+            const string path = @"C:\isolated\radial.json";
+            var files = new MemoryAtomicFileOperations();
+            var store = new RadialMenuSettingsStore(path, files);
+            Assert.True(store.TrySave(RadialMenuSettings.Default, out string initialError), initialError);
+            byte[] originalBytes = files.GetBytes(path);
+            files.FailNextReplace = true;
+            using var controller = Controller(RadialMenuSettings.Default);
+            var logs = new List<string>();
+            using var control = new RadialMenuSettingsControl(controller, store, controller.ApplySettings, logs.Add);
+            var scale = Assert.IsType<System.Windows.Forms.NumericUpDown>(
+                Assert.Single(control.Controls.Find("scalePercent", true)));
+            scale.Value = 101;
 
-        Assert.False(session.ApplyAndSave(out string error));
-        Assert.Contains("injected replace failure", error);
-        Assert.True(session.IsDirty);
-        Assert.Equal(101, session.Draft.ScalePercent);
-        Assert.Equal(100, controller.ActiveSettings.ScalePercent);
-        Assert.Equal(100, store.Load().Settings.ScalePercent);
+            Assert.False(control.TryApplyAndSave(showDialog: false));
+
+            Assert.Contains(logs, line => line.Contains("injected replace failure", StringComparison.Ordinal));
+            Assert.True(control.TryReadSettingsForTesting(out RadialMenuSettings draft));
+            Assert.Equal(101, draft.ScalePercent);
+            Assert.Equal(100, controller.ConfiguredSettings.ScalePercent);
+            Assert.Equal(originalBytes, files.GetBytes(path));
+            AssertNoTransactionFiles(files);
+
+            Assert.True(control.TryApplyAndSave(showDialog: false));
+            Assert.Equal(101, controller.ConfiguredSettings.ScalePercent);
+            // Loading preserves the existing legacy radial-6 compatibility mapping.
+            Assert.Equal(draft.SetProfileMappings("radial-6", draft.GetProfileMappings("radial-6"))
+                .NormalizeMappings(), store.Load().Settings.NormalizeMappings());
+        });
     }
 
     [Fact]

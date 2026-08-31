@@ -17,14 +17,13 @@ public sealed class RuntimeUiStateCorrectionTests
     public RuntimeUiStateCorrectionTests(ITestOutputHelper output) => _output = output;
 
     [Fact]
-    public void TriangleDown_Stop_ReleasesOutputAndResetsNativeAndDreamscapeProjections()
+    public void TriangleDown_Stop_ReleasesOutputAndResetsNativePresentation()
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true, initializeDirectDs4: true);
+            using var fixture = new MainFormFixture(initializeDirectDs4: true);
             fixture.Service.ProcessProtocolAction("triangle", "down");
             Assert.True(ButtonStates(fixture.Form)["triangle"]);
-            Assert.True(ControllerState(fixture.Form).TrianglePressed);
 
             fixture.Service.Stop();
 
@@ -43,7 +42,7 @@ public sealed class RuntimeUiStateCorrectionTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: false);
+            using var fixture = new MainFormFixture();
             fixture.Service.ProcessProtocolAction("triangle", "down");
             fixture.Service.ProcessProtocolAction("cross", "down");
             fixture.Service.ProcessProtocolAction("circle", "down");
@@ -60,16 +59,15 @@ public sealed class RuntimeUiStateCorrectionTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: false);
+            using var fixture = new MainFormFixture();
             fixture.Service.ProcessProtocolAction("cross", "down");
-            Assert.True(ControllerState(fixture.Form).CrossPressed);
+            Assert.True(ButtonStates(fixture.Form)["cross"]);
 
             fixture.Service.ReleaseAllControls(Ds4ControlResetReason.Disconnect);
-            Assert.False(ControllerState(fixture.Form).CrossPressed);
+            Assert.False(ButtonStates(fixture.Form)["cross"]);
 
             fixture.Service.ProcessProtocolAction("square", "down");
             Assert.True(ButtonStates(fixture.Form)["square"]);
-            Assert.True(ControllerState(fixture.Form).SquarePressed);
         });
     }
 
@@ -78,7 +76,7 @@ public sealed class RuntimeUiStateCorrectionTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true, initializeDirectDs4: true);
+            using var fixture = new MainFormFixture(initializeDirectDs4: true);
             fixture.Service.Start();
             fixture.Service.ProcessProtocolAction("circle", "down");
 
@@ -89,8 +87,8 @@ public sealed class RuntimeUiStateCorrectionTests
             AssertControllerButtonsNeutral(fixture.Form);
 
             fixture.Service.ProcessProtocolAction("triangle", "down");
-            Assert.True(ControllerState(fixture.Form).TrianglePressed);
-            Assert.False(ControllerState(fixture.Form).CirclePressed);
+            Assert.True(ButtonStates(fixture.Form)["triangle"]);
+            Assert.False(ButtonStates(fixture.Form)["circle"]);
         });
     }
 
@@ -99,15 +97,13 @@ public sealed class RuntimeUiStateCorrectionTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: false);
+            using var fixture = new MainFormFixture();
 
             fixture.Service.ProcessProtocolAction("triangle", "down");
             Assert.True(ButtonStates(fixture.Form)["triangle"]);
-            Assert.True(ControllerState(fixture.Form).TrianglePressed);
 
             fixture.Service.ProcessProtocolAction("triangle", "up");
             Assert.False(ButtonStates(fixture.Form)["triangle"]);
-            Assert.False(ControllerState(fixture.Form).TrianglePressed);
         });
     }
 
@@ -116,28 +112,24 @@ public sealed class RuntimeUiStateCorrectionTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: false);
-            Invoke(fixture.Form, "PublishDreamscapeControllerJoystickState", ActiveJoystickSnapshot());
-            ReceiverControllerState active = ControllerState(fixture.Form);
-            Assert.Equal("按住", active.MoveState);
-            Assert.Equal("实时", active.Mode);
-            Assert.Equal("是", active.DirectionCaptured);
+            using var fixture = new MainFormFixture();
+            var changed = (Action<VirtualJoystickSnapshot>)typeof(Ds4Service)
+                .GetField("OnJoystickStateChanged", PrivateInstance)!.GetValue(fixture.Service)!;
+            changed(ActiveJoystickSnapshot());
+            Label debug = Field<Label>(fixture.Form, "_joystickDebug");
+            string connection = Field<ModernStatusCard>(fixture.Form, "_cardPhone").Value;
+            Assert.Contains("MOVE：按住", debug.Text);
+            Assert.Contains("模式：实时", debug.Text);
+            Assert.Contains("本次按住已捕获方向：是", debug.Text);
 
             fixture.Service.Stop();
 
-            ReceiverControllerState reset = ControllerState(fixture.Form);
-            Assert.Equal("已释放", reset.MoveState);
-            Assert.Equal("已停止", reset.Mode);
-            Assert.Equal("未启用", reset.CursorSampling);
-            Assert.Equal("否", reset.DirectionCaptured);
-            Assert.Equal("否", reset.MoveLocked);
-            Assert.Equal("0.000 / 0.000", reset.CurrentDirection);
-            Assert.Equal("0.000 / 0.000", reset.LockedDirection);
-            Assert.Equal("0.000 / 0.000", reset.Joystick);
-            Assert.Equal("128 / 128", reset.Ds4);
-            Assert.Equal("- / -", reset.Center);
-            Assert.Equal("- / -", reset.Cursor);
-            Assert.Equal(active.ConnectionState, reset.ConnectionState);
+            foreach (string text in new[] { "MOVE：已释放", "模式：已停止", "光标采样：未启用",
+                "本次按住已捕获方向：否", "移动锁定：否", "当前方向：0.000 / 0.000",
+                "锁定方向：0.000 / 0.000", "摇杆：0.000 / 0.000", "DS4：128 / 128",
+                "中心：- / -", "当前光标：- / -" })
+                Assert.Contains(text, debug.Text);
+            Assert.Equal(connection, Field<ModernStatusCard>(fixture.Form, "_cardPhone").Value);
         });
     }
 
@@ -146,7 +138,7 @@ public sealed class RuntimeUiStateCorrectionTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true, initializeDirectDs4: true);
+            using var fixture = new MainFormFixture(initializeDirectDs4: true);
             fixture.Service.ProcessProtocolAction("triangle", "down");
             int outputEventsBeforePresentationReset = fixture.Factory.Session.TotalOutputEvents;
 
@@ -162,7 +154,7 @@ public sealed class RuntimeUiStateCorrectionTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true, initializeDirectDs4: true);
+            using var fixture = new MainFormFixture(initializeDirectDs4: true);
             fixture.Service.ProcessProtocolAction("triangle", "down");
             fixture.Factory.Session.ThrowOnButtonRelease = true;
 
@@ -178,7 +170,7 @@ public sealed class RuntimeUiStateCorrectionTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true);
+            using var fixture = new MainFormFixture();
             Assert.True(fixture.Service.TrySetOutputMode(OutputMode.Keyboard));
             KeyboardBindings bindings = fixture.Service.KeyboardBindings;
             bindings.Cross = KeyboardKey.Space;
@@ -199,7 +191,7 @@ public sealed class RuntimeUiStateCorrectionTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true);
+            using var fixture = new MainFormFixture();
             _ = fixture.Form.Handle;
             fixture.Service.ProcessProtocolAction("cross", "down");
             Assert.True(ButtonStates(fixture.Form)["cross"]);
@@ -231,30 +223,30 @@ public sealed class RuntimeUiStateCorrectionTests
         var buffer = new ReceiverLogBuffer();
         var stopwatch = Stopwatch.StartNew();
         for (int sequence = 1; sequence <= appended; sequence++)
-            buffer.Append($"line {sequence}");
+            buffer.AppendWithEviction($"line {sequence}");
 
-        ReceiverLogSnapshot snapshot = buffer.CreateSnapshot("等待连接");
-        string nativeText = NativeLogProjection.CreateText(snapshot);
+        IReadOnlyList<ReceiverLogEntry> entries = buffer.GetEntries();
+        string nativeText = NativeLogProjection.CreateText(entries);
         stopwatch.Stop();
 
-        Assert.Equal(expectedCount, snapshot.Entries.Count);
+        Assert.Equal(expectedCount, entries.Count);
         if (expectedCount == 0)
         {
             Assert.Empty(nativeText);
         }
         else
         {
-            Assert.Equal(expectedFirst, snapshot.Entries[0].SequenceId);
-            Assert.Equal(expectedLast, snapshot.Entries[^1].SequenceId);
-            Assert.Equal($"line {expectedFirst}", snapshot.Entries[0].RawText);
-            Assert.Equal($"line {expectedLast}", snapshot.Entries[^1].RawText);
+            Assert.Equal(expectedFirst, entries[0].SequenceId);
+            Assert.Equal(expectedLast, entries[^1].SequenceId);
+            Assert.Equal($"line {expectedFirst}", entries[0].RawText);
+            Assert.Equal($"line {expectedLast}", entries[^1].RawText);
             Assert.Equal(
-                string.Concat(snapshot.Entries.Select(entry => entry.RawText + Environment.NewLine)),
+                string.Concat(entries.Select(entry => entry.RawText + Environment.NewLine)),
                 nativeText);
         }
 
         _output.WriteLine(
-            $"append={appended}; count={snapshot.Entries.Count}; first={expectedFirst}; " +
+            $"append={appended}; count={entries.Count}; first={expectedFirst}; " +
             $"last={expectedLast}; elapsedMs={stopwatch.Elapsed.TotalMilliseconds:F3}");
     }
 
@@ -275,15 +267,15 @@ public sealed class RuntimeUiStateCorrectionTests
         ];
         var buffer = new ReceiverLogBuffer();
         foreach (string value in values)
-            buffer.Append(value);
+            buffer.AppendWithEviction(value);
 
-        ReceiverLogSnapshot snapshot = buffer.CreateSnapshot("已连接");
+        IReadOnlyList<ReceiverLogEntry> entries = buffer.GetEntries();
 
-        Assert.Equal(values, snapshot.Entries.Select(entry => entry.RawText));
-        Assert.Equal(2, snapshot.Entries.Count(entry => entry.RawText == "duplicate"));
+        Assert.Equal(values, entries.Select(entry => entry.RawText));
+        Assert.Equal(2, entries.Count(entry => entry.RawText == "duplicate"));
         Assert.Equal(
             string.Concat(values.Select(value => value + Environment.NewLine)),
-            NativeLogProjection.CreateText(snapshot));
+            NativeLogProjection.CreateText(entries));
     }
 
     [Fact]
@@ -291,7 +283,7 @@ public sealed class RuntimeUiStateCorrectionTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true);
+            using var fixture = new MainFormFixture();
             string[] specialValues =
             [
                 "duplicate",
@@ -308,12 +300,12 @@ public sealed class RuntimeUiStateCorrectionTests
             foreach (string value in specialValues)
                 Invoke(fixture.Form, "AppendLog", value);
 
-            ReceiverLogSnapshot snapshot = LogSnapshot(fixture.Form);
+            IReadOnlyList<ReceiverLogEntry> entries = LogEntries(fixture.Form);
             RichTextBox logBox = Field<RichTextBox>(fixture.Form, "_logBox");
-            Assert.Equal(specialValues, snapshot.Entries.TakeLast(specialValues.Length)
+            Assert.Equal(specialValues, entries.TakeLast(specialValues.Length)
                 .Select(entry => entry.RawText));
             Assert.Equal(
-                NativeLogProjection.CreateText(snapshot).Replace("\r\n", "\n", StringComparison.Ordinal),
+                NativeLogProjection.CreateText(entries).Replace("\r\n", "\n", StringComparison.Ordinal),
                 logBox.Text);
         });
     }
@@ -323,11 +315,7 @@ public sealed class RuntimeUiStateCorrectionTests
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: true);
-            Assert.Null(fixture.Form.DreamscapeOverviewHost);
-            Assert.Null(fixture.Form.DreamscapeSettingsHost);
-            Assert.Null(fixture.Form.DreamscapeControllerHost);
-            Assert.Null(fixture.Form.DreamscapeLogsHost);
+            using var fixture = new MainFormFixture();
             fixture.Form.Show();
             Assert.True(fixture.Form.IsHandleCreated);
             Assert.True(fixture.Form.Enabled);
@@ -355,27 +343,25 @@ public sealed class RuntimeUiStateCorrectionTests
     }
 
     [Fact]
-    public void DormantDreamscapeProjection_UsesSameBoundedSourcesWithoutHosts()
+    public void NativeLogs_BeforeHandleCreationUseTheSameBoundedBuffer()
     {
         RunInSta(() =>
         {
-            using var fixture = new MainFormFixture(nativeUi: false);
-            Assert.Null(fixture.Form.DreamscapeControllerHost);
-            Assert.Null(fixture.Form.DreamscapeLogsHost);
+            using var fixture = new MainFormFixture();
 
             for (int sequence = 1; sequence <= 1000; sequence++)
-                Invoke(fixture.Form, "AppendLog", $"dreamscape line {sequence}");
-            ReceiverLogSnapshot snapshot = LogSnapshot(fixture.Form);
+                Invoke(fixture.Form, "AppendLog", $"native line {sequence}");
+            IReadOnlyList<ReceiverLogEntry> entries = LogEntries(fixture.Form);
             RichTextBox logBox = Field<RichTextBox>(fixture.Form, "_logBox");
-            Assert.Equal(300, snapshot.Entries.Count);
-            Assert.Equal("dreamscape line 701", snapshot.Entries[0].RawText);
-            Assert.Equal("dreamscape line 1000", snapshot.Entries[^1].RawText);
+            Assert.Equal(300, entries.Count);
+            Assert.Equal("native line 701", entries[0].RawText);
+            Assert.Equal("native line 1000", entries[^1].RawText);
             Assert.Equal(
-                NativeLogProjection.CreateText(snapshot).Replace("\r\n", "\n", StringComparison.Ordinal),
+                NativeLogProjection.CreateText(entries).Replace("\r\n", "\n", StringComparison.Ordinal),
                 logBox.Text);
 
             fixture.Service.ProcessProtocolAction("cross", "down");
-            Assert.True(ControllerState(fixture.Form).CrossPressed);
+            Assert.True(ButtonStates(fixture.Form)["cross"]);
             fixture.Service.ReleaseAllControls(Ds4ControlResetReason.Disconnect);
             AssertControllerButtonsNeutral(fixture.Form);
         });
@@ -383,35 +369,27 @@ public sealed class RuntimeUiStateCorrectionTests
 
     private static void AssertNativeLogWindow(MainForm form, int expectedFirst, int expectedLast)
     {
-        ReceiverLogSnapshot snapshot = LogSnapshot(form);
+        IReadOnlyList<ReceiverLogEntry> entries = LogEntries(form);
         RichTextBox logBox = Field<RichTextBox>(form, "_logBox");
 
-        Assert.Equal(ReceiverLogBuffer.MaximumEntries, snapshot.Entries.Count);
-        Assert.Equal($"runtime line {expectedFirst}", snapshot.Entries[0].RawText);
-        Assert.Equal($"runtime line {expectedLast}", snapshot.Entries[^1].RawText);
+        Assert.Equal(ReceiverLogBuffer.MaximumEntries, entries.Count);
+        Assert.Equal($"runtime line {expectedFirst}", entries[0].RawText);
+        Assert.Equal($"runtime line {expectedLast}", entries[^1].RawText);
         Assert.Equal(
-            NativeLogProjection.CreateText(snapshot).Replace("\r\n", "\n", StringComparison.Ordinal),
+            NativeLogProjection.CreateText(entries).Replace("\r\n", "\n", StringComparison.Ordinal),
             logBox.Text);
     }
 
     private static void AssertControllerButtonsNeutral(MainForm form)
     {
         Assert.All(ButtonStates(form), pair => Assert.False(pair.Value, pair.Key));
-        ReceiverControllerState state = ControllerState(form);
-        Assert.False(state.TrianglePressed);
-        Assert.False(state.SquarePressed);
-        Assert.False(state.CrossPressed);
-        Assert.False(state.CirclePressed);
     }
 
     private static Dictionary<string, bool> ButtonStates(MainForm form) =>
         Field<Dictionary<string, bool>>(form, "_btnStates");
 
-    private static ReceiverControllerState ControllerState(MainForm form) =>
-        Assert.IsType<ReceiverControllerState>(Invoke(form, "CreateDreamscapeControllerState"));
-
-    private static ReceiverLogSnapshot LogSnapshot(MainForm form) =>
-        Assert.IsType<ReceiverLogSnapshot>(Invoke(form, "CreateDreamscapeLogsSnapshot"));
+    private static IReadOnlyList<ReceiverLogEntry> LogEntries(MainForm form) =>
+        Field<ReceiverLogBuffer>(form, "_receiverLogBuffer").GetEntries();
 
     private static T Field<T>(MainForm form, string name) where T : class =>
         Assert.IsType<T>(typeof(MainForm).GetField(name, PrivateInstance)?.GetValue(form));
@@ -465,16 +443,8 @@ public sealed class RuntimeUiStateCorrectionTests
 
     private sealed class MainFormFixture : IDisposable
     {
-        private readonly string? _originalNativeUi;
-
-        public MainFormFixture(bool nativeUi, bool initializeDirectDs4 = false)
+        public MainFormFixture(bool initializeDirectDs4 = false)
         {
-            _originalNativeUi = Environment.GetEnvironmentVariable(
-                ReceiverFrontendPolicy.NativeUiEnvironmentVariable);
-            Environment.SetEnvironmentVariable(
-                ReceiverFrontendPolicy.NativeUiEnvironmentVariable,
-                nativeUi ? "1" : null);
-
             Factory = new FakeDirectDs4Factory();
             Keyboard = new FakeKeyboardOutput();
             Service = new Ds4Service(Factory, Keyboard, new MemoryKeyboardBindingStore());
@@ -497,9 +467,6 @@ public sealed class RuntimeUiStateCorrectionTests
         {
             Form.Dispose();
             Service.Dispose();
-            Environment.SetEnvironmentVariable(
-                ReceiverFrontendPolicy.NativeUiEnvironmentVariable,
-                _originalNativeUi);
         }
     }
 

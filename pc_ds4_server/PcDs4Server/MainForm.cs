@@ -25,6 +25,7 @@ namespace PcDs4Server
         private Panel _sidebar = null!, _topBar = null!, _mainContent = null!;
         private RoundedPanel _contentPanel = null!;
         private RichTextBox _logBox = null!;
+        private readonly ReceiverLogBuffer _receiverLogBuffer = new();
         private Label _lblStatusBadge = null!;
         private Label _joystickDebug = null!;
         private ComboBox _outputMode = null!;
@@ -90,7 +91,6 @@ namespace PcDs4Server
             InitializeComponent();
             _receiverUiScaling = new ReceiverUiScaling(this);
             _receiverUiScaling.Apply(radialSettings.Settings.ReceiverUiScalePercent);
-            InitializeDreamscapeOverviewFeature();
             _joystickOverlay = new VirtualJoystickOverlay();
             _ = _joystickOverlay.Handle;
             _radialVisualPackCatalog = new RadialVisualPackCatalog();
@@ -112,10 +112,6 @@ namespace PcDs4Server
                 ApplyRadialMenuSettings,
                 LogRadialMessage,
                 _radialVisualPackCatalog);
-            InitializeDreamscapeSettingsFeature();
-            InitializeDreamscapeControllerFeature();
-            InitializeDreamscapeLogsFeature();
-            InitializeDreamscapePageActivation();
             _radialSelectionTimer = new System.Windows.Forms.Timer
             {
                 Interval = radialSettings.Settings.SelectionPollIntervalMs
@@ -554,8 +550,6 @@ namespace PcDs4Server
                 _lblStatusBadge.Text = connected ? "已连接" : "等待连接";
                 _lblStatusBadge.ForeColor = connected ? ThemeColors.Success : ThemeColors.Warning;
                 _lblStatusBadge.BackColor = connected ? Color.FromArgb(0, 50, 20) : Color.FromArgb(40, 35, 0);
-                PublishDreamscapeControllerDisplayState();
-                PublishDreamscapeLogsConnectionState();
             });
             _service.OnButtonEvent += btn => PostToUi(() => {
                 foreach(var key in _btnStates.Keys) {
@@ -565,7 +559,6 @@ namespace PcDs4Server
                     }
                 }
                 _contentPanel.Refresh(); // 强制重绘手柄状态
-                PublishDreamscapeControllerDisplayState();
             });
             _service.OnJoystickStateChanged += state => PostToUi(() => {
                 string center = state.Center is ScreenPoint centerPoint
@@ -590,7 +583,6 @@ namespace PcDs4Server
                     $"摇杆：{state.StickX:F3} / {state.StickY:F3}    幅度：{stickMagnitude:F3}    DS4：{state.Ds4X} / {state.Ds4Y}\n" +
                     $"中心：{center}    当前光标：{currentCursor}\n" +
                     $"光标偏移：{state.CursorDeltaX:F1} / {state.CursorDeltaY:F1}    光标距离：{state.CursorDistance:F1}";
-                PublishDreamscapeControllerJoystickState(state);
             });
             _service.OnInputStateReset += _ => PostToUi(ResetControllerPresentationState);
             _service.RadialMenuTriggered += source => PostToUi(() =>
@@ -607,13 +599,13 @@ namespace PcDs4Server
         {
             if (this.IsDisposed || _logBox == null) return;
             PostToUi(() => {
-                ReceiverLogMutation mutation = BufferDreamscapeLog(message);
-                bool renderedFromSnapshot = false;
-                if (mutation.EvictedEntry is ReceiverLogEntry evictedEntry &&
+                ReceiverLogMutation mutation = _receiverLogBuffer.AppendWithEviction(message);
+                bool renderedFromBuffer = false;
+                if (mutation.EvictedEntry is not null &&
                     !_logBox.IsHandleCreated)
                 {
-                    _logBox.Text = NativeLogProjection.CreateText(CreateDreamscapeLogsSnapshot());
-                    renderedFromSnapshot = true;
+                    _logBox.Text = NativeLogProjection.CreateText(_receiverLogBuffer.GetEntries());
+                    renderedFromBuffer = true;
                 }
                 else if (mutation.EvictedEntry is ReceiverLogEntry visibleEvictedEntry)
                 {
@@ -633,10 +625,9 @@ namespace PcDs4Server
                     }
                 }
                 _logBox.SelectionStart = _logBox.TextLength;
-                if (!renderedFromSnapshot)
+                if (!renderedFromBuffer)
                     _logBox.AppendText(NativeLogProjection.CreateEntryText(mutation.Entry));
                 _logBox.ScrollToCaret();
-                PublishDreamscapeLogAppend(mutation.Entry);
             });
         }
 
@@ -645,7 +636,6 @@ namespace PcDs4Server
             foreach (string key in _btnStates.Keys.ToArray())
                 _btnStates[key] = false;
             _contentPanel.Refresh();
-            PublishDreamscapeControllerDisplayState();
         }
 
         private void ApplyRadialMenuSettings(RadialMenuSettings settings)
@@ -693,18 +683,13 @@ namespace PcDs4Server
             bool showGamepad = page == ReceiverPage.Gamepad;
             _overviewCards.Visible = showOverview;
             _overviewOutput.Visible = showOverview;
-            bool showWebController = SetDreamscapeControllerVisibility(showGamepad);
-            _gamepadMonitor.Visible = showGamepad && !showWebController;
-            _joystickDebugSection.Visible = showGamepad && !showWebController;
-            bool showWebSettings = SetDreamscapeSettingsVisibility(page == ReceiverPage.Settings);
-            _settingsPage.Visible = page == ReceiverPage.Settings && !showWebSettings;
-            bool showWebLogs = SetDreamscapeLogsVisibility(page == ReceiverPage.Log);
-            _logSection.Visible = page == ReceiverPage.Log && !showWebLogs;
-            if (page == ReceiverPage.Settings && !showWebSettings && _settingsPage.IsInitialized)
+            _gamepadMonitor.Visible = showGamepad;
+            _joystickDebugSection.Visible = showGamepad;
+            _settingsPage.Visible = page == ReceiverPage.Settings;
+            _logSection.Visible = page == ReceiverPage.Log;
+            if (page == ReceiverPage.Settings && _settingsPage.IsInitialized)
                 _settingsPage.RefreshFromRuntime();
             SetSelectedNavigation(_pageNavigation[page]);
-            SetDreamscapeOverviewVisibility(showOverview);
-            SynchronizeDreamscapePageActivation();
         }
 
         internal RadialMenuSettingsControl SettingsControl => _settingsPage;
@@ -963,10 +948,6 @@ namespace PcDs4Server
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
-            InitializeDreamscapeOverviewRuntime();
-            InitializeDreamscapeSettingsRuntime();
-            InitializeDreamscapeControllerRuntime();
-            InitializeDreamscapeLogsRuntime();
             BeginInvoke(AutoStartDirectDs4Once);
         }
 

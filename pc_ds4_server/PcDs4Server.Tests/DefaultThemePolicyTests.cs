@@ -3,6 +3,7 @@ using Xunit;
 
 namespace PcDs4Server.Tests;
 
+[Collection("Radial settings WinForms geometry")]
 public sealed class DefaultThemePolicyTests
 {
     [Fact]
@@ -337,29 +338,24 @@ public sealed class DefaultThemePolicyTests
     [Fact]
     public void RestoreDefaults_UsesTheNewCoherentPairWithoutSaving()
     {
-        RadialMenuSettings active = RadialMenuSettings.SafeFallback;
-        int saveCount = 0;
-        var session = new DreamscapeSettingsBasicSession(
-            () => active,
-            () => new RadialVisualPackCatalog().Discover(),
-            _ => { },
-            _ => { },
-            () => { },
-            settings =>
-            {
-                saveCount++;
-                active = settings;
-                return (true, string.Empty);
-            },
-            _ => { });
-        session.Activate();
+        NativeReceiverTestThread.Run(() =>
+        {
+            using var temporary = new TemporarySettingsPath();
+            using var controller = new RadialMenuController(new MutableLayoutOverlay(), RadialMenuSettings.SafeFallback);
+            var store = new RadialMenuSettingsStore(temporary.FilePath);
+            using var control = new RadialMenuSettingsControl(controller, store, controller.ApplySettings, _ => { });
 
-        session.RestoreDefault();
+            NativeReceiverTestThread.Click(control, "restoreDefaultSettingsButton");
 
-        Assert.Equal(RadialMenuSettings.Default, session.Draft);
-        Assert.Equal("dark-fantasy-radial8-v1", session.Draft.VisualPackId);
-        Assert.Equal("radial-8", session.Draft.MappingProfileId);
-        Assert.Equal(0, saveCount);
+            Assert.True(control.TryReadSettingsForTesting(out RadialMenuSettings draft));
+            // The Native editor materializes the currently displayed mapping profile.
+            Assert.Equal(RadialMenuSettings.Default.SetProfileMappings("radial-8",
+                RadialSlotMappings.Create(8)).NormalizeMappings(), draft);
+            Assert.Equal("dark-fantasy-radial8-v1", draft.VisualPackId);
+            Assert.Equal("radial-8", draft.MappingProfileId);
+            Assert.Equal(RadialMenuSettings.SafeFallback, controller.ConfiguredSettings);
+            Assert.False(File.Exists(temporary.FilePath));
+        });
     }
 
     [Fact]

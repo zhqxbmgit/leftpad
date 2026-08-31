@@ -453,9 +453,6 @@ internal sealed class ReceiverUiScaling : IDisposable
 
         private void ApplyBounds(int scalePercent)
         {
-            if (_control is IDreamscapeShellHost)
-                return;
-
             Point location = new(
                 ReceiverUiScaling.Scale(_bounds.X, scalePercent),
                 ReceiverUiScaling.Scale(_bounds.Y, scalePercent));

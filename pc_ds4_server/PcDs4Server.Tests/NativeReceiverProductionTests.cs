@@ -23,7 +23,7 @@ public sealed class NativeReceiverProductionTests
             using var environment = new LegacyFrontendEnvironment(legacyOverride);
             using var fixture = new NativeFormFixture();
             MainForm form = fixture.Form;
-            AssertNoDreamscape(form);
+            AssertNativeControlTree(form);
             // Exercise the real HWND / OnShown path with isolated stores and no real output device.
             form.Show();
             Assert.True(form.IsHandleCreated);
@@ -163,7 +163,7 @@ public sealed class NativeReceiverProductionTests
         Assert.Equal(page == "Gamepad", Field<Control>(form, "_joystickDebugSection").Visible);
         Assert.Equal(page == "Settings", form.SettingsControl.Visible);
         Assert.Equal(page == "Log", Field<Control>(form, "_logSection").Visible);
-        AssertNoDreamscape(form);
+        AssertNativeControlTree(form);
         if (page == "Settings")
         {
             TabControl tabs = Assert.IsType<TabControl>(Assert.Single(form.SettingsControl.Controls.Find("settingsTabs", true)));
@@ -172,14 +172,8 @@ public sealed class NativeReceiverProductionTests
         }
     }
 
-    private static void AssertNoDreamscape(MainForm form)
+    private static void AssertNativeControlTree(MainForm form)
     {
-        Assert.Null(form.DreamscapeOverviewHost);
-        Assert.Null(form.DreamscapeControllerHost);
-        Assert.Null(form.DreamscapeSettingsHost);
-        Assert.Null(form.DreamscapeLogsHost);
-        DreamscapePageActivity activity = form.GetDreamscapePageActivity();
-        Assert.False(activity.Overview || activity.Controller || activity.Settings || activity.Logs);
         Assert.DoesNotContain(Descendants(form), control =>
             control.GetType().Namespace?.StartsWith("Microsoft.Web.WebView2", StringComparison.Ordinal) == true);
     }
@@ -259,13 +253,13 @@ public sealed class NativeReceiverProductionTests
         private readonly Dictionary<string, string?> _original = new();
         public LegacyFrontendEnvironment(string? value)
         {
-            foreach (string variable in new[] { ReceiverFrontendPolicy.NativeUiEnvironmentVariable,
-                DreamscapeOverviewFeature.EnvironmentVariable, DreamscapeControllerFeature.EnvironmentVariable,
-                DreamscapeSettingsFeature.EnvironmentVariable, DreamscapeLogsFeature.EnvironmentVariable })
+            foreach (string variable in new[] { "LEFTPAD_NATIVE_UI",
+                "LEFTPAD_WEBVIEW2_OVERVIEW", "LEFTPAD_WEBVIEW2_CONTROLLER",
+                "LEFTPAD_WEBVIEW2_SETTINGS", "LEFTPAD_WEBVIEW2_LOGS" })
             {
                 _original[variable] = Environment.GetEnvironmentVariable(variable);
                 Environment.SetEnvironmentVariable(variable,
-                    variable == ReceiverFrontendPolicy.NativeUiEnvironmentVariable || value == null ? value : "1");
+                    variable == "LEFTPAD_NATIVE_UI" || value == null ? value : "1");
             }
         }
         public void Dispose()
@@ -295,5 +289,29 @@ public sealed class NativeReceiverProductionTests
             SaveCalls++;
             _bindings = bindings.Clone();
         }
+    }
+}
+
+internal static class NativeReceiverTestThread
+{
+    internal static void Click(Control root, string name)
+    {
+        Button button = Assert.IsType<Button>(Assert.Single(root.Controls.Find(name, true)));
+        typeof(Button).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(button, [EventArgs.Empty]);
+    }
+
+    internal static void Run(Action action)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try { action(); }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
 }
