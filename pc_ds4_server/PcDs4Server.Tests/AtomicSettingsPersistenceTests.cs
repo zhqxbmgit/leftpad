@@ -7,6 +7,141 @@ namespace PcDs4Server.Tests;
 public sealed class AtomicSettingsPersistenceTests
 {
     [Fact]
+    public void CrossProfilePendingPublish_CommitsConfiguredCandidateWithoutWaitingForLayout()
+    {
+        const string path = @"C:\isolated\radial.json";
+        var files = new MemoryAtomicFileOperations();
+        var store = new RadialMenuSettingsStore(path, files);
+        RadialMenuSettings original = CrossProfileSettingsScenario.Original;
+        Assert.True(store.TrySave(original, out string initialError), initialError);
+        var overlay = CrossProfileSettingsScenario.PendingOverlay();
+        using var controller = new RadialMenuController(overlay, original);
+        RadialMenuSettings candidate = CrossProfileSettingsScenario.Candidate;
+
+        bool saved = RadialMenuSettingsPersistence.TryApplyAndSave(
+            controller, store, candidate,
+            controller.ApplySettings, out string error);
+
+        Assert.True(saved, error);
+        Assert.Equal(candidate, controller.ConfiguredSettings.NormalizeMappings());
+        Assert.Equal("radial-6", controller.ActiveSettings.MappingProfileId);
+        Assert.Equal(candidate with { MappingProfileId = "radial-6" }, controller.ActiveSettings);
+        RadialMenuSettingsLoadResult loaded = store.Load();
+        Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, loaded.Status);
+        Assert.Equal(candidate, loaded.Settings.NormalizeMappings());
+        Assert.Equal(new[] { path }, files.Paths);
+        AssertNoTransactionFiles(files);
+    }
+
+    [Fact]
+    public void CrossProfileRuntimeFailure_RestoresConfiguredOriginalAndExactDiskBytes()
+    {
+        const string path = @"C:\isolated\radial.json";
+        var files = new MemoryAtomicFileOperations();
+        var store = new RadialMenuSettingsStore(path, files);
+        RadialMenuSettings original = CrossProfileSettingsScenario.Original;
+        RadialMenuSettings candidate = CrossProfileSettingsScenario.Candidate;
+        Assert.True(store.TrySave(original, out string initialError), initialError);
+        byte[] originalBytes = files.GetBytes(path);
+        var overlay = CrossProfileSettingsScenario.PendingOverlay();
+        using var controller = new RadialMenuController(overlay, original);
+        var applied = new List<RadialMenuSettings>();
+
+        bool saved = RadialMenuSettingsPersistence.TryApplyAndSave(
+            controller, store, candidate, settings =>
+            {
+                applied.Add(settings);
+                controller.ApplySettings(settings);
+                if (settings == candidate)
+                    throw new InvalidOperationException("injected runtime failure");
+            }, out string error);
+
+        Assert.False(saved);
+        Assert.Contains("injected runtime failure", error);
+        Assert.Equal(new[] { candidate, original }, applied);
+        Assert.Equal(original, controller.ConfiguredSettings.NormalizeMappings());
+        Assert.Equal(original, controller.ActiveSettings.NormalizeMappings());
+        Assert.Equal(originalBytes, files.GetBytes(path));
+        Assert.Equal(new[] { path }, files.Paths);
+        AssertNoTransactionFiles(files);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ContinuousPendingPublishFailure_RestoresPreviousConfiguredProfile(bool editScale)
+    {
+        const string path = @"C:\isolated\radial.json";
+        var files = new MemoryAtomicFileOperations();
+        var store = new RadialMenuSettingsStore(path, files);
+        RadialMenuSettings original = CrossProfileSettingsScenario.Original;
+        RadialMenuSettings previousConfigured = CrossProfileSettingsScenario.Candidate;
+        Assert.True(store.TrySave(original, out string initialError), initialError);
+        var overlay = CrossProfileSettingsScenario.PendingOverlay();
+        using var controller = new RadialMenuController(overlay, original);
+        Assert.True(RadialMenuSettingsPersistence.TryApplyAndSave(
+            controller, store, previousConfigured, controller.ApplySettings, out string firstError), firstError);
+        byte[] previousBytes = files.GetBytes(path);
+        RadialMenuSettings candidate = editScale
+            ? previousConfigured with { ScalePercent = 118 }
+            : previousConfigured with { FontSize = 20f };
+        var applied = new List<RadialMenuSettings>();
+
+        bool saved = RadialMenuSettingsPersistence.TryApplyAndSave(
+            controller, store, candidate, settings =>
+            {
+                applied.Add(settings);
+                controller.ApplySettings(settings);
+                if (settings == candidate)
+                    throw new InvalidOperationException("injected runtime failure");
+            }, out string error);
+
+        Assert.False(saved);
+        Assert.Contains("injected runtime failure", error);
+        Assert.Equal(new[] { candidate, previousConfigured }, applied);
+        Assert.Equal(previousConfigured, controller.ConfiguredSettings.NormalizeMappings());
+        Assert.Equal(previousConfigured with { MappingProfileId = "radial-6" }, controller.ActiveSettings);
+        Assert.Equal(previousConfigured, store.Load().Settings.NormalizeMappings());
+        Assert.Equal(previousBytes, files.GetBytes(path));
+        Assert.Equal(new[] { path }, files.Paths);
+        AssertNoTransactionFiles(files);
+    }
+
+    [Theory]
+    [InlineData(nameof(RadialMenuSettings.MappingProfileId))]
+    [InlineData(nameof(RadialMenuSettings.ScalePercent))]
+    [InlineData(nameof(RadialMenuSettings.FontSize))]
+    public void ConfiguredCandidateMismatch_StillFailsAndRestoresExactBytes(string field)
+    {
+        const string path = @"C:\isolated\radial.json";
+        var files = new MemoryAtomicFileOperations();
+        var store = new RadialMenuSettingsStore(path, files);
+        RadialMenuSettings original = CrossProfileSettingsScenario.Original;
+        RadialMenuSettings candidate = CrossProfileSettingsScenario.Candidate;
+        Assert.True(store.TrySave(original, out string initialError), initialError);
+        byte[] originalBytes = files.GetBytes(path);
+        using var controller = new RadialMenuController(CrossProfileSettingsScenario.PendingOverlay(), original);
+        RadialMenuSettings mismatched = field switch
+        {
+            nameof(RadialMenuSettings.MappingProfileId) => candidate with { MappingProfileId = "radial-6" },
+            nameof(RadialMenuSettings.ScalePercent) => candidate with { ScalePercent = 118 },
+            _ => candidate with { FontSize = 20f }
+        };
+
+        bool saved = RadialMenuSettingsPersistence.TryApplyAndSave(
+            controller, store, candidate,
+            settings => controller.ApplySettings(settings == candidate ? mismatched : settings),
+            out string error);
+
+        Assert.False(saved);
+        Assert.Contains("Runtime settings did not match the persisted candidate after apply.", error);
+        Assert.Equal(original, controller.ConfiguredSettings.NormalizeMappings());
+        Assert.Equal(originalBytes, files.GetBytes(path));
+        Assert.Equal(new[] { path }, files.Paths);
+        AssertNoTransactionFiles(files);
+    }
+
+    [Fact]
     public void RadialSuccessfulSave_CommitsDiskThenRuntime()
     {
         const string path = @"C:\isolated\radial.json";

@@ -77,6 +77,10 @@ public sealed class RadialMenuController : IDisposable
     public int SelectedSlot => IsNormalMenuOpen ? _selectedSlot : 0;
     public bool IsPreviewActive => !_disposed && _isPreviewActive;
     public Point? PreviewAnchor => IsPreviewActive ? _previewAnchor : null;
+    // Configuration authority is synchronous and independent of renderer publication.
+    internal RadialMenuSettings ConfiguredSettings => _activeSettings with { };
+
+    // Actions continue to use the effective profile of the currently published layout.
     public RadialMenuSettings ActiveSettings => _activeSettings with
     {
         MappingProfileId =

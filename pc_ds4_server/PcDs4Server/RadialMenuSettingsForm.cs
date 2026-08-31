@@ -167,7 +167,7 @@ public sealed class RadialMenuSettingsControl : UserControl
     {
         EnsureInitialized();
         RefreshVisualPackCatalog();
-        Populate(_controller!.ActiveSettings);
+        Populate(_controller!.ConfiguredSettings);
         _refreshCount++;
     }
 

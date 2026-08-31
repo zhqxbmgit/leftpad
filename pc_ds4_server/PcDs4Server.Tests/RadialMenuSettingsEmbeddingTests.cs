@@ -12,6 +12,38 @@ public sealed class RadialSettingsWinFormsGeometryCollection;
 public sealed class RadialMenuSettingsEmbeddingTests
 {
     [Fact]
+    public void RefreshPendingCrossProfilePublish_ShowsConfiguredThemeAndEightMappingRows()
+    {
+        RunInSta(() =>
+        {
+            using var temporary = new TemporarySettingsPath();
+            var overlay = CrossProfileSettingsScenario.PendingOverlay();
+            using var controller = new RadialMenuController(overlay, CrossProfileSettingsScenario.Original);
+            using var control = new RadialMenuSettingsControl(
+                controller, new RadialMenuSettingsStore(temporary.FilePath),
+                controller.ApplySettings, _ => { });
+            Assert.Equal("radial-6", control.ActiveMappingProfileId);
+            Assert.Equal(6, control.MappingRowCount);
+            RadialMenuSettings candidate = CrossProfileSettingsScenario.Candidate;
+            controller.ApplySettings(candidate);
+
+            control.RefreshFromRuntime();
+
+            Assert.Equal("dark-fantasy-radial8-v1", control.SelectedVisualPackId);
+            Assert.Equal("radial-8", control.ActiveMappingProfileId);
+            Assert.Equal(8, control.MappingRowCount);
+            Assert.True(control.TryReadSettingsForTesting(out RadialMenuSettings readBack));
+            Assert.Equal(candidate, readBack.NormalizeMappings());
+            Assert.Equal(candidate.GetProfileMappings("radial-6"), readBack.GetProfileMappings("radial-6"));
+            Assert.Equal(candidate.GetProfileMappings("radial-8"), readBack.GetProfileMappings("radial-8"));
+            Assert.Equal("radial-6", controller.ActiveSettings.MappingProfileId);
+            Assert.Equal(new[] { "基础", "动作映射" },
+                Find<TabControl>(control, "settingsTabs").TabPages.Cast<TabPage>().Select(page => page.Text));
+            Assert.Empty(control.Controls.Find("advancedSettingsPage", searchAllChildren: true));
+        });
+    }
+
+    [Fact]
     public void MainForm_ExposesEmbeddedSettingsControlAndNoLongerHasPopupEntryPoint()
     {
         PropertyInfo? settingsControl = typeof(MainForm).GetProperty(

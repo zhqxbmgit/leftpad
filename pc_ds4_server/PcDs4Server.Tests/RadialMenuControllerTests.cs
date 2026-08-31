@@ -9,6 +9,66 @@ public sealed class RadialMenuControllerTests
     private static readonly RadialTriggerSource CircleSource = RadialTriggerSource.ForAction("circle");
 
     [Fact]
+    public void PendingCrossProfilePublish_OnlyEffectiveMappingProfileDiffersFromCandidate()
+    {
+        var overlay = CrossProfileSettingsScenario.PendingOverlay();
+        RadialMenuSettings candidate = CrossProfileSettingsScenario.Candidate;
+        using var controller = new RadialMenuController(overlay, CrossProfileSettingsScenario.Original);
+
+        controller.ApplySettings(candidate);
+
+        Assert.Equal(candidate, controller.ConfiguredSettings.NormalizeMappings());
+        RadialMenuSettings active = controller.ActiveSettings.NormalizeMappings();
+        RadialMenuSettings normalizedCandidate = candidate.NormalizeMappings();
+        string[] differences = typeof(RadialMenuSettings)
+            .GetProperties(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
+            .Where(property => !Equals(property.GetValue(active), property.GetValue(normalizedCandidate)))
+            .Select(property => property.Name).ToArray();
+        Assert.Equal(new[] { nameof(RadialMenuSettings.MappingProfileId) }, differences);
+        Assert.NotEqual(normalizedCandidate, active);
+        Assert.Equal("radial-6", active.MappingProfileId);
+        Assert.Equal("radial-8", normalizedCandidate.MappingProfileId);
+        Assert.Equal(normalizedCandidate, active with { MappingProfileId = "radial-8" });
+        Assert.Equal(candidate.GetProfileMappings("radial-6"), active.GetProfileMappings("radial-6"));
+        Assert.Equal(candidate.GetProfileMappings("radial-8"), active.GetProfileMappings("radial-8"));
+    }
+
+    [Fact]
+    public void PublishedLayoutConvergesToConfiguredCandidateWithoutAnotherApply()
+    {
+        var overlay = CrossProfileSettingsScenario.PendingOverlay();
+        RadialMenuSettings candidate = CrossProfileSettingsScenario.Candidate;
+        using var controller = new RadialMenuController(overlay, CrossProfileSettingsScenario.Original);
+        controller.ApplySettings(candidate);
+        Assert.Equal("radial-8", controller.ConfiguredSettings.MappingProfileId);
+        Assert.Equal("radial-6", controller.ActiveSettings.MappingProfileId);
+
+        overlay.ActiveLayoutDefinition = CrossProfileSettingsScenario.Layout(candidate.VisualPackId);
+
+        Assert.Equal(candidate, controller.ActiveSettings.NormalizeMappings());
+        Assert.Equal(candidate, controller.ConfiguredSettings.NormalizeMappings());
+    }
+
+    [Fact]
+    public void ConfiguredSettings_ReturnsCopiesAndIgnoresPreviewAndInvalidApply()
+    {
+        var overlay = CrossProfileSettingsScenario.PendingOverlay();
+        RadialMenuSettings candidate = CrossProfileSettingsScenario.Candidate;
+        using var controller = new RadialMenuController(overlay, CrossProfileSettingsScenario.Original);
+        controller.ApplySettings(candidate);
+        RadialMenuSettings snapshot = controller.ConfiguredSettings;
+        Assert.NotSame(candidate, snapshot);
+        Assert.NotSame(snapshot, controller.ConfiguredSettings);
+
+        controller.PreviewAt(new Point(100, 200), candidate with { ScalePercent = 118 });
+        Assert.Equal(candidate, controller.ConfiguredSettings);
+        controller.ClosePreview();
+        Assert.Throws<ArgumentException>(() => controller.ApplySettings(candidate with { ScalePercent = 0 }));
+        Assert.Equal(candidate, controller.ConfiguredSettings);
+        Assert.Equal("radial-6", controller.ActiveSettings.MappingProfileId);
+    }
+
+    [Fact]
     public void OpenAt_OpensAtCurrentPointAndIgnoresAnotherOpenUntilClosed()
     {
         var overlay = new FakeRadialMenuOverlay();

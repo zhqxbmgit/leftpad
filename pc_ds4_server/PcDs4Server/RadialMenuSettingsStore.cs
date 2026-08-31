@@ -180,7 +180,7 @@ public static class RadialMenuSettingsPersistence
         RadialMenuSettings candidate = temporarySettings.NormalizeMappings();
         if (!candidate.TryValidate(out error)) return false;
 
-        RadialMenuSettings runtimeSnapshot = controller.ActiveSettings.NormalizeMappings();
+        RadialMenuSettings runtimeSnapshot = controller.ConfiguredSettings.NormalizeMappings();
         if (!store.TryBeginSave(
                 candidate,
                 retainOriginalForRollback: true,
@@ -191,7 +191,7 @@ public static class RadialMenuSettingsPersistence
         try
         {
             applySettings(candidate);
-            if (controller.ActiveSettings.NormalizeMappings() != candidate)
+            if (controller.ConfiguredSettings.NormalizeMappings() != candidate)
             {
                 throw new InvalidOperationException(
                     "Runtime settings did not match the persisted candidate after apply.");
