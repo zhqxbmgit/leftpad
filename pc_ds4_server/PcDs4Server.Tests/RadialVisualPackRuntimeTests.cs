@@ -10,7 +10,7 @@ public sealed class RadialVisualPackRuntimeTests
     {
         using var temporary = CatalogWithDefault();
         using var runtime = new RadialVisualPackRuntime(
-            new RadialVisualPackCatalog(temporary.Root));
+            new RadialVisualPackCatalog(temporary.Root), RadialRenderPolicy.Legacy);
 
         RadialVisualPackSession first = runtime.Ensure(RadialMenuSettings.Default, 280)!;
         RadialVisualPackSession second = runtime.Ensure(RadialMenuSettings.Default, 280)!;
@@ -26,7 +26,7 @@ public sealed class RadialVisualPackRuntimeTests
         using var temporary = CatalogWithDefault();
         temporary.AddPack("alternate", "alternate", "Alternate");
         using var runtime = new RadialVisualPackRuntime(
-            new RadialVisualPackCatalog(temporary.Root));
+            new RadialVisualPackCatalog(temporary.Root), RadialRenderPolicy.Legacy);
         RadialVisualPackSession first = runtime.Ensure(RadialMenuSettings.Default, 280)!;
 
         RadialVisualPackSession second = runtime.Ensure(
@@ -50,6 +50,7 @@ public sealed class RadialVisualPackRuntimeTests
         var log = new List<string>();
         using var runtime = new RadialVisualPackRuntime(
             new RadialVisualPackCatalog(temporary.Root),
+            RadialRenderPolicy.Legacy,
             log.Add);
         RadialVisualPackSession first = runtime.Ensure(RadialMenuSettings.Default, 280)!;
 
@@ -74,7 +75,7 @@ public sealed class RadialVisualPackRuntimeTests
         string broken = temporary.AddPack("broken", "broken", "Broken");
         File.WriteAllText(Path.Combine(broken, "radial-selected-card-v5.png"), "not a png");
         using var runtime = new RadialVisualPackRuntime(
-            new RadialVisualPackCatalog(temporary.Root));
+            new RadialVisualPackCatalog(temporary.Root), RadialRenderPolicy.Legacy);
         _ = runtime.Ensure(RadialMenuSettings.Default, 280);
         RadialVisualPackSession alternate = runtime.Ensure(
             RadialMenuSettings.Default with { VisualPackId = "alternate" },
@@ -97,6 +98,7 @@ public sealed class RadialVisualPackRuntimeTests
         var log = new List<string>();
         using var runtime = new RadialVisualPackRuntime(
             new RadialVisualPackCatalog(temporary.Root),
+            RadialRenderPolicy.Legacy,
             log.Add);
 
         RadialVisualPackSession session = runtime.Ensure(
@@ -122,7 +124,7 @@ public sealed class RadialVisualPackRuntimeTests
                 slots[0]!["glyphAnchor"]!["x"] = 700;
             });
         using var runtime = new RadialVisualPackRuntime(
-            new RadialVisualPackCatalog(temporary.Root));
+            new RadialVisualPackCatalog(temporary.Root), RadialRenderPolicy.Legacy);
         _ = runtime.Ensure(RadialMenuSettings.Default, 280);
 
         RadialVisualPackSession active = runtime.Ensure(

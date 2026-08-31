@@ -34,13 +34,13 @@ public sealed class UniversalProductionAcceptanceTests
     [Fact]
     public void ProductionCandidateMatrixCoversAll162CellsAnd54DeterministicRepresentatives()
     {
-        Assert.Equal(RadialRenderPolicy.Legacy, RadialRenderPolicyAuthority.ProductionDefault);
+        Assert.Equal(RadialRenderPolicy.UniversalInitial, RadialRenderPolicyAuthority.ProductionDefault);
         var catalog = new RadialVisualPackCatalog();
         RadialVisualPackCatalogSnapshot discovered = catalog.Discover();
         Assert.Empty(discovered.Issues);
         RuntimeRenderBundleTargetBuilder builder =
             RadialRenderPolicyAuthority.CreateBundleBuilder(
-                RadialRenderPolicy.UniversalInitial,
+                RadialRenderPolicyAuthority.ProductionDefault,
                 EmptyCompanionRoot);
         var actionKinds = new HashSet<RadialActionKind>();
         int cells = 0;
@@ -112,6 +112,7 @@ public sealed class UniversalProductionAcceptanceTests
         Assert.Contains(RadialActionKind.None, actionKinds);
         WriteArtifact(
             "matrix-result.txt",
+            $"ProductionPolicy={RadialRenderPolicyAuthority.ProductionDefault}{Environment.NewLine}" +
             $"Total={cells}{Environment.NewLine}" +
             $"Passed={cells}{Environment.NewLine}" +
             "Failed=0" + Environment.NewLine +
@@ -125,13 +126,13 @@ public sealed class UniversalProductionAcceptanceTests
     [Fact]
     public void ProfilesCurrentConfigAndHiddenHistoricalPoisonRemainCoherent()
     {
-        Assert.Equal(RadialRenderPolicy.Legacy, RadialRenderPolicyAuthority.ProductionDefault);
+        Assert.Equal(RadialRenderPolicy.UniversalInitial, RadialRenderPolicyAuthority.ProductionDefault);
         var catalog = new RadialVisualPackCatalog();
         RadialVisualPackCatalogSnapshot discovered = catalog.Discover();
         Assert.Empty(discovered.Issues);
         RuntimeRenderBundleTargetBuilder builder =
             RadialRenderPolicyAuthority.CreateBundleBuilder(
-                RadialRenderPolicy.UniversalInitial,
+                RadialRenderPolicyAuthority.ProductionDefault,
                 EmptyCompanionRoot);
 
         RadialSlotMappings radial6 = Mappings(MappingAuthority.KeyboardHeavy, 6);
@@ -144,7 +145,7 @@ public sealed class UniversalProductionAcceptanceTests
         var scheduler = new ManualScheduler();
         using (var runtime = new RadialVisualPackRuntime(
                    catalog,
-                   RadialRenderPolicy.UniversalInitial,
+                   RadialRenderPolicyAuthority.ProductionDefault,
                    builder))
         {
             runtime.EnableUniversalAsync(dispatcher, _ => { }, null, worker, scheduler);
@@ -299,7 +300,7 @@ public sealed class UniversalProductionAcceptanceTests
         var catalog = new RadialVisualPackCatalog();
         RuntimeRenderBundleTargetBuilder universal =
             RadialRenderPolicyAuthority.CreateBundleBuilder(
-                RadialRenderPolicy.UniversalInitial,
+                RadialRenderPolicyAuthority.ProductionDefault,
                 EmptyCompanionRoot);
 
         var worker = new ManualWorkQueue();
@@ -308,7 +309,7 @@ public sealed class UniversalProductionAcceptanceTests
         var publishedThemes = new List<string>();
         using (var runtime = new RadialVisualPackRuntime(
                    catalog,
-                   RadialRenderPolicy.UniversalInitial,
+                   RadialRenderPolicyAuthority.ProductionDefault,
                    universal))
         {
             runtime.EnableUniversalAsync(
@@ -349,7 +350,7 @@ public sealed class UniversalProductionAcceptanceTests
         var publishedScales = new List<int>();
         using (var runtime = new RadialVisualPackRuntime(
                    catalog,
-                   RadialRenderPolicy.UniversalInitial,
+                   RadialRenderPolicyAuthority.ProductionDefault,
                    universal))
         {
             runtime.EnableUniversalAsync(
@@ -390,7 +391,7 @@ public sealed class UniversalProductionAcceptanceTests
         scheduler = new ManualScheduler();
         using (var runtime = new RadialVisualPackRuntime(
                    catalog,
-                   RadialRenderPolicy.UniversalInitial,
+                   RadialRenderPolicyAuthority.ProductionDefault,
                    universal))
         {
             runtime.EnableUniversalAsync(dispatcher, _ => { }, null, worker, scheduler);
@@ -425,7 +426,7 @@ public sealed class UniversalProductionAcceptanceTests
         scheduler = new ManualScheduler();
         using (var runtime = new RadialVisualPackRuntime(
                    catalog,
-                   RadialRenderPolicy.UniversalInitial,
+                   RadialRenderPolicyAuthority.ProductionDefault,
                    selectiveFailure))
         {
             runtime.EnableUniversalAsync(dispatcher, _ => { }, null, worker, scheduler);
@@ -448,7 +449,7 @@ public sealed class UniversalProductionAcceptanceTests
         scheduler = new ManualScheduler();
         using (var runtime = new RadialVisualPackRuntime(
                    catalog,
-                   RadialRenderPolicy.UniversalInitial,
+                   RadialRenderPolicyAuthority.ProductionDefault,
                    selectiveFailure))
         {
             runtime.EnableUniversalAsync(dispatcher, _ => { }, null, worker, scheduler);
@@ -481,7 +482,7 @@ public sealed class UniversalProductionAcceptanceTests
         var terminalFailures = new List<string>();
         using (var runtime = new RadialVisualPackRuntime(
                    catalog,
-                   RadialRenderPolicy.UniversalInitial,
+                   RadialRenderPolicyAuthority.ProductionDefault,
                    selectiveFailure))
         {
             runtime.EnableUniversalAsync(
@@ -541,7 +542,7 @@ public sealed class UniversalProductionAcceptanceTests
             : Array.Empty<string>());
         RuntimeRenderBundleTargetBuilder universal =
             RadialRenderPolicyAuthority.CreateBundleBuilder(
-                RadialRenderPolicy.UniversalInitial,
+                RadialRenderPolicyAuthority.ProductionDefault,
                 absentCompanion);
         foreach ((string themeId, int scale, int font, int dpi) in new[]
                  {
@@ -561,6 +562,7 @@ public sealed class UniversalProductionAcceptanceTests
             using CandidateHarness candidate = BuildCandidate(catalog, settings, dpi, universal);
             RuntimeRenderBundle bundle = candidate.Session.Bundle;
             Assert.Equal(themeId, candidate.Session.PackId);
+            Assert.True(bundle.IsUniversal);
             Assert.Equal(RadialRenderPolicy.UniversalInitial, candidate.Session.RenderPolicy);
             Assert.Equal(0, bundle.SelectedEmphasisManifestReadCount);
             Assert.Equal(0, bundle.SelectedEmphasisDecodedAssetCount);
@@ -580,6 +582,7 @@ public sealed class UniversalProductionAcceptanceTests
                    failDark))
         {
             Assert.Equal(RadialV5, fallback.Session.PackId);
+            Assert.True(fallback.Session.Bundle.IsUniversal);
             Assert.Equal(RadialRenderPolicy.UniversalInitial, fallback.Session.RenderPolicy);
             Assert.Equal(0, fallback.Session.Bundle.SelectedEmphasisManifestReadCount);
         }
@@ -603,6 +606,7 @@ public sealed class UniversalProductionAcceptanceTests
                 .ToArray();
             WriteArtifact(
                 "published-root-result.txt",
+                $"ProductionPolicy={RadialRenderPolicyAuthority.ProductionDefault}{Environment.NewLine}" +
                 $"PublishRoot={contentRoot}{Environment.NewLine}" +
                 $"FileCount={relativeFiles.Length}{Environment.NewLine}" +
                 $"Bytes={relativeFiles.Sum(path => new FileInfo(Path.Combine(contentRoot, path.Replace('/', Path.DirectorySeparatorChar))).Length)}{Environment.NewLine}" +
@@ -622,7 +626,7 @@ public sealed class UniversalProductionAcceptanceTests
         Assert.Empty(discovered.Issues);
         RuntimeRenderBundleTargetBuilder builder =
             RadialRenderPolicyAuthority.CreateBundleBuilder(
-                RadialRenderPolicy.UniversalInitial,
+                RadialRenderPolicyAuthority.ProductionDefault,
                 EmptyCompanionRoot);
         var artifacts = new List<ReviewArtifact>();
         foreach (string themeId in Themes)
@@ -810,7 +814,7 @@ public sealed class UniversalProductionAcceptanceTests
         var failures = new List<string>();
         var runtime = new RadialVisualPackRuntime(
             catalog,
-            RadialRenderPolicy.UniversalInitial,
+            RadialRenderPolicyAuthority.ProductionDefault,
             builder);
         try
         {

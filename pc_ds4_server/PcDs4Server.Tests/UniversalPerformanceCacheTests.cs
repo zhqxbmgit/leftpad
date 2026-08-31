@@ -26,7 +26,7 @@ public sealed class UniversalPerformanceCacheTests
         DynamicCacheBuildDiagnostics diagnostics = cache.DynamicDiagnostics;
         long previousDynamicBytes = checked(162L * 840L * 840L * 4L);
 
-        Assert.Equal(RadialRenderPolicy.Legacy, RadialRenderPolicyAuthority.ProductionDefault);
+        Assert.Equal(RadialRenderPolicy.UniversalInitial, RadialRenderPolicyAuthority.ProductionDefault);
         Assert.Equal(new Size(840, 840), bundle.PhysicalSurfaceSize);
         Assert.Equal(9, cache.StateCount);
         Assert.Equal(9, diagnostics.FinalStateBuildCount);

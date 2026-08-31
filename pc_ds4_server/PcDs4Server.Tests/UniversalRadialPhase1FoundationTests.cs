@@ -558,9 +558,9 @@ public sealed class UniversalRadialPhase1FoundationTests
     }
 
     [Fact]
-    public void ProductionRuntimeDoesNotOptInToUniversalRendering()
+    public void ExplicitLegacyRuntimeRemainsAvailableForEmergencyRollback()
     {
-        using var runtime = new RadialVisualPackRuntime(new RadialVisualPackCatalog());
+        using var runtime = new RadialVisualPackRuntime(new RadialVisualPackCatalog(), RadialRenderPolicy.Legacy);
         RadialVisualPackSession session = Assert.IsType<RadialVisualPackSession>(
             runtime.Ensure(ThemeSettings(DarkFantasy), 280, 96));
         Assert.False(session.Bundle.IsUniversal);

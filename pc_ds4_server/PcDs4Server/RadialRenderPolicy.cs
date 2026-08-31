@@ -8,7 +8,7 @@ internal enum RadialRenderPolicy
 
 internal static class RadialRenderPolicyAuthority
 {
-    public static RadialRenderPolicy ProductionDefault => RadialRenderPolicy.Legacy;
+    public static RadialRenderPolicy ProductionDefault => RadialRenderPolicy.UniversalInitial;
 
     public static RuntimeRenderBundleTargetBuilder CreateBundleBuilder(
         RadialRenderPolicy policy,

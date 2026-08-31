@@ -419,7 +419,7 @@ public sealed class ReferenceThemeRuntimePhase3Tests
     [Fact]
     public void V1DynamicV1ThemeSwitchPublishesAndDisposesAtomically()
     {
-        using var fixture=new DynamicThemeFixture();using var runtime=new RadialVisualPackRuntime(fixture.Catalog);
+        using var fixture=new DynamicThemeFixture();using var runtime=new RadialVisualPackRuntime(fixture.Catalog, RadialRenderPolicy.Legacy);
         RadialVisualPackSession v1=runtime.Ensure(RadialMenuSettings.SafeFallback,280,96)!;
         RadialVisualPackSession dynamic=runtime.Ensure(fixture.Settings,280,96)!;
         Assert.True(dynamic.Plan.HasV2DynamicContent);Assert.True(v1.Bundle.IsDisposed);
@@ -438,7 +438,7 @@ public sealed class ReferenceThemeRuntimePhase3Tests
         {
             try
             {
-                using var overlay = new RadialMenuOverlay(fixture.Catalog);
+                using var overlay = new RadialMenuOverlay(RadialRenderPolicy.Legacy, fixture.Catalog);
                 using var controller = new RadialMenuController(overlay, RadialMenuSettings.Default,
                     fixture.Load().Plan.LayoutDefinition);
                 RadialMenuSettings draft = fixture.Settings.SetProfileMappings("radial-8",

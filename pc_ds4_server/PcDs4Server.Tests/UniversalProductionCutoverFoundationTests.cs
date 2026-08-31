@@ -45,16 +45,16 @@ public sealed class UniversalProductionCutoverFoundationTests
     }
 
     [Fact]
-    public void ProductionDefaultRemainsLegacyAndUniversalInitialIsExplicit()
+    public void ProductionDefaultIsUniversalAndLegacyRollbackRemainsExplicit()
     {
-        Assert.Equal(RadialRenderPolicy.Legacy, RadialRenderPolicyAuthority.ProductionDefault);
+        Assert.Equal(RadialRenderPolicy.UniversalInitial, RadialRenderPolicyAuthority.ProductionDefault);
         using var production = new RadialVisualPackRuntime(new RadialVisualPackCatalog());
-        using var candidate = new RadialVisualPackRuntime(
+        using var rollback = new RadialVisualPackRuntime(
             new RadialVisualPackCatalog(),
-            RadialRenderPolicy.UniversalInitial);
+            RadialRenderPolicy.Legacy);
 
-        Assert.Equal(RadialRenderPolicy.Legacy, production.RenderPolicy);
-        Assert.Equal(RadialRenderPolicy.UniversalInitial, candidate.RenderPolicy);
+        Assert.Equal(RadialRenderPolicy.UniversalInitial, production.RenderPolicy);
+        Assert.Equal(RadialRenderPolicy.Legacy, rollback.RenderPolicy);
     }
 
     [Theory]

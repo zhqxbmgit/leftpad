@@ -178,7 +178,7 @@ public sealed class ReferenceThemeRuntimePhase1Tests
     {
         using var temporary = new RadialVisualPackTestDirectory();
         string directory = temporary.AddPack("default", "radial-v5", "Tactical HUD V5");
-        using var runtime = new RadialVisualPackRuntime(new RadialVisualPackCatalog(temporary.Root));
+        using var runtime = new RadialVisualPackRuntime(new RadialVisualPackCatalog(temporary.Root), RadialRenderPolicy.Legacy);
         RadialVisualPackSession session = runtime.Ensure(
             RadialMenuSettings.Default,
             targetSize: 280)!;

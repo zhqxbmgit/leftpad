@@ -232,7 +232,7 @@ public sealed class ReferenceThemeRuntimePhase2Tests
     {
         using var fixture = new V2ThemeFixture(6, 800, 500, 400, 400, 0, 75, 120, 200);
         fixture.ReplaceAsset("selected-1.png", "not a png"u8.ToArray());
-        using var runtime = new RadialVisualPackRuntime(fixture.Catalog);
+        using var runtime = new RadialVisualPackRuntime(fixture.Catalog, RadialRenderPolicy.Legacy);
         RadialVisualPackSession v1 = runtime.Ensure(RadialMenuSettings.SafeFallback, 280, 96)!;
 
         RadialVisualPackSession retained = runtime.Ensure(fixture.Settings, 280, 96)!;
@@ -247,7 +247,7 @@ public sealed class ReferenceThemeRuntimePhase2Tests
     public void AtomicV1V2V1Switch_PublishesCompleteBundleBeforeDisposingPrevious()
     {
         using var fixture = new V2ThemeFixture(6, 800, 500, 400, 400, 0, 75, 120, 200);
-        using var runtime = new RadialVisualPackRuntime(fixture.Catalog);
+        using var runtime = new RadialVisualPackRuntime(fixture.Catalog, RadialRenderPolicy.Legacy);
         RadialVisualPackSession v1 = runtime.Ensure(RadialMenuSettings.SafeFallback, 280, 96)!;
 
         RadialVisualPackSession v2 = runtime.Ensure(fixture.Settings, 280, 96)!;
@@ -268,7 +268,7 @@ public sealed class ReferenceThemeRuntimePhase2Tests
     public void BadV2CandidateRetainsActiveV2(string mutation)
     {
         using var fixture = new V2ThemeFixture(6, 800, 500, 400, 400, 0, 75, 120, 200);
-        using var runtime = new RadialVisualPackRuntime(fixture.Catalog);
+        using var runtime = new RadialVisualPackRuntime(fixture.Catalog, RadialRenderPolicy.Legacy);
         RadialVisualPackSession active = runtime.Ensure(fixture.Settings, 280, 96)!;
         RuntimeRenderBundle bundle = active.Bundle;
         NormalizedRenderPlan plan = active.Plan;
@@ -379,7 +379,7 @@ public sealed class ReferenceThemeRuntimePhase2Tests
         {
             try
             {
-                using var overlay = new RadialMenuOverlay(fixture.Catalog);
+                using var overlay = new RadialMenuOverlay(RadialRenderPolicy.Legacy, fixture.Catalog);
                 Point activation = new(700, 500);
                 overlay.ShowAt(activation, fixture.Settings, selectedSlot);
                 int dpi = overlay.ActiveDpi;
