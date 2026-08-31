@@ -4,20 +4,13 @@ internal static class ReceiverFrontendPolicy
 {
     public const string NativeUiEnvironmentVariable = "LEFTPAD_NATIVE_UI";
 
-    public static bool ShouldUseDreamscape(string pageEnvironmentVariable) =>
-        ShouldUseDreamscape(
-            Environment.GetEnvironmentVariable(NativeUiEnvironmentVariable),
-            Environment.GetEnvironmentVariable(pageEnvironmentVariable));
+    // Native WinForms is the only production frontend. Legacy environment overrides
+    // cannot activate the dormant Dreamscape hosts or their WebView2 runtime.
+    public static bool ShouldUseDreamscape(string pageEnvironmentVariable) => false;
 
     internal static bool ShouldUseDreamscape(
         string? nativeUiValue,
-        string? pageOverrideValue)
-    {
-        if (ParseBoolean(nativeUiValue) == true)
-            return false;
-
-        return ParseBoolean(pageOverrideValue) ?? true;
-    }
+        string? pageOverrideValue) => false;
 
     internal static bool? ParseBoolean(string? value)
     {

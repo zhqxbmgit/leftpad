@@ -171,15 +171,15 @@ public sealed class DreamscapeSettingsBasicTests
     }
 
     [Theory]
-    [InlineData(null, true)]
+    [InlineData(null, false)]
     [InlineData("0", false)]
     [InlineData("false", false)]
     [InlineData("off", false)]
-    [InlineData("1", true)]
-    [InlineData("true", true)]
-    [InlineData("yes", true)]
-    [InlineData("on", true)]
-    public void SettingsFeatureFlag_DefaultsToDreamscapeAndAllowsExplicitOverride(string? value, bool expected)
+    [InlineData("1", false)]
+    [InlineData("true", false)]
+    [InlineData("yes", false)]
+    [InlineData("on", false)]
+    public void SettingsFeatureFlag_RemainsDisabledForEveryLegacyOverride(string? value, bool expected)
     {
         Assert.Equal(expected, DreamscapeSettingsFeature.IsEnabledValue(value));
     }
@@ -190,8 +190,8 @@ public sealed class DreamscapeSettingsBasicTests
         Assert.NotEqual(
             DreamscapeOverviewFeature.EnvironmentVariable,
             DreamscapeSettingsFeature.EnvironmentVariable);
-        Assert.True(DreamscapeSettingsFeature.IsEnabledValue(null));
-        Assert.True(DreamscapeOverviewFeature.IsEnabledValue(null));
+        Assert.False(DreamscapeSettingsFeature.IsEnabledValue(null));
+        Assert.False(DreamscapeOverviewFeature.IsEnabledValue(null));
     }
 
     [Fact]

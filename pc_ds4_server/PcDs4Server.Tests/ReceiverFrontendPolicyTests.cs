@@ -17,10 +17,25 @@ public sealed class ReceiverFrontendPolicyTests
 
     [Theory]
     [MemberData(nameof(PageEnvironmentVariables))]
-    public void NoEnvironmentValues_DefaultEveryPageToDreamscape(string pageVariable)
+    public void ProductionReceiverFrontend_IsNativeOnly(string pageVariable)
     {
-        Assert.True(ReceiverFrontendPolicy.ShouldUseDreamscape(null, null));
-        Assert.False(string.IsNullOrWhiteSpace(pageVariable));
+        using var environment = new FrontendEnvironmentScope();
+        string?[] values = [null, "", " ", "0", "1", "false", "true", "no", "yes", "off", "on", "invalid", "2"];
+        foreach (string? native in values)
+        foreach (string? page in values)
+        {
+            Environment.SetEnvironmentVariable(ReceiverFrontendPolicy.NativeUiEnvironmentVariable, native);
+            foreach (object[] variable in PageEnvironmentVariables())
+                Environment.SetEnvironmentVariable((string)variable[0], "1");
+            Environment.SetEnvironmentVariable(pageVariable, page);
+
+            Assert.False(ReceiverFrontendPolicy.ShouldUseDreamscape(pageVariable));
+            Assert.False(ReceiverFrontendPolicy.ShouldUseDreamscape(native, page));
+            Assert.False(DreamscapeOverviewFeature.IsEnabled);
+            Assert.False(DreamscapeControllerFeature.IsEnabled);
+            Assert.False(DreamscapeSettingsFeature.IsEnabled);
+            Assert.False(DreamscapeLogsFeature.IsEnabled);
+        }
     }
 
     [Theory]
@@ -57,9 +72,10 @@ public sealed class ReceiverFrontendPolicyTests
     [InlineData("on", true)]
     [InlineData("OFF", false)]
     [InlineData("YeS", true)]
-    public void ExplicitPageOverride_UsesUnifiedBooleanParser(string pageValue, bool expected)
+    public void DormantBooleanParser_PreservesParsingWithoutEnablingProduction(string pageValue, bool expected)
     {
-        Assert.Equal(expected, ReceiverFrontendPolicy.ShouldUseDreamscape(null, pageValue));
+        Assert.Equal(expected, ReceiverFrontendPolicy.ParseBoolean(pageValue));
+        Assert.False(ReceiverFrontendPolicy.ShouldUseDreamscape(null, pageValue));
     }
 
     [Theory]
@@ -68,9 +84,9 @@ public sealed class ReceiverFrontendPolicyTests
     [InlineData("   ")]
     [InlineData("invalid")]
     [InlineData("2")]
-    public void MissingWhitespaceOrInvalidPageValue_UsesDreamscapeDefault(string? pageValue)
+    public void MissingWhitespaceOrInvalidPageValue_UsesNativeDefault(string? pageValue)
     {
-        Assert.True(ReceiverFrontendPolicy.ShouldUseDreamscape(null, pageValue));
+        Assert.False(ReceiverFrontendPolicy.ShouldUseDreamscape(null, pageValue));
     }
 
     [Theory]
@@ -80,18 +96,18 @@ public sealed class ReceiverFrontendPolicyTests
     [InlineData("off")]
     [InlineData("")]
     [InlineData("invalid")]
-    public void FalseOrInvalidNativeMaster_AllowsPageResolution(string? nativeValue)
+    public void FalseOrInvalidNativeMaster_CannotEnableDreamscape(string? nativeValue)
     {
-        Assert.True(ReceiverFrontendPolicy.ShouldUseDreamscape(nativeValue, null));
+        Assert.False(ReceiverFrontendPolicy.ShouldUseDreamscape(nativeValue, null));
         Assert.False(ReceiverFrontendPolicy.ShouldUseDreamscape(nativeValue, "0"));
-        Assert.True(ReceiverFrontendPolicy.ShouldUseDreamscape(nativeValue, "1"));
+        Assert.False(ReceiverFrontendPolicy.ShouldUseDreamscape(nativeValue, "1"));
     }
 
     [Fact]
     public void OneNativePageOverride_DoesNotChangeOtherDefaultPages()
     {
         Assert.False(ReceiverFrontendPolicy.ShouldUseDreamscape(null, "0"));
-        Assert.True(ReceiverFrontendPolicy.ShouldUseDreamscape(null, null));
+        Assert.False(ReceiverFrontendPolicy.ShouldUseDreamscape(null, null));
     }
 
     [Fact]
@@ -107,10 +123,10 @@ public sealed class ReceiverFrontendPolicyTests
 
         Assert.Equal(4, variables.Distinct(StringComparer.Ordinal).Count());
         Assert.All(variables, variable => Assert.StartsWith("LEFTPAD_WEBVIEW2_", variable));
-        Assert.True(DreamscapeOverviewFeature.IsEnabledValue(null));
-        Assert.True(DreamscapeSettingsFeature.IsEnabledValue(null));
-        Assert.True(DreamscapeControllerFeature.IsEnabledValue(null));
-        Assert.True(DreamscapeLogsFeature.IsEnabledValue(null));
+        Assert.False(DreamscapeOverviewFeature.IsEnabledValue(null));
+        Assert.False(DreamscapeSettingsFeature.IsEnabledValue(null));
+        Assert.False(DreamscapeControllerFeature.IsEnabledValue(null));
+        Assert.False(DreamscapeLogsFeature.IsEnabledValue(null));
     }
 
     [Fact]
@@ -131,25 +147,17 @@ public sealed class ReceiverFrontendPolicyTests
     }
 
     [Fact]
-    public void DefaultMode_ConstructsAllFourChildHostsWithoutStartingRuntimeOrPopup()
+    public void DefaultMode_ConstructsNoDreamscapeHostsOrPopup()
     {
         RunInSta(() =>
         {
             using var environment = new FrontendEnvironmentScope();
             using MainForm form = CreateMainForm();
 
-            Control[] hosts =
-            [
-                Assert.IsType<DreamscapeOverviewHost>(form.DreamscapeOverviewHost),
-                Assert.IsType<DreamscapeSettingsHost>(form.DreamscapeSettingsHost),
-                Assert.IsType<DreamscapeControllerHost>(form.DreamscapeControllerHost),
-                Assert.IsType<DreamscapeLogsHost>(form.DreamscapeLogsHost)
-            ];
-            Assert.All(hosts, host => Assert.Same(form, host.FindForm()));
-            Assert.False(form.DreamscapeOverviewHost!.IsInitialized);
-            Assert.False(form.DreamscapeSettingsHost!.IsInitialized);
-            Assert.False(form.DreamscapeControllerHost!.IsInitialized);
-            Assert.False(form.DreamscapeLogsHost!.IsInitialized);
+            Assert.Null(form.DreamscapeOverviewHost);
+            Assert.Null(form.DreamscapeSettingsHost);
+            Assert.Null(form.DreamscapeControllerHost);
+            Assert.Null(form.DreamscapeLogsHost);
             Assert.Empty(form.OwnedForms);
         });
     }

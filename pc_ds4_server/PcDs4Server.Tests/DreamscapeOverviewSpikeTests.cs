@@ -121,14 +121,14 @@ public sealed class DreamscapeOverviewSpikeTests
     }
 
     [Theory]
-    [InlineData(null, true)]
+    [InlineData(null, false)]
     [InlineData("0", false)]
     [InlineData("off", false)]
-    [InlineData("1", true)]
-    [InlineData("true", true)]
-    [InlineData("yes", true)]
-    [InlineData("on", true)]
-    public void FeatureFlag_DefaultsToDreamscapeAndAllowsExplicitOverride(string? value, bool expected)
+    [InlineData("1", false)]
+    [InlineData("true", false)]
+    [InlineData("yes", false)]
+    [InlineData("on", false)]
+    public void FeatureFlag_RemainsDisabledForEveryLegacyOverride(string? value, bool expected)
     {
         Assert.Equal(expected, DreamscapeOverviewFeature.IsEnabledValue(value));
     }
@@ -142,7 +142,7 @@ public sealed class DreamscapeOverviewSpikeTests
         Assert.NotNull(typeof(MainForm).GetMethod("ExitProgram", privateInstance));
         Assert.NotNull(typeof(MainForm).GetMethod("ShowMainForm", privateInstance));
         Assert.NotNull(typeof(MainForm).GetMethod("WndProc", privateInstance));
-        Assert.True(DreamscapeOverviewFeature.IsEnabledValue(null));
+        Assert.False(DreamscapeOverviewFeature.IsEnabledValue(null));
     }
 
     [Fact]

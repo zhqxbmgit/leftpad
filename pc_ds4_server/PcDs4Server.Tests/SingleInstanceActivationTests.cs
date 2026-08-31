@@ -286,7 +286,7 @@ public sealed class SingleInstanceActivationTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void TrayHiddenMainForm_IsRestoredInNativeAndDreamscapeModes(bool nativeUi)
+    public void TrayHiddenMainForm_IsRestoredAsNativeRegardlessOfLegacyOverride(bool nativeUi)
     {
         RunInSta(() =>
         {
@@ -299,14 +299,7 @@ public sealed class SingleInstanceActivationTests
 
             Assert.True(fixture.Form.Visible);
             Assert.NotEqual(FormWindowState.Minimized, fixture.Form.WindowState);
-            if (nativeUi)
-            {
-                Assert.Null(fixture.Form.DreamscapeOverviewHost);
-            }
-            else
-            {
-                Assert.NotNull(fixture.Form.DreamscapeOverviewHost);
-            }
+            Assert.Null(fixture.Form.DreamscapeOverviewHost);
         });
     }
 

@@ -250,7 +250,7 @@ public sealed class DreamscapePageActivationTests
     }
 
     [Fact]
-    public void DreamscapeForm_BeforeShowKeepsEveryPageInactive()
+    public void ProductionForm_BeforeShowKeepsDreamscapeDormant()
     {
         RunInSta(() =>
         {
@@ -260,8 +260,8 @@ public sealed class DreamscapePageActivationTests
 
             Assert.False(activity.ReceiverVisible);
             AssertNoActivePage(activity);
-            Assert.False(fixture.Form.DreamscapeOverviewHost!.IsPageActive);
-            Assert.False(fixture.Form.DreamscapeSettingsHost!.IsPageActive);
+            Assert.Null(fixture.Form.DreamscapeOverviewHost);
+            Assert.Null(fixture.Form.DreamscapeSettingsHost);
         });
     }
 
@@ -279,11 +279,11 @@ public sealed class DreamscapePageActivationTests
     }
 
     [Theory]
-    [InlineData("Overview", true, false, false, false)]
-    [InlineData("Gamepad", false, true, false, false)]
-    [InlineData("Settings", false, false, true, false)]
-    [InlineData("Log", false, false, false, true)]
-    public void Navigation_GivesExactlyOneVisibleDreamscapePageActive(
+    [InlineData("Overview", false, false, false, false)]
+    [InlineData("Gamepad", false, false, false, false)]
+    [InlineData("Settings", false, false, false, false)]
+    [InlineData("Log", false, false, false, false)]
+    public void ProductionNavigation_KeepsEveryDreamscapePageInactive(
         string page,
         bool overview,
         bool controller,
@@ -303,33 +303,34 @@ public sealed class DreamscapePageActivationTests
             Assert.Equal(controller, activity.Controller);
             Assert.Equal(settings, activity.Settings);
             Assert.Equal(logs, activity.Logs);
-            Assert.Equal(1, ActivePageCount(activity));
+            Assert.Equal(page, activity.CurrentPage);
+            Assert.Equal(0, ActivePageCount(activity));
         });
     }
 
     [Fact]
-    public void TrayHideMakesAllPagesInactiveWithoutEndingSettingsSession()
+    public void TrayHideKeepsDreamscapeDormantAndPreservesNativeSettings()
     {
         RunInSta(() =>
         {
             using var fixture = new MainFormFixture(nativeUi: false);
             Navigate(fixture.Form, "Settings");
             fixture.Form.Show();
-            DreamscapeSettingsBasicSession session = SettingsSession(fixture.Form);
-            RadialMenuSettings draftBefore = session.Draft;
-            Assert.True(session.IsActive);
+            Assert.Null(SettingsSession(fixture.Form));
+            Assert.True(fixture.Form.SettingsControl.TryReadSettingsForTesting(out RadialMenuSettings draftBefore));
 
             fixture.Form.Hide();
 
             AssertNoActivePage(fixture.Form.GetDreamscapePageActivity());
-            Assert.False(fixture.Form.DreamscapeSettingsHost!.IsPageActive);
-            Assert.True(session.IsActive);
-            Assert.Equal(draftBefore, session.Draft);
+            Assert.Null(fixture.Form.DreamscapeSettingsHost);
+            Assert.Null(SettingsSession(fixture.Form));
+            Assert.True(fixture.Form.SettingsControl.TryReadSettingsForTesting(out RadialMenuSettings draftAfter));
+            Assert.Equal(draftBefore, draftAfter);
         });
     }
 
     [Fact]
-    public void SingleInstanceRestoreReactivatesSettingsAndPreservesCurrentPage()
+    public void SingleInstanceRestoreShowsNativeSettingsAndPreservesCurrentPage()
     {
         RunInSta(() =>
         {
@@ -342,15 +343,16 @@ public sealed class DreamscapePageActivationTests
 
             DreamscapePageActivity activity = fixture.Form.GetDreamscapePageActivity();
             Assert.Equal("Settings", activity.CurrentPage);
-            Assert.True(activity.Settings);
-            Assert.Equal(1, ActivePageCount(activity));
-            Assert.True(fixture.Form.DreamscapeSettingsHost!.IsPageActive);
-            Assert.False(fixture.Form.DreamscapeOverviewHost!.IsPageActive);
+            Assert.True(fixture.Form.SettingsControl.Visible);
+            Assert.False(activity.Settings);
+            Assert.Equal(0, ActivePageCount(activity));
+            Assert.Null(fixture.Form.DreamscapeSettingsHost);
+            Assert.Null(fixture.Form.DreamscapeOverviewHost);
         });
     }
 
     [Fact]
-    public void FiftyNavigationCycles_KeepExactlyOnePageActive()
+    public void FiftyProductionNavigationCycles_KeepDreamscapeDormant()
     {
         RunInSta(() =>
         {
@@ -362,12 +364,14 @@ public sealed class DreamscapePageActivationTests
                 foreach (string page in new[] { "Overview", "Gamepad", "Settings", "Log", "Overview" })
                 {
                     Navigate(fixture.Form, page);
-                    Assert.Equal(1, ActivePageCount(fixture.Form.GetDreamscapePageActivity()));
+                    DreamscapePageActivity activity = fixture.Form.GetDreamscapePageActivity();
+                    Assert.Equal(page, activity.CurrentPage);
+                    Assert.Equal(0, ActivePageCount(activity));
                 }
             }
 
-            Assert.True(fixture.Form.DreamscapeOverviewHost!.IsPageActive);
-            Assert.False(fixture.Form.DreamscapeSettingsHost!.IsPageActive);
+            Assert.Null(fixture.Form.DreamscapeOverviewHost);
+            Assert.Null(fixture.Form.DreamscapeSettingsHost);
         });
     }
 
@@ -398,9 +402,9 @@ public sealed class DreamscapePageActivationTests
         navigate.Invoke(form, [requestedPage]);
     }
 
-    private static DreamscapeSettingsBasicSession SettingsSession(MainForm form) =>
-        Assert.IsType<DreamscapeSettingsBasicSession>(
-            typeof(MainForm).GetField("_dreamscapeSettingsSession", PrivateInstance)?.GetValue(form));
+    private static DreamscapeSettingsBasicSession? SettingsSession(MainForm form) =>
+        (DreamscapeSettingsBasicSession?)typeof(MainForm)
+            .GetField("_dreamscapeSettingsSession", PrivateInstance)!.GetValue(form);
 
     private static int ActivePageCount(DreamscapePageActivity activity) =>
         new[] { activity.Overview, activity.Controller, activity.Settings, activity.Logs }

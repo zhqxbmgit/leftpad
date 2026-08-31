@@ -355,13 +355,13 @@ public sealed class RuntimeUiStateCorrectionTests
     }
 
     [Fact]
-    public void DreamscapeProjection_UsesSameBoundedLogAndControllerSources()
+    public void DormantDreamscapeProjection_UsesSameBoundedSourcesWithoutHosts()
     {
         RunInSta(() =>
         {
             using var fixture = new MainFormFixture(nativeUi: false);
-            Assert.NotNull(fixture.Form.DreamscapeControllerHost);
-            Assert.NotNull(fixture.Form.DreamscapeLogsHost);
+            Assert.Null(fixture.Form.DreamscapeControllerHost);
+            Assert.Null(fixture.Form.DreamscapeLogsHost);
 
             for (int sequence = 1; sequence <= 1000; sequence++)
                 Invoke(fixture.Form, "AppendLog", $"dreamscape line {sequence}");
