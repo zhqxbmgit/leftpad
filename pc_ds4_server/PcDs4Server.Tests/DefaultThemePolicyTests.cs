@@ -9,7 +9,7 @@ public sealed class DefaultThemePolicyTests
     [Fact]
     public void Authorities_AreIndependentAndFrozen()
     {
-        Assert.Equal("dark-fantasy-radial8-v1", RadialVisualPackContract.DefaultVisualPackId);
+        Assert.Equal("radial-8-minimal-v1", RadialVisualPackContract.DefaultVisualPackId);
         Assert.Equal("radial-v5", RadialVisualPackContract.FallbackVisualPackId);
         Assert.Equal("radial-v5", RadialVisualPackContract.LegacyV1DefaultPackId);
         Assert.Equal("radial-8", RadialVisualPackContract.DefaultMappingProfileId);
@@ -22,7 +22,7 @@ public sealed class DefaultThemePolicyTests
     [Fact]
     public void DefaultAndSafeFallback_AreCoherentIndependentPairs()
     {
-        Assert.Equal("dark-fantasy-radial8-v1", RadialMenuSettings.Default.VisualPackId);
+        Assert.Equal("radial-8-minimal-v1", RadialMenuSettings.Default.VisualPackId);
         Assert.Equal("radial-8", RadialMenuSettings.Default.MappingProfileId);
         Assert.Equal("radial-v5", RadialMenuSettings.SafeFallback.VisualPackId);
         Assert.Equal("radial-6", RadialMenuSettings.SafeFallback.MappingProfileId);
@@ -50,7 +50,7 @@ public sealed class DefaultThemePolicyTests
 
         Assert.Equal(RadialMenuSettingsLoadStatus.Missing, result.Status);
         Assert.Equal(RadialMenuSettings.Default, result.Settings);
-        Assert.Equal("dark-fantasy-radial8-v1", result.Settings.VisualPackId);
+        Assert.Equal("radial-8-minimal-v1", result.Settings.VisualPackId);
         Assert.Equal("radial-8", result.Settings.MappingProfileId);
         Assert.False(File.Exists(temporary.FilePath));
         Assert.False(Directory.Exists(temporary.DirectoryPath));
@@ -134,7 +134,7 @@ public sealed class DefaultThemePolicyTests
         using var temporary = new TemporarySettingsPath();
         File.WriteAllText(temporary.FilePath, """
             {
-              "visualPackId": "dark-fantasy-radial8-v1",
+              "visualPackId": "radial-8-minimal-v1",
               "mappingProfileId": "radial-8",
               "hubRadius": 50,
               "petalInnerRadius": 42
@@ -166,8 +166,7 @@ public sealed class DefaultThemePolicyTests
     [Theory]
     [InlineData("radial-v5", "radial-6")]
     [InlineData("radial-8-minimal-v1", "radial-8")]
-    [InlineData("dark-fantasy-radial8-v1", "radial-8")]
-    public void ExplicitValidThemes_ArePreservedByTheStore(string themeId, string profileId)
+    public void ExplicitCurrentThemes_ArePreservedByTheStore(string themeId, string profileId)
     {
         using var temporary = new TemporarySettingsPath();
         File.WriteAllText(
@@ -183,12 +182,12 @@ public sealed class DefaultThemePolicyTests
     }
 
     [Fact]
-    public void ValidThemeProfileMismatch_IsRepairedInMemoryWithoutWritingOrLosingMappings()
+    public void CurrentThemeProfileMismatch_IsRepairedInMemoryWithoutWritingOrLosingMappings()
     {
         using var temporary = new TemporarySettingsPath();
         File.WriteAllText(temporary.FilePath, """
             {
-              "visualPackId": "dark-fantasy-radial8-v1",
+              "visualPackId": "radial-8-minimal-v1",
               "mappingProfileId": "radial-6",
               "mappingsByProfile": {
                 "radial-6": [
@@ -215,8 +214,47 @@ public sealed class DefaultThemePolicyTests
             new RadialVisualPackCatalog().Discover());
 
         Assert.True(result.Repaired);
-        Assert.Equal("dark-fantasy-radial8-v1", result.Settings.VisualPackId);
+        Assert.Equal("radial-8-minimal-v1", result.Settings.VisualPackId);
         Assert.Equal("radial-8", result.Settings.MappingProfileId);
+        Assert.Equal(KeyboardKey.F1, result.Settings.GetProfileMappings("radial-6")[0].Key);
+        Assert.Equal(KeyboardKey.F7, result.Settings.GetProfileMappings("radial-8")[6].Key);
+        Assert.Equal(KeyboardKey.F8, result.Settings.GetProfileMappings("radial-8")[7].Key);
+        Assert.Equal(before, File.ReadAllBytes(temporary.FilePath));
+    }
+
+    [Fact]
+    public void RetiredDarkFantasyTheme_IsMigratedInMemoryWithoutWritingOrLosingMappings()
+    {
+        using var temporary = new TemporarySettingsPath();
+        File.WriteAllText(temporary.FilePath, """
+            {
+              "visualPackId": "dark-fantasy-radial8-v1",
+              "mappingProfileId": "radial-8",
+              "mappingsByProfile": {
+                "radial-6": [
+                  { "kind": "keyboardKey", "key": "F1" }
+                ],
+                "radial-8": [
+                  { "kind": "none" },
+                  { "kind": "none" },
+                  { "kind": "none" },
+                  { "kind": "none" },
+                  { "kind": "none" },
+                  { "kind": "none" },
+                  { "kind": "keyboardKey", "key": "F7" },
+                  { "kind": "keyboardKey", "key": "F8" }
+                ]
+              }
+            }
+            """);
+        byte[] before = File.ReadAllBytes(temporary.FilePath);
+
+        RadialMenuSettingsLoadResult result =
+            new RadialMenuSettingsStore(temporary.FilePath).Load();
+
+        Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal(RadialVisualPackContract.DefaultVisualPackId, result.Settings.VisualPackId);
+        Assert.Equal(RadialVisualPackContract.DefaultMappingProfileId, result.Settings.MappingProfileId);
         Assert.Equal(KeyboardKey.F1, result.Settings.GetProfileMappings("radial-6")[0].Key);
         Assert.Equal(KeyboardKey.F7, result.Settings.GetProfileMappings("radial-8")[6].Key);
         Assert.Equal(KeyboardKey.F8, result.Settings.GetProfileMappings("radial-8")[7].Key);
@@ -245,10 +283,13 @@ public sealed class DefaultThemePolicyTests
     {
         RadialVisualPackCatalogSnapshot snapshot = new RadialVisualPackCatalog().Discover();
 
-        Assert.Equal("dark-fantasy-radial8-v1", snapshot.ResolveSelection(null)!.Id);
-        Assert.Equal("dark-fantasy-radial8-v1", snapshot.ResolveSelection(string.Empty)!.Id);
+        Assert.Equal("radial-8-minimal-v1", snapshot.ResolveSelection(null)!.Id);
+        Assert.Equal("radial-8-minimal-v1", snapshot.ResolveSelection(string.Empty)!.Id);
         Assert.Equal("radial-v5", snapshot.ResolveSelection("does-not-exist")!.Id);
-        Assert.Equal(3, snapshot.Packs.Count);
+        Assert.Null(snapshot.Find(RadialMenuSettingsStore.RetiredDarkFantasyRadial8VisualPackId));
+        Assert.NotNull(snapshot.Find("radial-8-minimal-v1"));
+        Assert.NotNull(snapshot.Find("radial-v5"));
+        Assert.Equal(2, snapshot.Packs.Count);
     }
 
     [Fact]
@@ -311,16 +352,16 @@ public sealed class DefaultThemePolicyTests
     }
 
     [Fact]
-    public void V1AndV2Plans_PropagateRadialV5FallbackAuthority()
+    public void ProductionV1Plans_PropagateRadialV5FallbackAuthority()
     {
         RadialVisualPackCatalogSnapshot snapshot = new RadialVisualPackCatalog().Discover();
         RadialVisualPackCatalogEntry v1 = snapshot.Find("radial-v5")!;
-        RadialVisualPackCatalogEntry v2 = snapshot.Find("dark-fantasy-radial8-v1")!;
+        RadialVisualPackCatalogEntry radial8 = snapshot.Find("radial-8-minimal-v1")!;
 
         Assert.Equal("radial-v5", v1.Plan.Fallback.StartupFallbackThemeId);
-        Assert.Equal("radial-v5", v2.Plan.Fallback.StartupFallbackThemeId);
+        Assert.Equal("radial-v5", radial8.Plan.Fallback.StartupFallbackThemeId);
         Assert.True(v1.Plan.Fallback.RetainActiveOnCandidateFailure);
-        Assert.True(v2.Plan.Fallback.RetainActiveOnCandidateFailure);
+        Assert.True(radial8.Plan.Fallback.RetainActiveOnCandidateFailure);
     }
 
     [Fact]
@@ -351,7 +392,7 @@ public sealed class DefaultThemePolicyTests
             // The Native editor materializes the currently displayed mapping profile.
             Assert.Equal(RadialMenuSettings.Default.SetProfileMappings("radial-8",
                 RadialSlotMappings.Create(8)).NormalizeMappings(), draft);
-            Assert.Equal("dark-fantasy-radial8-v1", draft.VisualPackId);
+            Assert.Equal("radial-8-minimal-v1", draft.VisualPackId);
             Assert.Equal("radial-8", draft.MappingProfileId);
             Assert.Equal(RadialMenuSettings.SafeFallback, controller.ConfiguredSettings);
             Assert.False(File.Exists(temporary.FilePath));
@@ -359,7 +400,7 @@ public sealed class DefaultThemePolicyTests
     }
 
     [Fact]
-    public void ProductionNoConfig_DefaultResolvesAndBuildsTheDarkFantasyBundle()
+    public void ProductionNoConfig_DefaultResolvesAndBuildsTheRadial8MinimalBundle()
     {
         RadialVisualPackCatalogSnapshot snapshot = new RadialVisualPackCatalog().Discover();
         RadialSettingsCoherenceResult effective = RadialSettingsCoherenceResolver.Resolve(
@@ -374,7 +415,7 @@ public sealed class DefaultThemePolicyTests
             dpi: 192);
 
         Assert.False(effective.Repaired);
-        Assert.Equal("dark-fantasy-radial8-v1", session.PackId);
+        Assert.Equal("radial-8-minimal-v1", session.PackId);
         Assert.Equal("radial-8", session.LayoutDefinition.ProfileId);
         Assert.Equal(8, session.LayoutDefinition.SlotCount);
         Assert.Equal(8, session.Mappings.Count);

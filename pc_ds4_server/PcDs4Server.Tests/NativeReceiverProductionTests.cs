@@ -129,7 +129,7 @@ public sealed class NativeReceiverProductionTests
             using var control = new RadialMenuSettingsControl(controller, store, controller.ApplySettings, logs.Add);
             ComboBox theme = Assert.IsType<ComboBox>(Assert.Single(control.Controls.Find("visualPack", true)));
             theme.SelectedItem = theme.Items.Cast<RadialVisualPackCatalogEntry>()
-                .Single(pack => pack.Id == "dark-fantasy-radial8-v1");
+                .Single(pack => pack.Id == "radial-8-minimal-v1");
             Assert.True(control.TryReadSettingsForTesting(out RadialMenuSettings candidate));
             Assert.Equal("radial-8", candidate.MappingProfileId);
             Assert.Equal(8, control.MappingRowCount);
@@ -142,12 +142,12 @@ public sealed class NativeReceiverProductionTests
             RadialMenuSettingsLoadResult reloaded = store.Load();
             Assert.Equal(RadialMenuSettingsLoadStatus.Loaded, reloaded.Status);
             Assert.Equal(candidate.NormalizeMappings(), reloaded.Settings.NormalizeMappings());
-            Assert.Equal("dark-fantasy-radial8-v1", reloaded.Settings.VisualPackId);
+            Assert.Equal("radial-8-minimal-v1", reloaded.Settings.VisualPackId);
             Assert.Equal("radial-8", reloaded.Settings.MappingProfileId);
             Assert.DoesNotContain(logs, log => log.Contains("Runtime settings did not match", StringComparison.Ordinal));
             Assert.Equal(new[] { store.Path }, Directory.GetFiles(directory.Path));
             control.RefreshFromRuntime();
-            Assert.Equal("dark-fantasy-radial8-v1", control.SelectedVisualPackId);
+            Assert.Equal("radial-8-minimal-v1", control.SelectedVisualPackId);
             Assert.Equal("radial-8", control.ActiveMappingProfileId);
             Assert.Equal(8, control.MappingRowCount);
             Assert.True(control.TryReadSettingsForTesting(out RadialMenuSettings refreshed));

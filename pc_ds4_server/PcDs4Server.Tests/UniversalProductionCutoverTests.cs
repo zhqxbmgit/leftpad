@@ -11,7 +11,7 @@ public sealed class UniversalProductionCutoverTests
 {
     private const string V5 = "radial-v5";
     private const string R8 = "radial-8-minimal-v1";
-    private const string Dark = "dark-fantasy-radial8-v1";
+    private const string Dark = HistoricalV2ThemeCatalog.ReferenceThemeId;
 
     [Fact]
     public void PublicOverlayUsesDefaultAsyncForStartupPreviewUpdateAndCommittedSettings()
@@ -22,7 +22,7 @@ public sealed class UniversalProductionCutoverTests
             try
             {
                 var messages = new ConcurrentQueue<string>();
-                using var overlay = new RadialMenuOverlay(new RadialVisualPackCatalog(), messages.Enqueue);
+                using var overlay = new RadialMenuOverlay(HistoricalV2ThemeCatalog.Create(), messages.Enqueue);
                 Assert.Equal(RadialRenderPolicy.UniversalInitial, RadialRenderPolicyAuthority.ProductionDefault);
                 Assert.Equal(RadialRenderPolicyAuthority.ProductionDefault, overlay.RenderPolicy);
                 RadialMenuSettings initial = Settings(V5);
@@ -226,7 +226,7 @@ public sealed class UniversalProductionCutoverTests
     }
 
     private static RadialVisualPackCatalogEntry Entry(string theme) =>
-        Assert.IsType<RadialVisualPackCatalogEntry>(new RadialVisualPackCatalog().Discover().Find(theme));
+        Assert.IsType<RadialVisualPackCatalogEntry>(HistoricalV2ThemeCatalog.Create().Discover().Find(theme));
 
     private static RadialMenuSettings Settings(string theme) => RadialMenuSettings.Default with
     {
@@ -265,8 +265,8 @@ public sealed class UniversalProductionCutoverTests
         public DefaultRuntimeHarness(RuntimeRenderBundleTargetBuilder? builder = null)
         {
             Runtime = builder == null
-                ? new RadialVisualPackRuntime(new RadialVisualPackCatalog())
-                : new RadialVisualPackRuntime(new RadialVisualPackCatalog(), RadialRenderPolicyAuthority.ProductionDefault, builder);
+                ? new RadialVisualPackRuntime(HistoricalV2ThemeCatalog.Create())
+                : new RadialVisualPackRuntime(HistoricalV2ThemeCatalog.Create(), RadialRenderPolicyAuthority.ProductionDefault, builder);
             Runtime.EnableUniversalAsync(Dispatcher, _ => { }, Failures.Add, Worker, Scheduler);
             Assert.True(Runtime.IsUniversalAsyncEnabled);
             Assert.Equal(RadialRenderPolicy.UniversalInitial, Runtime.RenderPolicy);

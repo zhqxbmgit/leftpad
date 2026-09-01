@@ -57,10 +57,6 @@ THEMES = {
         "radial-8-minimal-v1", 1, 1, 8, "v1-canonical",
         ASSET_ROOT / "UIVisualPacks" / "radial-8-minimal-v1", (1, 3, 5, 8), "RGBA"
     ),
-    "dark-fantasy-radial8-v1": ThemeAuthority(
-        "dark-fantasy-radial8-v1", 2, 1, 8, "v2-full-state",
-        ASSET_ROOT / "UIThemes" / "dark-fantasy-radial8-v1", (1, 2, 3, 5, 6, 8), "sRGB"
-    ),
 }
 
 

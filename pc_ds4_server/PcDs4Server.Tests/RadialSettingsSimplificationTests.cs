@@ -198,7 +198,7 @@ public sealed class RadialSettingsSimplificationTests
             using var temporary = new TemporarySettingsPath();
             RadialMenuSettings settings = RadialMenuSettings.Default with
             {
-                VisualPackId = "dark-fantasy-radial8-v1",
+                VisualPackId = "radial-8-minimal-v1",
                 ScalePercent = 117,
                 FontSize = 19.5f,
                 DoubleTapWindowMs = 321,
@@ -335,7 +335,7 @@ public sealed class RadialSettingsSimplificationTests
                 .Select(item => themes.GetItemText(item) ?? string.Empty)
                 .ToArray();
 
-            Assert.Contains("Dark Fantasy Radial 8", displayNames);
+            Assert.DoesNotContain("Dark Fantasy Radial 8", displayNames);
             Assert.Contains("Tactical HUD V5", displayNames);
             Assert.Contains("Radial 8 Minimal V1", displayNames);
             foreach (string displayName in displayNames)

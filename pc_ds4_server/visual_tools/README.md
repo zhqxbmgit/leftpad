@@ -185,8 +185,8 @@ image-analysis ownership guessing are outside the contract.
 
 `build_selected_emphasis_companion.py` is the offline authority compiler for
 the internal Phase 3 `SELECTED_EMPHASIS` migration checkpoint. It reads only
-the three frozen formal themes (`radial-v5`, `radial-8-minimal-v1`, and
-`dark-fantasy-radial8-v1`) and writes companions beneath
+the two active production visual packs (`radial-v5` and `radial-8-minimal-v1`)
+and writes companions beneath
 `../visual_prototypes/universal_radial_v3/phase3-selected-emphasis/`.
 
 ```powershell

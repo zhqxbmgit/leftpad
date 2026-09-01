@@ -34,6 +34,10 @@
           Link="Assets\UniversalRadialV3\phase3-selected-emphasis\%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="..\visual_prototypes\reference_fidelity_spikes\dark-fantasy-radial8-v2-dynamic\package\**\*"
+          Link="Assets\ReferenceV2Themes\reference-dark-fantasy-radial8-dynamic-spike\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

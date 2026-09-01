@@ -31,7 +31,7 @@ internal static class CrossProfileSettingsScenario
 
     internal static RadialMenuSettings Candidate => Original with
     {
-        VisualPackId = "dark-fantasy-radial8-v1",
+        VisualPackId = "radial-8-minimal-v1",
         MappingProfileId = "radial-8",
         ScalePercent = 117,
         FontSize = 19.5f,

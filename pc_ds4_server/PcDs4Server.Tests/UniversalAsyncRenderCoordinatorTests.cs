@@ -10,7 +10,7 @@ public sealed class UniversalAsyncRenderCoordinatorTests
 {
     private const string RadialV5 = "radial-v5";
     private const string Radial8Minimal = "radial-8-minimal-v1";
-    private const string DarkFantasy = "dark-fantasy-radial8-v1";
+    private const string DarkFantasy = HistoricalV2ThemeCatalog.ReferenceThemeId;
     private readonly ITestOutputHelper _output;
 
     public UniversalAsyncRenderCoordinatorTests(ITestOutputHelper output) =>
@@ -419,7 +419,7 @@ public sealed class UniversalAsyncRenderCoordinatorTests
         var dispatcher = new ManualDispatcher();
         var scheduler = new ManualScheduler();
         using var runtime = new RadialVisualPackRuntime(
-            new RadialVisualPackCatalog(),
+            HistoricalV2ThemeCatalog.Create(),
             RadialRenderPolicy.UniversalInitial);
         runtime.EnableUniversalAsync(dispatcher, _ => { }, null, worker, scheduler);
         RadialMenuSettings settings = ThemeSettings(DarkFantasy);
@@ -466,7 +466,7 @@ public sealed class UniversalAsyncRenderCoordinatorTests
             return universal(plan, settings, targetSize, dpi);
         };
         using var runtime = new RadialVisualPackRuntime(
-            new RadialVisualPackCatalog(),
+            HistoricalV2ThemeCatalog.Create(),
             RadialRenderPolicy.UniversalInitial,
             failDarkFantasy);
         runtime.EnableUniversalAsync(dispatcher, _ => { }, null, worker, scheduler);
@@ -529,7 +529,7 @@ public sealed class UniversalAsyncRenderCoordinatorTests
             return universal(plan, settings, targetSize, dpi);
         };
         using (runtime = new RadialVisualPackRuntime(
-                   new RadialVisualPackCatalog(),
+                   HistoricalV2ThemeCatalog.Create(),
                    RadialRenderPolicy.UniversalInitial,
                    supersedingBuilder))
         {
@@ -570,7 +570,7 @@ public sealed class UniversalAsyncRenderCoordinatorTests
                 : universal(plan, settings, targetSize, dpi);
         var failures = new List<string>();
         using var runtime = new RadialVisualPackRuntime(
-            new RadialVisualPackCatalog(),
+            HistoricalV2ThemeCatalog.Create(),
             RadialRenderPolicy.UniversalInitial,
             failDarkFantasy);
         runtime.EnableUniversalAsync(dispatcher, _ => { }, failures.Add, worker, scheduler);
@@ -633,7 +633,7 @@ public sealed class UniversalAsyncRenderCoordinatorTests
         var dispatcher = new ManualDispatcher();
         var scheduler = new ManualScheduler();
         using var runtime = new RadialVisualPackRuntime(
-            new RadialVisualPackCatalog(),
+            HistoricalV2ThemeCatalog.Create(),
             RadialRenderPolicy.UniversalInitial);
         runtime.EnableUniversalAsync(dispatcher, _ => { }, null, worker, scheduler);
         RadialMenuSettings initial = ThemeSettings(DarkFantasy);

@@ -18,6 +18,8 @@ public sealed record RadialMenuSettingsLoadResult(
 
 public sealed class RadialMenuSettingsStore
 {
+    internal const string RetiredDarkFantasyRadial8VisualPackId = "dark-fantasy-radial8-v1";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -81,6 +83,17 @@ public sealed class RadialMenuSettingsStore
                 {
                     VisualPackId = RadialVisualPackContract.LegacyV1DefaultPackId,
                     MappingProfileId = RadialVisualPackContract.FallbackMappingProfileId
+                };
+            }
+            else if (string.Equals(
+                settings.VisualPackId,
+                RetiredDarkFantasyRadial8VisualPackId,
+                StringComparison.Ordinal))
+            {
+                settings = settings with
+                {
+                    VisualPackId = RadialVisualPackContract.DefaultVisualPackId,
+                    MappingProfileId = RadialVisualPackContract.DefaultMappingProfileId
                 };
             }
             settings = settings with

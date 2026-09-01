@@ -15,7 +15,7 @@ public sealed class UniversalProductionAcceptanceTests
 {
     private const string RadialV5 = "radial-v5";
     private const string Radial8Minimal = "radial-8-minimal-v1";
-    private const string DarkFantasy = "dark-fantasy-radial8-v1";
+    private const string DarkFantasy = HistoricalV2ThemeCatalog.ReferenceThemeId;
     private const string PublishRootVariable = "PCDS4_ACCEPTANCE_PUBLISH_ROOT";
     private const string ArtifactRootVariable = "PCDS4_ACCEPTANCE_ARTIFACT_ROOT";
     private const string RealRadialConfigVariable = "PCDS4_ACCEPTANCE_REAL_RADIAL_CONFIG";
@@ -35,7 +35,7 @@ public sealed class UniversalProductionAcceptanceTests
     public void ProductionCandidateMatrixCoversAll162CellsAnd54DeterministicRepresentatives()
     {
         Assert.Equal(RadialRenderPolicy.UniversalInitial, RadialRenderPolicyAuthority.ProductionDefault);
-        var catalog = new RadialVisualPackCatalog();
+        var catalog = HistoricalV2ThemeCatalog.Create();
         RadialVisualPackCatalogSnapshot discovered = catalog.Discover();
         Assert.Empty(discovered.Issues);
         RuntimeRenderBundleTargetBuilder builder =
@@ -127,7 +127,7 @@ public sealed class UniversalProductionAcceptanceTests
     public void ProfilesCurrentConfigAndHiddenHistoricalPoisonRemainCoherent()
     {
         Assert.Equal(RadialRenderPolicy.UniversalInitial, RadialRenderPolicyAuthority.ProductionDefault);
-        var catalog = new RadialVisualPackCatalog();
+        var catalog = HistoricalV2ThemeCatalog.Create();
         RadialVisualPackCatalogSnapshot discovered = catalog.Discover();
         Assert.Empty(discovered.Issues);
         RuntimeRenderBundleTargetBuilder builder =
@@ -297,7 +297,7 @@ public sealed class UniversalProductionAcceptanceTests
     [Fact]
     public void RealBuilderAsyncStormsAtomicSwapAndFailureContractsPass()
     {
-        var catalog = new RadialVisualPackCatalog();
+        var catalog = HistoricalV2ThemeCatalog.Create();
         RuntimeRenderBundleTargetBuilder universal =
             RadialRenderPolicyAuthority.CreateBundleBuilder(
                 RadialRenderPolicyAuthority.ProductionDefault,
@@ -526,13 +526,12 @@ public sealed class UniversalProductionAcceptanceTests
         string visualPacks = Path.Combine(contentRoot, "Assets", "UIVisualPacks");
         string themes = Path.Combine(contentRoot, "Assets", "UIThemes");
         Assert.True(Directory.Exists(visualPacks));
-        Assert.True(Directory.Exists(themes));
         var catalog = new RadialVisualPackCatalog(visualPacks, themes);
         RadialVisualPackCatalogSnapshot discovered = catalog.Discover();
         Assert.Empty(discovered.Issues);
         Assert.Equal(LayoutProfileRegistry.Radial6ProfileId, Entry(discovered, RadialV5).LayoutDefinition.ProfileId);
         Assert.Equal(LayoutProfileRegistry.Radial8ProfileId, Entry(discovered, Radial8Minimal).LayoutDefinition.ProfileId);
-        Assert.Equal(LayoutProfileRegistry.Radial8ProfileId, Entry(discovered, DarkFantasy).LayoutDefinition.ProfileId);
+        Assert.Null(discovered.Find(HistoricalV2ThemeCatalog.ReferenceThemeId));
 
         string absentCompanion = string.IsNullOrWhiteSpace(configured)
             ? EmptyCompanionRoot
@@ -546,10 +545,9 @@ public sealed class UniversalProductionAcceptanceTests
                 absentCompanion);
         foreach ((string themeId, int scale, int font, int dpi) in new[]
                  {
-                     (RadialV5, 100, 15, 96),
-                     (Radial8Minimal, 100, 15, 96),
-                     (DarkFantasy, 100, 15, 96),
-                     (DarkFantasy, 140, 48, 192)
+                      (RadialV5, 100, 15, 96),
+                      (Radial8Minimal, 100, 15, 96),
+                      (Radial8Minimal, 140, 48, 192)
                  })
         {
             RadialVisualPackCatalogEntry entry = Entry(discovered, themeId);
@@ -567,19 +565,17 @@ public sealed class UniversalProductionAcceptanceTests
             Assert.Equal(0, bundle.SelectedEmphasisManifestReadCount);
             Assert.Equal(0, bundle.SelectedEmphasisDecodedAssetCount);
             Assert.False(bundle.HasSelectedEmphasisCache);
-            if (themeId == DarkFantasy && scale == 140)
-                Assert.Equal(new Size(1176, 1176), bundle.PhysicalSurfaceSize);
         }
 
-        RuntimeRenderBundleTargetBuilder failDark = (plan, settings, targetSize, dpi) =>
-            plan.ThemeId == DarkFantasy
-                ? throw new InvalidDataException("Synthetic packaged Dark Fantasy failure.")
+        RuntimeRenderBundleTargetBuilder failDefault = (plan, settings, targetSize, dpi) =>
+            plan.ThemeId == Radial8Minimal
+                ? throw new InvalidDataException("Synthetic packaged default visual pack failure.")
                 : universal(plan, settings, targetSize, dpi);
         using (CandidateHarness fallback = BuildCandidate(
                    catalog,
-                   MatrixSettings(DarkFantasy, 100, 15, MappingAuthority.Mixed, 8),
+                   MatrixSettings(Radial8Minimal, 100, 15, MappingAuthority.Mixed, 8),
                    96,
-                   failDark))
+                   failDefault))
         {
             Assert.Equal(RadialV5, fallback.Session.PackId);
             Assert.True(fallback.Session.Bundle.IsUniversal);
@@ -621,7 +617,7 @@ public sealed class UniversalProductionAcceptanceTests
     [Fact]
     public void SixReviewSheetsUseProductionCandidateFinalStates()
     {
-        var catalog = new RadialVisualPackCatalog();
+        var catalog = HistoricalV2ThemeCatalog.Create();
         RadialVisualPackCatalogSnapshot discovered = catalog.Discover();
         Assert.Empty(discovered.Issues);
         RuntimeRenderBundleTargetBuilder builder =

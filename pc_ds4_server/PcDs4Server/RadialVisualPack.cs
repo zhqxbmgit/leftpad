@@ -6,7 +6,7 @@ namespace PcDs4Server;
 
 public static class RadialVisualPackContract
 {
-    public const string DefaultVisualPackId = "dark-fantasy-radial8-v1";
+    public const string DefaultVisualPackId = "radial-8-minimal-v1";
     public const string FallbackVisualPackId = "radial-v5";
     public const string LegacyV1DefaultPackId = "radial-v5";
     public const string DefaultMappingProfileId = LayoutProfileRegistry.Radial8ProfileId;

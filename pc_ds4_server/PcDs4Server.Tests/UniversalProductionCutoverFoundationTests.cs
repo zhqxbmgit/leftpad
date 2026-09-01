@@ -13,7 +13,7 @@ public sealed class UniversalProductionCutoverFoundationTests
 {
     private const string RadialV5 = "radial-v5";
     private const string Radial8Minimal = "radial-8-minimal-v1";
-    private const string DarkFantasy = "dark-fantasy-radial8-v1";
+    private const string DarkFantasy = HistoricalV2ThemeCatalog.ReferenceThemeId;
 
     public static TheoryData<string> FormalThemes => new()
     {
@@ -528,7 +528,7 @@ public sealed class UniversalProductionCutoverFoundationTests
             return universal(plan, settings, targetSize, dpi);
         };
         using var runtime = new RadialVisualPackRuntime(
-            new RadialVisualPackCatalog(),
+            HistoricalV2ThemeCatalog.Create(),
             RadialRenderPolicy.UniversalInitial,
             failDarkFantasy);
         RadialMenuSettings settings = ThemeSettings(DarkFantasy);
@@ -556,7 +556,7 @@ public sealed class UniversalProductionCutoverFoundationTests
             throw new InvalidDataException("Synthetic Universal failure.");
         };
         using var runtime = new RadialVisualPackRuntime(
-            new RadialVisualPackCatalog(),
+            HistoricalV2ThemeCatalog.Create(),
             RadialRenderPolicy.UniversalInitial,
             fail);
         RadialMenuSettings settings = ThemeSettings(DarkFantasy);
@@ -585,7 +585,7 @@ public sealed class UniversalProductionCutoverFoundationTests
                 ? throw new InvalidDataException("Synthetic Dark Fantasy failure.")
                 : universal(plan, settings, targetSize, dpi);
         using var runtime = new RadialVisualPackRuntime(
-            new RadialVisualPackCatalog(),
+            HistoricalV2ThemeCatalog.Create(),
             RadialRenderPolicy.UniversalInitial,
             failDarkFantasy);
         RadialMenuSettings v1Settings = ThemeSettings(RadialV5);
@@ -671,7 +671,7 @@ public sealed class UniversalProductionCutoverFoundationTests
 
     private static RadialVisualPackCatalogEntry Entry(string themeId)
     {
-        RadialVisualPackCatalogSnapshot snapshot = new RadialVisualPackCatalog().Discover();
+        RadialVisualPackCatalogSnapshot snapshot = HistoricalV2ThemeCatalog.Create().Discover();
         Assert.Empty(snapshot.Issues);
         return Assert.IsType<RadialVisualPackCatalogEntry>(snapshot.Find(themeId));
     }

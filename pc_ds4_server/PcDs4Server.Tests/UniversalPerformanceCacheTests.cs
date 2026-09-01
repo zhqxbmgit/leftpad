@@ -10,7 +10,7 @@ public sealed class UniversalPerformanceCacheTests
 {
     private const string RadialV5 = "radial-v5";
     private const string Radial8Minimal = "radial-8-minimal-v1";
-    private const string DarkFantasy = "dark-fantasy-radial8-v1";
+    private const string DarkFantasy = HistoricalV2ThemeCatalog.ReferenceThemeId;
 
     [Fact]
     public void DarkFantasyDpi192RetainsOnlyTightSpritesAndPrebuiltFinalStates()
@@ -252,7 +252,7 @@ public sealed class UniversalPerformanceCacheTests
 
     private static RadialVisualPackCatalogEntry Entry(string themeId)
     {
-        RadialVisualPackCatalogSnapshot snapshot = new RadialVisualPackCatalog().Discover();
+        RadialVisualPackCatalogSnapshot snapshot = HistoricalV2ThemeCatalog.Create().Discover();
         Assert.Empty(snapshot.Issues);
         return Assert.IsType<RadialVisualPackCatalogEntry>(snapshot.Find(themeId));
     }

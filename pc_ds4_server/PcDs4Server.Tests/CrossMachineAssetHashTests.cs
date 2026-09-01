@@ -48,24 +48,28 @@ public sealed class CrossMachineAssetHashTests
     public void ProductionJsonLfAndCrlfCopiesMatchWithoutChangingSourceBytes()
     {
         using var temporary = new RadialVisualPackTestDirectory();
-        foreach (string root in new[] { RadialVisualPackContract.DiscoveryRoot, UiThemeV2Contract.DiscoveryRoot })
-        {
-            string[] files = Directory.GetFiles(root, "*.json", SearchOption.AllDirectories);
-            Assert.NotEmpty(files);
-            foreach (string source in files)
+        string[] files = new[]
             {
-                byte[] original = File.ReadAllBytes(source);
-                string lf = Encoding.UTF8.GetString(original).Replace("\r\n", "\n").Replace('\r', '\n');
-                string lfPath = Path.Combine(temporary.Root, "lf.json");
-                string crlfPath = Path.Combine(temporary.Root, "crlf.json");
-                File.WriteAllBytes(lfPath, Encoding.UTF8.GetBytes(lf));
-                File.WriteAllBytes(crlfPath, Encoding.UTF8.GetBytes(lf.Replace("\n", "\r\n")));
-                string expected = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(lf)));
-                Assert.Equal(expected, CanonicalAssetHash.JsonSha256(source));
-                Assert.Equal(expected, CanonicalAssetHash.JsonSha256(lfPath));
-                Assert.Equal(expected, CanonicalAssetHash.JsonSha256(crlfPath));
-                Assert.Equal(original, File.ReadAllBytes(source));
+                RadialVisualPackContract.DiscoveryRoot,
+                UiThemeV2Contract.DiscoveryRoot
             }
+            .Where(Directory.Exists)
+            .SelectMany(root => Directory.GetFiles(root, "*.json", SearchOption.AllDirectories))
+            .ToArray();
+        Assert.NotEmpty(files);
+        foreach (string source in files)
+        {
+            byte[] original = File.ReadAllBytes(source);
+            string lf = Encoding.UTF8.GetString(original).Replace("\r\n", "\n").Replace('\r', '\n');
+            string lfPath = Path.Combine(temporary.Root, "lf.json");
+            string crlfPath = Path.Combine(temporary.Root, "crlf.json");
+            File.WriteAllBytes(lfPath, Encoding.UTF8.GetBytes(lf));
+            File.WriteAllBytes(crlfPath, Encoding.UTF8.GetBytes(lf.Replace("\n", "\r\n")));
+            string expected = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(lf)));
+            Assert.Equal(expected, CanonicalAssetHash.JsonSha256(source));
+            Assert.Equal(expected, CanonicalAssetHash.JsonSha256(lfPath));
+            Assert.Equal(expected, CanonicalAssetHash.JsonSha256(crlfPath));
+            Assert.Equal(original, File.ReadAllBytes(source));
         }
     }
 
