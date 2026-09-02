@@ -1,0 +1,11 @@
+{
+  "id": "xbm-radial8-v1",
+  "name": "XBM Cyan Radial 8",
+  "version": 1,
+  "layoutProfile": "radial-8",
+  "slotCount": 8,
+  "base": "radial-base.png",
+  "selected": "radial-selected-card.png",
+  "layout": "radial-layout.json",
+  "selectionAssetMode": "canonical-transform"
+}

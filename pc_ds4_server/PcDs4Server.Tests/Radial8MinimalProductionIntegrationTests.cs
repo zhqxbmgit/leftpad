@@ -27,11 +27,12 @@ public sealed class Radial8MinimalProductionIntegrationTests
             new[]
             {
                 RadialVisualPackContract.LegacyV1DefaultPackId,
-                ProductionPackId
+                ProductionPackId,
+                "xbm-radial8-v1"
             },
             snapshot.Packs.Select(pack => pack.Id));
         Assert.Equal(
-            new[] { "Tactical HUD V5", ProductionPackName },
+            new[] { "Tactical HUD V5", ProductionPackName, "XBM Cyan Radial 8" },
             snapshot.Packs.Select(pack => pack.Name));
         Assert.Null(snapshot.Find("radial-8-minimal-test"));
         Assert.Null(snapshot.Find("radial-8-orange-v2"));
@@ -103,7 +104,7 @@ public sealed class Radial8MinimalProductionIntegrationTests
             var visualPack = Assert.IsType<ComboBox>(Assert.Single(
                 form.Controls.Find("visualPack", searchAllChildren: true)));
             Assert.Equal(
-                new[] { "Tactical HUD V5", ProductionPackName },
+                new[] { "Tactical HUD V5", ProductionPackName, "XBM Cyan Radial 8" },
                 visualPack.Items.Cast<RadialVisualPackCatalogEntry>()
                     .Select(pack => pack.Name));
             Assert.Equal(

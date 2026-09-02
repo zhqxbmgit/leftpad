@@ -289,7 +289,8 @@ public sealed class DefaultThemePolicyTests
         Assert.Null(snapshot.Find(RadialMenuSettingsStore.RetiredDarkFantasyRadial8VisualPackId));
         Assert.NotNull(snapshot.Find("radial-8-minimal-v1"));
         Assert.NotNull(snapshot.Find("radial-v5"));
-        Assert.Equal(2, snapshot.Packs.Count);
+        Assert.NotNull(snapshot.Find("xbm-radial8-v1"));
+        Assert.Equal(3, snapshot.Packs.Count);
     }
 
     [Fact]

@@ -1,0 +1,173 @@
+{
+  "canvas": {
+    "width": 1254,
+    "height": 1254,
+    "mode": "RGBA"
+  },
+  "wheelCenter": {
+    "x": 627,
+    "y": 627
+  },
+  "geometry": {
+    "outerRadius": 500.0,
+    "innerRadius": 198.0,
+    "gapPx": 9.0,
+    "cornerRadius": 4,
+    "centerRadius": 188.0,
+    "centerInnerRadius": 164.0,
+    "centerDynamicContentSafeRadius": 140,
+    "geometryFamily": "xbm-reference-authored-v1",
+    "effectLevel": "offline-baked"
+  },
+  "slotCount": 8,
+  "slotAnglesDegrees": [
+    0,
+    45,
+    90,
+    135,
+    180,
+    225,
+    270,
+    315
+  ],
+  "slots": [
+    {
+      "slot": 1,
+      "name": "Top",
+      "angleDegreesClockwiseFromTop": 0,
+      "glyphAnchor": {
+        "x": 627.0,
+        "y": 277.0
+      },
+      "labelAnchor": {
+        "x": 627.0,
+        "y": 219.0
+      }
+    },
+    {
+      "slot": 2,
+      "name": "Upper Right",
+      "angleDegreesClockwiseFromTop": 45,
+      "glyphAnchor": {
+        "x": 874.487,
+        "y": 379.513
+      },
+      "labelAnchor": {
+        "x": 915.5,
+        "y": 338.5
+      }
+    },
+    {
+      "slot": 3,
+      "name": "Right",
+      "angleDegreesClockwiseFromTop": 90,
+      "glyphAnchor": {
+        "x": 977.0,
+        "y": 627.0
+      },
+      "labelAnchor": {
+        "x": 1035.0,
+        "y": 627.0
+      }
+    },
+    {
+      "slot": 4,
+      "name": "Lower Right",
+      "angleDegreesClockwiseFromTop": 135,
+      "glyphAnchor": {
+        "x": 874.487,
+        "y": 874.487
+      },
+      "labelAnchor": {
+        "x": 915.5,
+        "y": 915.5
+      }
+    },
+    {
+      "slot": 5,
+      "name": "Bottom",
+      "angleDegreesClockwiseFromTop": 180,
+      "glyphAnchor": {
+        "x": 627.0,
+        "y": 977.0
+      },
+      "labelAnchor": {
+        "x": 627.0,
+        "y": 1035.0
+      }
+    },
+    {
+      "slot": 6,
+      "name": "Lower Left",
+      "angleDegreesClockwiseFromTop": 225,
+      "glyphAnchor": {
+        "x": 379.513,
+        "y": 874.487
+      },
+      "labelAnchor": {
+        "x": 338.5,
+        "y": 915.5
+      }
+    },
+    {
+      "slot": 7,
+      "name": "Left",
+      "angleDegreesClockwiseFromTop": 270,
+      "glyphAnchor": {
+        "x": 277.0,
+        "y": 627.0
+      },
+      "labelAnchor": {
+        "x": 219.0,
+        "y": 627.0
+      }
+    },
+    {
+      "slot": 8,
+      "name": "Upper Left",
+      "angleDegreesClockwiseFromTop": 315,
+      "glyphAnchor": {
+        "x": 379.513,
+        "y": 379.513
+      },
+      "labelAnchor": {
+        "x": 338.5,
+        "y": 338.5
+      }
+    }
+  ],
+  "selectedAssetCanonicalSlot": 1,
+  "selectedAssetRotationDegreesClockwise": [
+    0,
+    45,
+    90,
+    135,
+    180,
+    225,
+    270,
+    315
+  ],
+  "selectionAssetMode": "canonical-transform",
+  "centerDecoration": {
+    "ringCount": 2,
+    "businessIcon": false,
+    "controllerPrompt": false,
+    "text": false
+  },
+  "dynamicContent": {
+    "businessIconsBaked": false,
+    "glyphsBaked": false,
+    "labelsBaked": false,
+    "slotGlyphSafeBox": {
+      "width": 220,
+      "height": 92
+    }
+  },
+  "reference": "../../reference/reference.png",
+  "authoring": {
+    "method": "reference-driven asset-first offline",
+    "supersample": 4,
+    "background": "transparent",
+    "runtimeProceduralArt": false
+  }
+}
