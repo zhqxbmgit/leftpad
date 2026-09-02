@@ -463,13 +463,10 @@ public sealed class RadialActionMappingTests
             FindComboBox(settingsForm, "slot3ActionKind").SelectedItem);
         ComboBox shortcutKey = FindComboBox(settingsForm, "slot3MainKey");
         Assert.Equal(KeyboardKey.K, shortcutKey.SelectedItem);
-        Dictionary<string, bool> modifiers = shortcutKey.Parent!.Controls
-            .OfType<CheckBox>()
-            .ToDictionary(checkBox => checkBox.Text, checkBox => checkBox.Checked);
-        Assert.True(modifiers["Ctrl"]);
-        Assert.False(modifiers["Alt"]);
-        Assert.True(modifiers["Shift"]);
-        Assert.False(modifiers["Win"]);
+        Assert.True(FindCheckBox(settingsForm, "slot3Ctrl").Checked);
+        Assert.False(FindCheckBox(settingsForm, "slot3Alt").Checked);
+        Assert.True(FindCheckBox(settingsForm, "slot3Shift").Checked);
+        Assert.False(FindCheckBox(settingsForm, "slot3Win").Checked);
         Assert.Equal(RadialActionKind.Ds4Button,
             FindComboBox(settingsForm, "slot4ActionKind").SelectedItem);
         Assert.Equal("cross",
@@ -507,6 +504,11 @@ public sealed class RadialActionMappingTests
     private static ComboBox FindComboBox(Control parent, string name)
     {
         return Assert.IsType<ComboBox>(Assert.Single(parent.Controls.Find(name, searchAllChildren: true)));
+    }
+
+    private static CheckBox FindCheckBox(Control parent, string name)
+    {
+        return Assert.IsType<CheckBox>(Assert.Single(parent.Controls.Find(name, searchAllChildren: true)));
     }
 
     private sealed class FakeOverlay : IRadialMenuOverlay

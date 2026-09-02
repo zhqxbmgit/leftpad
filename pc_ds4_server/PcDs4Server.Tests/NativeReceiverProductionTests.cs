@@ -155,6 +155,148 @@ public sealed class NativeReceiverProductionTests
         });
     }
 
+    [Fact]
+    public void NativeReceiverAt175_CapturesAllEightMappingsWithoutScrollWhenRequested()
+    {
+        string? screenshotPath = Environment.GetEnvironmentVariable(
+            "LEFTPAD_NATIVE_MAPPING_SCREENSHOT_PATH");
+        if (string.IsNullOrWhiteSpace(screenshotPath)) return;
+
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+        RunInSta(() =>
+        {
+            using var fixture = new NativeFormFixture();
+            MainForm form = fixture.Form;
+            form.Show();
+
+            ReceiverUiScaling scaling = Field<ReceiverUiScaling>(form, "_receiverUiScaling");
+            scaling.Apply(175, preserveCenter: true);
+            Rectangle workingArea = Screen.FromRectangle(form.Bounds).WorkingArea;
+            form.Location = new Point(
+                workingArea.Left + ((workingArea.Width - form.Width) / 2),
+                workingArea.Top + ((workingArea.Height - form.Height) / 2));
+            Navigate(form, "Settings");
+
+            RadialMenuSettingsControl settings = form.SettingsControl;
+            ComboBox visualPack = Find<ComboBox>(settings, "visualPack");
+            visualPack.SelectedItem = visualPack.Items
+                .Cast<RadialVisualPackCatalogEntry>()
+                .Single(pack => pack.Id == "xbm-radial8-v1");
+            Assert.Equal(8, settings.MappingRowCount);
+
+            SetKeyboardKey(settings, 1, KeyboardKey.G);
+            SetNone(settings, 2);
+            SetDs4Button(settings, 3, "cross");
+            SetKeyboardKey(settings, 4, KeyboardKey.Tab);
+            SetNone(settings, 5);
+            SetKeyboardShortcut(settings, 6, KeyboardKey.G);
+            SetDs4Button(settings, 7, "triangle");
+            SetKeyboardKey(settings, 8, KeyboardKey.E);
+
+            TabControl tabs = Find<TabControl>(settings, "settingsTabs");
+            TabPage mappingPage = Find<TabPage>(settings, "mappingSettingsPage");
+            tabs.SelectedTab = mappingPage;
+            form.Activate();
+            form.BringToFront();
+            Application.DoEvents();
+            PerformLayoutTree(form);
+
+            Assert.True(workingArea.Contains(form.Bounds),
+                $"Receiver {form.Bounds} exceeded working area {workingArea}.");
+            Assert.False(mappingPage.VerticalScroll.Visible);
+            Assert.False(mappingPage.HorizontalScroll.Visible);
+            foreach (int slot in Enumerable.Range(1, 8))
+            {
+                Assert.True(mappingPage.ClientRectangle.Contains(
+                    BoundsRelativeTo(Find<Label>(settings, $"slot{slot}Label"), mappingPage)));
+                Assert.True(mappingPage.ClientRectangle.Contains(
+                    BoundsRelativeTo(Find<ComboBox>(settings, $"slot{slot}ActionKind"), mappingPage)));
+                Assert.True(mappingPage.ClientRectangle.Contains(
+                    BoundsRelativeTo(Find<TableLayoutPanel>(settings, $"slot{slot}DetailLayout"), mappingPage)));
+            }
+
+            FlowLayoutPanel actions = Find<FlowLayoutPanel>(settings, "settingsActionButtons");
+            Assert.True(settings.ClientRectangle.Contains(
+                BoundsRelativeTo(actions, settings)));
+            string[] requiredButtons =
+            [
+                "previewSettingsButton",
+                "hideSettingsPreviewButton",
+                "applySettingsButton",
+                "restoreDefaultSettingsButton"
+            ];
+            Assert.All(requiredButtons, name =>
+                Assert.True(form.ClientRectangle.Contains(
+                    BoundsRelativeTo(Find<Button>(settings, name), form))));
+
+            Assert.True(settings.TryReadSettingsForTesting(out RadialMenuSettings draft));
+            RadialSlotMappings mappings = draft.GetProfileMappings(
+                LayoutProfileRegistry.Radial8ProfileId);
+            Assert.Equal(KeyboardKey.G, mappings[0].Key);
+            Assert.Equal(RadialActionKind.None, mappings[1].Kind);
+            Assert.Equal("cross", mappings[2].Ds4Button);
+            Assert.Equal(KeyboardKey.Tab, mappings[3].Key);
+            Assert.Equal(RadialActionKind.None, mappings[4].Kind);
+            Assert.Equal(new RadialSlotMapping
+            {
+                Kind = RadialActionKind.KeyboardShortcut,
+                Ctrl = true,
+                Alt = true,
+                Shift = true,
+                Win = true,
+                Key = KeyboardKey.G
+            }, mappings[5]);
+            Assert.Equal("triangle", mappings[6].Ds4Button);
+            Assert.Equal(KeyboardKey.E, mappings[7].Key);
+
+            string fullPath = Path.GetFullPath(screenshotPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+            using var screenshot = new Bitmap(form.ClientSize.Width, form.ClientSize.Height);
+            form.DrawToBitmap(screenshot, form.ClientRectangle);
+            screenshot.Save(fullPath, System.Drawing.Imaging.ImageFormat.Png);
+            Assert.True(new FileInfo(fullPath).Length > 0);
+
+            string? screenshot200Path = Environment.GetEnvironmentVariable(
+                "LEFTPAD_NATIVE_MAPPING_SCREENSHOT_200_PATH");
+            if (!string.IsNullOrWhiteSpace(screenshot200Path))
+            {
+                scaling.Apply(200, preserveCenter: true);
+                Rectangle workingArea200 = Screen.FromRectangle(form.Bounds).WorkingArea;
+                form.Location = new Point(
+                    workingArea200.Left + ((workingArea200.Width - form.Width) / 2),
+                    workingArea200.Top + ((workingArea200.Height - form.Height) / 2));
+                Application.DoEvents();
+                PerformLayoutTree(form);
+
+                Assert.True(workingArea200.Contains(form.Bounds));
+                Assert.False(mappingPage.VerticalScroll.Visible);
+                Assert.False(mappingPage.HorizontalScroll.Visible);
+                foreach (int slot in Enumerable.Range(1, 8))
+                {
+                    Assert.True(mappingPage.ClientRectangle.Contains(
+                        BoundsRelativeTo(Find<Label>(settings, $"slot{slot}Label"), mappingPage)));
+                    Assert.True(mappingPage.ClientRectangle.Contains(
+                        BoundsRelativeTo(Find<ComboBox>(settings, $"slot{slot}ActionKind"), mappingPage)));
+                    Assert.True(mappingPage.ClientRectangle.Contains(
+                        BoundsRelativeTo(Find<TableLayoutPanel>(settings, $"slot{slot}DetailLayout"), mappingPage)));
+                }
+                Assert.All(requiredButtons, name =>
+                    Assert.True(form.ClientRectangle.Contains(
+                        BoundsRelativeTo(Find<Button>(settings, name), form))));
+
+                string fullPath200 = Path.GetFullPath(screenshot200Path);
+                Directory.CreateDirectory(Path.GetDirectoryName(fullPath200)!);
+                using var screenshot200 = new Bitmap(form.ClientSize.Width, form.ClientSize.Height);
+                form.DrawToBitmap(screenshot200, form.ClientRectangle);
+                screenshot200.Save(fullPath200, System.Drawing.Imaging.ImageFormat.Png);
+                Assert.True(new FileInfo(fullPath200).Length > 0);
+            }
+
+            Assert.Equal(fixture.OriginalBytes, File.ReadAllBytes(fixture.Store.Path));
+            Assert.Equal(0, fixture.Keyboard.SaveCalls);
+        });
+    }
+
     private static void AssertNativePage(MainForm form, string page)
     {
         Assert.Equal(page == "Overview", Field<Control>(form, "_overviewCards").Visible);
@@ -192,6 +334,61 @@ public sealed class NativeReceiverProductionTests
 
     private static void RaiseServiceEvent<T>(Ds4Service service, string name, T value) =>
         Field<Action<T>>(service, name)(value);
+
+    private static T Find<T>(Control root, string name) where T : Control =>
+        Assert.IsType<T>(Assert.Single(root.Controls.Find(name, searchAllChildren: true)));
+
+    private static void SetNone(Control root, int slot) =>
+        Find<ComboBox>(root, $"slot{slot}ActionKind").SelectedItem = RadialActionKind.None;
+
+    private static void SetKeyboardKey(Control root, int slot, KeyboardKey key)
+    {
+        Find<ComboBox>(root, $"slot{slot}ActionKind").SelectedItem =
+            RadialActionKind.KeyboardKey;
+        Find<ComboBox>(root, $"slot{slot}MainKey").SelectedItem = key;
+    }
+
+    private static void SetKeyboardShortcut(Control root, int slot, KeyboardKey key)
+    {
+        Find<ComboBox>(root, $"slot{slot}ActionKind").SelectedItem =
+            RadialActionKind.KeyboardShortcut;
+        Find<CheckBox>(root, $"slot{slot}Ctrl").Checked = true;
+        Find<CheckBox>(root, $"slot{slot}Alt").Checked = true;
+        Find<CheckBox>(root, $"slot{slot}Shift").Checked = true;
+        Find<CheckBox>(root, $"slot{slot}Win").Checked = true;
+        Find<ComboBox>(root, $"slot{slot}MainKey").SelectedItem = key;
+    }
+
+    private static void SetDs4Button(Control root, int slot, string actionId)
+    {
+        Find<ComboBox>(root, $"slot{slot}ActionKind").SelectedItem =
+            RadialActionKind.Ds4Button;
+        ComboBox editor = Find<ComboBox>(root, $"slot{slot}Ds4Button");
+        editor.SelectedItem = editor.Items
+            .Cast<RadialDs4ActionMapping>()
+            .Single(action => action.Id == actionId);
+    }
+
+    private static void PerformLayoutTree(Control root)
+    {
+        root.PerformLayout();
+        foreach (Control child in root.Controls)
+            PerformLayoutTree(child);
+        root.PerformLayout();
+    }
+
+    private static Rectangle BoundsRelativeTo(Control child, Control ancestor)
+    {
+        Point location = child.Location;
+        Control? parent = child.Parent;
+        while (parent != null && parent != ancestor)
+        {
+            location.Offset(parent.Location);
+            parent = parent.Parent;
+        }
+        Assert.Same(ancestor, parent);
+        return new Rectangle(location, child.Size);
+    }
 
     private static void RunInSta(Action action)
     {

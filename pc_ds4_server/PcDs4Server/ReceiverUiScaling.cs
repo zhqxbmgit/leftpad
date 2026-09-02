@@ -4,8 +4,8 @@ namespace PcDs4Server;
 
 internal static class ReceiverUiLayoutMetrics
 {
-    public static readonly Size MainClientBaseline = new(1200, 720);
-    public static readonly Size SettingsClientBaseline = new(840, 660);
+    public static readonly Size MainClientBaseline = new(2000, 800);
+    public static readonly Size SettingsClientBaseline = new(1670, 700);
 
     public const int MainTopBarHeight = 44;
     public const int MainSidebarWidth = 210;
@@ -159,6 +159,7 @@ internal sealed class ReceiverUiScaling : IDisposable
     private static readonly int[] PresetValues = [100, 125, 150, 175, 200];
 
     private readonly Form _form;
+    private readonly Func<Form, Rectangle> _workingAreaProvider;
     private readonly Size _baselineClientSize;
     private readonly Size _baselineMaximumSize;
     private readonly FontSpec _baselineFormFont;
@@ -170,9 +171,13 @@ internal sealed class ReceiverUiScaling : IDisposable
     private int? _referenceDpi;
     private bool _disposed;
 
-    public ReceiverUiScaling(Form form)
+    public ReceiverUiScaling(
+        Form form,
+        Func<Form, Rectangle>? workingAreaProvider = null)
     {
         _form = form ?? throw new ArgumentNullException(nameof(form));
+        _workingAreaProvider = workingAreaProvider ??
+            (static target => Screen.FromRectangle(target.Bounds).WorkingArea);
         _baselineClientSize = form.ClientSize;
         _baselineMaximumSize = form.MaximumSize;
         _baselineFormFont = FontSpec.From(form.Font);
@@ -216,6 +221,37 @@ internal sealed class ReceiverUiScaling : IDisposable
     public static Size Scale(Size baseline, int scalePercent) => new(
         Scale(baseline.Width, scalePercent),
         Scale(baseline.Height, scalePercent));
+
+    internal static Size ClampClientSizeToWorkingArea(
+        Size desiredClientSize,
+        Size nonClientSize,
+        Rectangle workingArea)
+    {
+        if (workingArea.Width <= 0 || workingArea.Height <= 0)
+            return desiredClientSize;
+
+        return new Size(
+            Math.Min(
+                desiredClientSize.Width,
+                Math.Max(1, workingArea.Width - Math.Max(0, nonClientSize.Width))),
+            Math.Min(
+                desiredClientSize.Height,
+                Math.Max(1, workingArea.Height - Math.Max(0, nonClientSize.Height))));
+    }
+
+    internal static Rectangle ClampWindowBoundsToWorkingArea(
+        Rectangle desiredBounds,
+        Rectangle workingArea)
+    {
+        if (workingArea.Width <= 0 || workingArea.Height <= 0)
+            return desiredBounds;
+
+        int width = Math.Min(desiredBounds.Width, workingArea.Width);
+        int height = Math.Min(desiredBounds.Height, workingArea.Height);
+        int left = Math.Clamp(desiredBounds.Left, workingArea.Left, workingArea.Right - width);
+        int top = Math.Clamp(desiredBounds.Top, workingArea.Top, workingArea.Bottom - height);
+        return new Rectangle(left, top, width, height);
+    }
 
     public int ScaleLogical(int baseline) => Scale(baseline, _currentEffectiveScalePercent);
 
@@ -264,7 +300,9 @@ internal sealed class ReceiverUiScaling : IDisposable
         Point center = new(
             _form.Left + (_form.Width / 2),
             _form.Top + (_form.Height / 2));
-        bool reposition = preserveCenter && _form.Visible && _form.WindowState == FormWindowState.Normal;
+        bool normalWindow = _form.WindowState == FormWindowState.Normal;
+        bool reposition = preserveCenter && _form.Visible && normalWindow;
+        Rectangle workingArea = _workingAreaProvider(_form);
 
         CaptureCurrentTree();
         _form.SuspendLayout();
@@ -272,10 +310,14 @@ internal sealed class ReceiverUiScaling : IDisposable
         {
             _currentScalePercent = userScalePercent;
             _currentEffectiveScalePercent = effectiveScalePercent;
-            Size targetClientSize = Scale(_baselineClientSize, effectiveScalePercent);
+            Size desiredClientSize = Scale(_baselineClientSize, effectiveScalePercent);
             Size currentNonClientSize = new(
                 Math.Max(0, _form.Width - _form.ClientSize.Width),
                 Math.Max(0, _form.Height - _form.ClientSize.Height));
+            Size targetClientSize = ClampClientSizeToWorkingArea(
+                desiredClientSize,
+                currentNonClientSize,
+                workingArea);
             _form.MinimumSize = new Size(
                 targetClientSize.Width + currentNonClientSize.Width,
                 targetClientSize.Height + currentNonClientSize.Height);
@@ -304,11 +346,16 @@ internal sealed class ReceiverUiScaling : IDisposable
             _form.ResumeLayout(performLayout: true);
         }
 
-        if (reposition)
+        if (normalWindow)
         {
-            _form.Location = new Point(
-                center.X - (_form.Width / 2),
-                center.Y - (_form.Height / 2));
+            Rectangle desiredBounds = reposition
+                ? new Rectangle(
+                    center.X - (_form.Width / 2),
+                    center.Y - (_form.Height / 2),
+                    _form.Width,
+                    _form.Height)
+                : _form.Bounds;
+            _form.Bounds = ClampWindowBoundsToWorkingArea(desiredBounds, workingArea);
         }
 
         _form.Invalidate(invalidateChildren: true);

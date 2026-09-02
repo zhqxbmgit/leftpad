@@ -282,7 +282,9 @@ public sealed class RadialMenuSettingsEmbeddingTests
             };
             using var control = new RadialMenuSettingsControl { Dock = DockStyle.Fill };
             host.Controls.Add(control);
-            using var scaling = new ReceiverUiScaling(host);
+            using var scaling = new ReceiverUiScaling(
+                host,
+                _ => new Rectangle(0, 0, 5000, 3000));
             control.AttachReceiverUiScaling(scaling);
             control.Initialize(
                 controller,
@@ -391,11 +393,229 @@ public sealed class RadialMenuSettingsEmbeddingTests
         });
     }
 
+    [Theory]
+    [InlineData(100)]
+    [InlineData(125)]
+    [InlineData(150)]
+    [InlineData(175)]
+    [InlineData(200)]
+    public void RadialEightMapping_WorstCaseFitsOneScreenWithoutClipping(
+        int scalePercent)
+    {
+        RunInSta(() =>
+        {
+            using var temporary = new TemporarySettingsPath();
+            RadialMenuSettings expected = CreateEightSlotLayoutSettings();
+            using var controller = new RadialMenuController(new FakeOverlay(), expected);
+            using var host = new Form
+            {
+                AutoScaleMode = AutoScaleMode.None,
+                ClientSize = new Size(900, 500),
+                ShowInTaskbar = false,
+                FormBorderStyle = FormBorderStyle.None,
+                StartPosition = FormStartPosition.Manual,
+                Location = new Point(-32000, -32000)
+            };
+            using var control = new RadialMenuSettingsControl
+            {
+                Size = ReceiverUiLayoutMetrics.SettingsEmbeddedViewportBaseline
+            };
+            host.Controls.Add(control);
+            using var scaling = new ReceiverUiScaling(
+                host,
+                _ => new Rectangle(0, 0, 5000, 3000));
+            control.AttachReceiverUiScaling(scaling);
+            control.Initialize(
+                controller,
+                new RadialMenuSettingsStore(temporary.FilePath),
+                controller.ApplySettings,
+                _ => { });
+            scaling.Apply(scalePercent);
+            host.Show();
+            host.CreateControl();
+
+            TabControl tabs = Find<TabControl>(control, "settingsTabs");
+            TabPage mappingPage = Find<TabPage>(control, "mappingSettingsPage");
+            tabs.SelectedTab = mappingPage;
+            Application.DoEvents();
+            PerformLayoutTree(host);
+
+            TableLayoutPanel mappingTable = Find<TableLayoutPanel>(control, "mappingTable");
+            TableLayoutPanel leftColumn = Find<TableLayoutPanel>(control, "mappingLeftColumn");
+            TableLayoutPanel rightColumn = Find<TableLayoutPanel>(control, "mappingRightColumn");
+            Assert.Equal(4, leftColumn.RowCount);
+            Assert.Equal(4, rightColumn.RowCount);
+            Assert.All(leftColumn.RowStyles.Cast<RowStyle>(), style =>
+                Assert.Equal(SizeType.Absolute, style.SizeType));
+            Assert.All(rightColumn.RowStyles.Cast<RowStyle>(), style =>
+                Assert.Equal(SizeType.Absolute, style.SizeType));
+
+            Assert.False(mappingPage.VerticalScroll.Visible);
+            Assert.False(mappingPage.HorizontalScroll.Visible);
+            Rectangle mappingBounds = BoundsRelativeTo(mappingTable, mappingPage);
+            Assert.True(mappingPage.ClientRectangle.Contains(mappingBounds),
+                $"Mapping table {mappingBounds} exceeded page {mappingPage.ClientRectangle} " +
+                $"at {scalePercent}% (host {host.ClientSize}, tabs {tabs.ClientSize}).");
+
+            foreach (int slot in Enumerable.Range(1, 8))
+            {
+                Label label = Find<Label>(control, $"slot{slot}Label");
+                ComboBox kind = Find<ComboBox>(control, $"slot{slot}ActionKind");
+                TableLayoutPanel detail = Find<TableLayoutPanel>(
+                    control,
+                    $"slot{slot}DetailLayout");
+
+                Assert.Equal(1, detail.RowCount);
+                Assert.Equal(TableLayoutPanelGrowStyle.FixedSize, detail.GrowStyle);
+                Assert.True(mappingPage.ClientRectangle.Contains(
+                    BoundsRelativeTo(label, mappingPage)),
+                    $"Slot {slot} label was outside the mapping viewport at {scalePercent}%.");
+                Assert.True(mappingPage.ClientRectangle.Contains(
+                    BoundsRelativeTo(kind, mappingPage)),
+                    $"Slot {slot} kind was outside the mapping viewport at {scalePercent}%.");
+                Assert.True(mappingPage.ClientRectangle.Contains(
+                    BoundsRelativeTo(detail, mappingPage)),
+                    $"Slot {slot} detail was outside the mapping viewport at {scalePercent}%.");
+
+                int measuredKindWidth = TextRenderer.MeasureText(kind.Text, kind.Font).Width;
+                Assert.True(
+                    kind.ClientSize.Width >= measuredKindWidth + SystemInformation.VerticalScrollBarWidth,
+                    $"Slot {slot} kind text clipped horizontally at {scalePercent}%.");
+                Assert.All(detail.Controls.Cast<Control>().Where(child => child.Visible), child =>
+                    Assert.True(detail.ClientRectangle.Contains(child.Bounds),
+                        $"{child.Name} clipped at {scalePercent}%: {child.Bounds} in {detail.ClientRectangle}."));
+            }
+
+            TableLayoutPanel shortcut = Find<TableLayoutPanel>(control, "slot6DetailLayout");
+            Control[] shortcutControls =
+            [
+                Find<CheckBox>(control, "slot6Ctrl"),
+                Find<CheckBox>(control, "slot6Alt"),
+                Find<CheckBox>(control, "slot6Shift"),
+                Find<CheckBox>(control, "slot6Win"),
+                Find<Label>(control, "slot6MainKeyLabel"),
+                Find<ComboBox>(control, "slot6MainKey")
+            ];
+            Assert.All(shortcutControls.Take(5), child =>
+            {
+                Assert.True(child.Visible);
+                Assert.Equal(0, shortcut.GetRow(child));
+            });
+            Assert.True(shortcutControls[5].Visible);
+            Rectangle keyBounds = BoundsRelativeTo(shortcutControls[5], shortcut);
+            Assert.True(shortcut.ClientRectangle.Contains(keyBounds),
+                $"Shortcut key {keyBounds} exceeded detail {shortcut.ClientRectangle} " +
+                $"at {scalePercent}%; left={leftColumn.Bounds}, right={rightColumn.Bounds}, " +
+                $"mapping={mappingTable.Bounds}, pageDisplay={mappingPage.DisplayRectangle}.");
+            Assert.Equal(new[] { "Ctrl", "Alt", "Shift", "Win" },
+                shortcutControls.Take(4).Select(control => control.Text));
+            Assert.Equal("主键", shortcutControls[4].Text);
+            Assert.Equal("G", shortcutControls[5].Text);
+
+            FlowLayoutPanel actions = Find<FlowLayoutPanel>(control, "settingsActionButtons");
+            Assert.True(control.ClientRectangle.Contains(BoundsRelativeTo(actions, control)));
+            Assert.All(actions.Controls.OfType<Button>(), button =>
+                Assert.True(control.ClientRectangle.Contains(BoundsRelativeTo(button, control)),
+                    $"{button.Name} was outside the Receiver client area at {scalePercent}%."));
+        });
+    }
+
+    [Fact]
+    public void ScalingAndReflow_PreserveUnsavedEightSlotMappingsExactly()
+    {
+        RunInSta(() =>
+        {
+            using var temporary = new TemporarySettingsPath();
+            RadialMenuSettings expected = CreateEightSlotLayoutSettings();
+            using var controller = new RadialMenuController(new FakeOverlay(), expected);
+            using var host = new Form
+            {
+                AutoScaleMode = AutoScaleMode.None,
+                ClientSize = ReceiverUiLayoutMetrics.SettingsEmbeddedViewportBaseline
+            };
+            using var control = new RadialMenuSettingsControl { Dock = DockStyle.Fill };
+            host.Controls.Add(control);
+            using var scaling = new ReceiverUiScaling(
+                host,
+                _ => new Rectangle(0, 0, 5000, 3000));
+            control.AttachReceiverUiScaling(scaling);
+            control.Initialize(
+                controller,
+                new RadialMenuSettingsStore(temporary.FilePath),
+                controller.ApplySettings,
+                _ => { });
+
+            scaling.Apply(175);
+            scaling.Apply(150);
+            host.Width += ReceiverUiScaling.Scale(80, 150);
+            PerformLayoutTree(host);
+            scaling.Apply(175);
+            PerformLayoutTree(host);
+
+            Assert.True(control.TryReadSettingsForTesting(out RadialMenuSettings actual));
+            Assert.Equal(
+                expected.GetProfileMappings(LayoutProfileRegistry.Radial8ProfileId),
+                actual.GetProfileMappings(LayoutProfileRegistry.Radial8ProfileId));
+        });
+    }
+
+    [Fact]
+    public void MappingSplit_RemainsThreePlusThreeAndFourPlusFour()
+    {
+        Assert.Equal(3, RadialMenuSettingsControl.GetMappingSplitIndex(6));
+        Assert.Equal(4, RadialMenuSettingsControl.GetMappingSplitIndex(8));
+    }
+
+    private static RadialMenuSettings CreateEightSlotLayoutSettings()
+    {
+        RadialSlotMappings mappings = RadialSlotMappings.Create(
+            LayoutProfileRegistry.Radial8SlotCount,
+            new RadialSlotMapping[]
+            {
+                new() { Kind = RadialActionKind.KeyboardKey, Key = KeyboardKey.G },
+                RadialSlotMapping.None,
+                new() { Kind = RadialActionKind.Ds4Button, Ds4Button = "cross" },
+                new() { Kind = RadialActionKind.KeyboardKey, Key = KeyboardKey.Tab },
+                RadialSlotMapping.None,
+                new()
+                {
+                    Kind = RadialActionKind.KeyboardShortcut,
+                    Ctrl = true,
+                    Alt = true,
+                    Shift = true,
+                    Win = true,
+                    Key = KeyboardKey.G
+                },
+                new() { Kind = RadialActionKind.Ds4Button, Ds4Button = "triangle" },
+                new() { Kind = RadialActionKind.KeyboardKey, Key = KeyboardKey.E }
+            });
+        return (RadialMenuSettings.Default with
+        {
+            VisualPackId = "radial-8-minimal-v1",
+            MappingProfileId = LayoutProfileRegistry.Radial8ProfileId,
+            ReceiverUiScalePercent = 100
+        }).SetProfileMappings(LayoutProfileRegistry.Radial8ProfileId, mappings);
+    }
+
+    private static Rectangle BoundsRelativeTo(Control child, Control ancestor)
+    {
+        Point location = child.Location;
+        Control? parent = child.Parent;
+        while (parent != null && parent != ancestor)
+        {
+            location.Offset(parent.Location);
+            parent = parent.Parent;
+        }
+        Assert.Same(ancestor, parent);
+        return new Rectangle(location, child.Size);
+    }
+
     private static T Find<T>(Control root, string name) where T : Control =>
         Assert.IsType<T>(Assert.Single(root.Controls.Find(name, searchAllChildren: true)));
 
     private static void PerformLayoutTree(Control root)
     {
+        root.PerformLayout();
         foreach (Control child in root.Controls)
             PerformLayoutTree(child);
         root.PerformLayout();

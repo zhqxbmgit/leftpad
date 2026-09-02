@@ -48,8 +48,9 @@ public sealed class RadialMenuSettingsControl : UserControl
     {
         Name = "mappingTable",
         Dock = DockStyle.Top,
-        AutoSize = true,
-        AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        AutoSize = false,
+        Height = ReceiverUiLayoutMetrics.GetSettingsMappingDefaultContentHeight(
+            LayoutProfileRegistry.Radial8SlotCount),
         ColumnCount = ReceiverUiLayoutMetrics.SettingsContentColumnCount,
         RowCount = 1,
         Padding = new Padding(6, 4, 6, 4)
@@ -235,7 +236,7 @@ public sealed class RadialMenuSettingsControl : UserControl
         page.Name = "mappingSettingsPage";
         _mappingTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         _mappingTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        _mappingTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _mappingTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         int halfGutter = ReceiverUiLayoutMetrics.SettingsContentColumnGutter / 2;
         _mappingLeftColumn.Margin = new Padding(0, 0, halfGutter, 0);
         _mappingRightColumn.Margin = new Padding(halfGutter, 0, 0, 0);
@@ -463,7 +464,9 @@ public sealed class RadialMenuSettingsControl : UserControl
                 _hostUiScaling?.CaptureBaseline(slotLabel, inheritFormFont: true);
                 _hostUiScaling?.CaptureBaseline(editor.KindEditor, inheritFormFont: true);
                 _hostUiScaling?.CaptureBaseline(editor.DetailPanel, inheritFormFont: true);
-                column.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                column.RowStyles.Add(new RowStyle(
+                    SizeType.Absolute,
+                    ReceiverUiLayoutMetrics.SettingsMappingRowHeight));
                 column.Controls.Add(slotLabel, 0, row);
                 column.Controls.Add(editor.KindEditor, 1, row);
                 column.Controls.Add(editor.DetailPanel, 2, row);
@@ -800,8 +803,12 @@ public sealed class RadialMenuSettingsControl : UserControl
         {
             Name = name,
             Dock = DockStyle.Fill,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            AutoSize = false,
+            MinimumSize = new Size(
+                0,
+                ReceiverUiLayoutMetrics.SettingsMappingRowHeight *
+                ReceiverUiLayoutMetrics.GetSettingsMappingRowsPerColumn(
+                    LayoutProfileRegistry.Radial8SlotCount)),
             ColumnCount = 3
         };
         table.ColumnStyles.Add(new ColumnStyle(
@@ -910,27 +917,57 @@ public sealed class RadialMenuSettingsControl : UserControl
                 if (e.ListItem is RadialDs4ActionMapping action) e.Value = action.DisplayName;
             };
 
-            DetailPanel = new FlowLayoutPanel
+            DetailPanel = new TableLayoutPanel
             {
+                Name = $"slot{slot}DetailLayout",
                 Dock = DockStyle.Fill,
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = true,
+                AutoSize = false,
+                GrowStyle = TableLayoutPanelGrowStyle.FixedSize,
+                ColumnCount = 6,
+                RowCount = 1,
                 Padding = new Padding(4, 8, 0, 0),
                 Margin = Padding.Empty
             };
-            DetailPanel.Controls.AddRange(new Control[]
+            for (int column = 0; column < 5; column++)
+                DetailPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            DetailPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            DetailPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            _ctrl.Name = $"slot{slot}Ctrl";
+            _alt.Name = $"slot{slot}Alt";
+            _shift.Name = $"slot{slot}Shift";
+            _win.Name = $"slot{slot}Win";
+            _keyLabel.Name = $"slot{slot}MainKeyLabel";
+
+            DetailPanel.Controls.Add(_ctrl, 0, 0);
+            DetailPanel.Controls.Add(_alt, 1, 0);
+            DetailPanel.Controls.Add(_shift, 2, 0);
+            DetailPanel.Controls.Add(_win, 3, 0);
+            DetailPanel.Controls.Add(_keyLabel, 4, 0);
+
+            var valueHost = new Panel
             {
-                _ctrl, _alt, _shift, _win, _keyLabel, _keyEditor, _ds4Editor
-            });
+                Name = $"slot{slot}MappingValueHost",
+                Dock = DockStyle.Fill,
+                Margin = Padding.Empty
+            };
+            valueHost.Controls.Add(_keyEditor);
+            valueHost.Controls.Add(_ds4Editor);
+            DetailPanel.Controls.Add(valueHost, 5, 0);
+
+            _keyEditor.Dock = DockStyle.Fill;
+            _keyEditor.MinimumSize = new Size(90, 0);
+            _keyEditor.Margin = new Padding(0, 2, 0, 2);
+            _ds4Editor.Dock = DockStyle.Fill;
+            _ds4Editor.MinimumSize = new Size(105, 0);
+            _ds4Editor.Margin = new Padding(0, 2, 0, 2);
             KindEditor.Dock = DockStyle.Fill;
             KindEditor.Margin = new Padding(3, 12, 8, 8);
             UpdateVisibility();
         }
 
         public ComboBox KindEditor { get; }
-        public FlowLayoutPanel DetailPanel { get; }
+        public TableLayoutPanel DetailPanel { get; }
 
         public RadialSlotMapping Read()
         {

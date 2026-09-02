@@ -26,17 +26,19 @@ public sealed class ReceiverUiScalingTests
         Size at200 = ReceiverUiScaling.Scale(baseline, 200);
         Size backAt100 = ReceiverUiScaling.Scale(baseline, 100);
 
-        Assert.Equal(new Size(1800, 1080), at150);
-        Assert.Equal(new Size(1500, 900), thenAt125);
-        Assert.Equal(new Size(2400, 1440), at200);
+        Assert.Equal(new Size(3000, 1200), at150);
+        Assert.Equal(new Size(2500, 1000), thenAt125);
+        Assert.Equal(new Size(4000, 1600), at200);
         Assert.Equal(baseline, backAt100);
         Assert.NotEqual(ReceiverUiScaling.Scale(at150, 200), at200);
     }
 
     [Theory]
-    [InlineData(100, 840, 660)]
-    [InlineData(150, 1260, 990)]
-    [InlineData(200, 1680, 1320)]
+    [InlineData(100, 1670, 700)]
+    [InlineData(125, 2088, 875)]
+    [InlineData(150, 2505, 1050)]
+    [InlineData(175, 2923, 1225)]
+    [InlineData(200, 3340, 1400)]
     public void SettingsFormBaseline_ScalesToExpectedClientSize(
         int scalePercent,
         int expectedWidth,
@@ -50,8 +52,11 @@ public sealed class ReceiverUiScalingTests
     }
 
     [Theory]
-    [InlineData(100, 1200, 720)]
-    [InlineData(150, 1800, 1080)]
+    [InlineData(100, 2000, 800)]
+    [InlineData(125, 2500, 1000)]
+    [InlineData(150, 3000, 1200)]
+    [InlineData(175, 3500, 1400)]
+    [InlineData(200, 4000, 1600)]
     public void MainFormBaseline_ScalesToTheRoomierClientSize(
         int scalePercent,
         int expectedWidth,
@@ -62,6 +67,48 @@ public sealed class ReceiverUiScalingTests
             ReceiverUiScaling.Scale(
                 ReceiverUiLayoutMetrics.MainClientBaseline,
                 scalePercent));
+    }
+
+    [Theory]
+    [InlineData(100, 2000, 800)]
+    [InlineData(125, 2500, 1000)]
+    [InlineData(150, 3000, 1200)]
+    [InlineData(175, 3500, 1400)]
+    [InlineData(200, 3840, 1600)]
+    public void MainFormDesiredSize_IsClampedToSyntheticWorkingArea(
+        int scalePercent,
+        int expectedWidth,
+        int expectedHeight)
+    {
+        Size desired = ReceiverUiScaling.Scale(
+            ReceiverUiLayoutMetrics.MainClientBaseline,
+            scalePercent);
+
+        Size actual = ReceiverUiScaling.ClampClientSizeToWorkingArea(
+            desired,
+            Size.Empty,
+            new Rectangle(0, 0, 3840, 2064));
+
+        Assert.Equal(new Size(expectedWidth, expectedHeight), actual);
+        Assert.True(actual.Width <= 3840);
+        Assert.True(actual.Height <= 2064);
+    }
+
+    [Fact]
+    public void WorkingAreaClamp_PreservesSizeAndKeepsEveryEdgeVisible()
+    {
+        var workingArea = new Rectangle(-1920, 40, 1920, 1040);
+        var oversizedAndOffscreen = new Rectangle(-2600, -300, 2400, 1200);
+
+        Rectangle clamped = ReceiverUiScaling.ClampWindowBoundsToWorkingArea(
+            oversizedAndOffscreen,
+            workingArea);
+        Rectangle clampedAgain = ReceiverUiScaling.ClampWindowBoundsToWorkingArea(
+            clamped,
+            workingArea);
+
+        Assert.Equal(workingArea, clamped);
+        Assert.Equal(clamped, clampedAgain);
     }
 
     [Fact]
@@ -290,13 +337,11 @@ public sealed class ReceiverUiScalingTests
     }
 
     [Theory]
-    [InlineData(100, 840, 660)]
-    [InlineData(150, 1260, 990)]
-    [InlineData(200, 1680, 1320)]
+    [InlineData(100)]
+    [InlineData(150)]
+    [InlineData(200)]
     public void SettingsForm_ImportantControlsAndButtonsRemainReachable(
-        int scalePercent,
-        int expectedWidth,
-        int expectedHeight)
+        int scalePercent)
     {
         Exception? failure = null;
         var thread = new Thread(() =>
@@ -321,7 +366,16 @@ public sealed class ReceiverUiScalingTests
                     _ => { });
                 form.PerformLayout();
 
-                Assert.Equal(new Size(expectedWidth, expectedHeight), form.ClientSize);
+                Size nonClientSize = new(
+                    form.Width - form.ClientSize.Width,
+                    form.Height - form.ClientSize.Height);
+                Size expectedSize = ReceiverUiScaling.ClampClientSizeToWorkingArea(
+                    ReceiverUiScaling.Scale(
+                        ReceiverUiLayoutMetrics.SettingsClientBaseline,
+                        scalePercent),
+                    nonClientSize,
+                    Screen.FromRectangle(form.Bounds).WorkingArea);
+                Assert.Equal(expectedSize, form.ClientSize);
                 var actions = Assert.IsType<FlowLayoutPanel>(Assert.Single(
                     form.Controls.Find("settingsActionButtons", searchAllChildren: true)));
                 actions.PerformLayout();
