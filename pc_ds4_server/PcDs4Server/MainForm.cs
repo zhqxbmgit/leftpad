@@ -40,6 +40,8 @@ namespace PcDs4Server
         private readonly RadialVisualPackCatalog _radialVisualPackCatalog;
         private readonly RadialMenuOverlay _radialOverlay;
         private readonly System.Windows.Forms.Timer _radialSelectionTimer;
+        private readonly RadialMouseDismissTracker _radialMouseDismissTracker = new();
+        private readonly Func<bool> _leftMouseButtonDown;
         private readonly ReceiverUiScaling _receiverUiScaling;
         private readonly Dictionary<ReceiverPage, SidebarButton> _pageNavigation = new();
         private Label _pageTitle = null!;
@@ -83,8 +85,21 @@ namespace PcDs4Server
         internal const int ActivateExistingInstanceMessage = 0x8000 + 0x51;
 
         public MainForm(Ds4Service service, RadialMenuSettingsStore? radialSettingsStore = null)
+            : this(
+                service,
+                radialSettingsStore,
+                () => (Control.MouseButtons & MouseButtons.Left) != 0)
+        {
+        }
+
+        internal MainForm(
+            Ds4Service service,
+            RadialMenuSettingsStore? radialSettingsStore,
+            Func<bool> leftMouseButtonDown)
         {
             _service = service;
+            _leftMouseButtonDown = leftMouseButtonDown ??
+                throw new ArgumentNullException(nameof(leftMouseButtonDown));
             _lifecycle = new ServerLifecycleController(service);
             _radialSettingsStore = radialSettingsStore ?? new RadialMenuSettingsStore();
             RadialMenuSettingsLoadResult radialSettings = _radialSettingsStore.Load();
@@ -652,7 +667,19 @@ namespace PcDs4Server
 
         private void RadialSelectionTimer_Tick(object? sender, EventArgs e)
         {
+            if (!_radialMenu.IsNormalMenuOpen) return;
+            if (ProcessRadialMouseDismiss(_leftMouseButtonDown())) return;
+
             _radialMenu.UpdateSelectionForCursor(Cursor.Position);
+        }
+
+        internal bool ProcessRadialMouseDismiss(bool leftButtonDown)
+        {
+            if (!_radialMenu.IsNormalMenuOpen) return false;
+            if (!_radialMouseDismissTracker.Observe(leftButtonDown)) return false;
+
+            _radialMenu.Close();
+            return true;
         }
 
         private void SyncRadialSelectionTimer()
@@ -708,6 +735,15 @@ namespace PcDs4Server
 
         private void HandleRadialMenuStateChanged()
         {
+            if (_radialMenu.IsNormalMenuOpen)
+            {
+                _radialMouseDismissTracker.Reset(_leftMouseButtonDown());
+            }
+            else
+            {
+                _radialMouseDismissTracker.Clear();
+            }
+
             SyncRadialSelectionTimer();
             if (!_radialMenu.IsNormalMenuOpen) _service.NotifyRadialMenuClosed();
         }
@@ -960,6 +996,7 @@ namespace PcDs4Server
             _radialMenu.NormalMenuStateChanged -= HandleRadialMenuStateChanged;
             _radialSelectionTimer.Stop();
             _radialSelectionTimer.Dispose();
+            _radialMouseDismissTracker.Clear();
             _radialMenu.Dispose();
             _joystickOverlay.Dispose();
             _receiverUiScaling.Dispose();
