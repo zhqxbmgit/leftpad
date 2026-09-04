@@ -63,6 +63,41 @@ public sealed class RadialKeyboardActionExecutor
         return false;
     }
 
+    internal string[] BeginPress(RadialSlotMapping mapping)
+    {
+        ArgumentNullException.ThrowIfNull(mapping);
+        if (mapping.Kind is not (RadialActionKind.KeyboardKey or RadialActionKind.KeyboardShortcut) ||
+            !mapping.TryValidate(out _))
+            throw new ArgumentException("该动作不是有效的键盘动作。", nameof(mapping));
+
+        string prefix = $"radial:{Interlocked.Increment(ref _executionId)}:";
+        (string Source, KeyboardKey Key)[] keys = BuildExecutionKeys(mapping, prefix);
+        string[] sources = keys.Select(key => key.Source).ToArray();
+        try
+        {
+            foreach ((string source, KeyboardKey key) in keys)
+                _state.Press(source, key);
+            return sources;
+        }
+        catch
+        {
+            TryEndPress(sources, out _);
+            throw;
+        }
+    }
+
+    internal bool TryEndPress(IReadOnlyList<string> sources, out string error)
+    {
+        Exception? failure = null;
+        for (int index = sources.Count - 1; index >= 0; index--)
+        {
+            try { _state.Release(sources[index]); }
+            catch (Exception ex) { failure ??= ex; }
+        }
+        error = failure?.GetBaseException().Message ?? string.Empty;
+        return failure == null;
+    }
+
     private static (string Source, KeyboardKey Key)[] BuildExecutionKeys(
         RadialSlotMapping mapping,
         string executionPrefix)

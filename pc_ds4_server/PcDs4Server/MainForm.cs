@@ -602,14 +602,18 @@ namespace PcDs4Server
                     $"中心：{center}    当前光标：{currentCursor}\n" +
                     $"光标偏移：{state.CursorDeltaX:F1} / {state.CursorDeltaY:F1}    光标距离：{state.CursorDistance:F1}";
             });
-            _service.OnInputStateReset += _ => PostToUi(ResetControllerPresentationState);
+            _service.OnInputStateReset += _ => PostToUi(() =>
+            {
+                if (_radialMenu.IsNormalMenuOpen) _radialMenu.Close();
+                ResetControllerPresentationState();
+            });
             _service.RadialMenuTriggered += source => PostToUi(() =>
             {
                 _radialMenu.OpenAt(Cursor.Position, source);
                 if (!_radialMenu.IsNormalMenuOpen) _service.NotifyRadialMenuClosed();
             });
-            _service.RadialMenuConfirmationRequested += source =>
-                PostToUi(() => CompleteRadialMenuSelection(source));
+            _service.RadialMenuConfirmationRequested += request =>
+                PostToUi(() => CompleteRadialMenuSelection(request));
             _service.OnStopped += () => PostToUi(_radialMenu.Close);
         }
 
@@ -666,6 +670,11 @@ namespace PcDs4Server
         }
 
         private void RadialSelectionTimer_Tick(object? sender, EventArgs e)
+        {
+            _service.UpdateRadialMenuSelection(UpdateRadialMenuSelection);
+        }
+
+        private void UpdateRadialMenuSelection()
         {
             if (!_radialMenu.IsNormalMenuOpen) return;
             if (ProcessRadialMouseDismiss(_leftMouseButtonDown())) return;
@@ -748,14 +757,16 @@ namespace PcDs4Server
             if (!_radialMenu.IsNormalMenuOpen) _service.NotifyRadialMenuClosed();
         }
 
-        private void CompleteRadialMenuSelection(RadialTriggerSource source)
+        private void CompleteRadialMenuSelection(RadialActionPressSession request)
         {
-            if (!_radialMenu.TryCompleteFrom(source, out RadialMenuCompletion completion)) return;
-
-            LogRadialMessage(RadialActionCompletionHandler.Handle(
-                _service,
-                _radialMenu.ActiveSettings,
-                completion));
+            _service.CompleteRadialActionPress(request, () =>
+            {
+                if (!_radialMenu.TryCompleteFrom(request.Source, out RadialMenuCompletion completion))
+                    return null;
+                RadialMenuSettings settings = _radialMenu.ActiveSettings;
+                return new RadialActionSelection(completion.SelectedSlot,
+                    RadialActionResolver.GetMapping(settings, settings.MappingProfileId, completion.SelectedSlot));
+            });
         }
 
         private void LogRadialSettingsLoad(RadialMenuSettingsLoadResult result)

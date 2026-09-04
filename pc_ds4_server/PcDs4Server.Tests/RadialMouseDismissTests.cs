@@ -183,6 +183,86 @@ public sealed class RadialMouseDismissTests
         });
     }
 
+    [Theory]
+    [InlineData("cross")]
+    [InlineData("move")]
+    public void ConfirmationDown_HidesNativeMenuStopsTimer_AndLeftClickCannotReleaseHold(string source)
+    {
+        RunInSta(() =>
+        {
+            using var fixture = new Fixture();
+            if (source == "move") fixture.OpenMoveMenu();
+            else fixture.OpenActionMenu();
+            Point anchor = fixture.Controller.NormalAnchor!.Value;
+            fixture.Controller.UpdateSelectionForCursor(new Point(anchor.X + 50, anchor.Y + 50));
+            Assert.Equal(3, fixture.Controller.SelectedSlot);
+
+            fixture.Service.ProcessProtocolAction(source, "down");
+
+            AssertClosedAndSynchronized(fixture);
+            Assert.True(fixture.Service.HasRadialActionSession);
+            Assert.Equal(new[] { (KeyboardKey.F1, true) }, fixture.Keyboard.Events);
+            fixture.Mouse.IsLeftDown = true;
+            Assert.False(fixture.Form.ProcessRadialMouseDismiss(leftButtonDown: true));
+            fixture.TickSelectionTimer();
+            fixture.Controller.UpdateSelectionForCursor(new Point(anchor.X - 50, anchor.Y));
+            Assert.Equal(new[] { (KeyboardKey.F1, true) }, fixture.Keyboard.Events);
+
+            fixture.Service.ProcessProtocolAction(source, "up");
+            Assert.False(fixture.Service.HasRadialActionSession);
+            Assert.Equal(new[] { (KeyboardKey.F1, true), (KeyboardKey.F1, false) }, fixture.Keyboard.Events);
+        });
+    }
+
+    [Fact]
+    public void InputReset_DoesNotCloseSettingsPreview()
+    {
+        RunInSta(() =>
+        {
+            using var fixture = new Fixture();
+            fixture.Controller.PreviewAt(new Point(500, 500), fixture.Settings);
+            fixture.Service.ReleaseAllControls(Ds4ControlResetReason.Disconnect);
+            Assert.True(fixture.Controller.IsPreviewActive);
+            Assert.False(fixture.Service.HasRadialActionSession);
+            Assert.Empty(fixture.Keyboard.Events);
+        });
+    }
+
+    [Theory]
+    [InlineData("cross", false)]
+    [InlineData("move", false)]
+    [InlineData("cross", true)]
+    [InlineData("move", true)]
+    public void BackgroundQuickTapBeforeBeginInvoke_IsOrderedOrInvalidatedByReset(string source, bool reset)
+    {
+        RunInSta(() =>
+        {
+            using var fixture = new Fixture();
+            _ = fixture.Form.Handle; // Force actual cross-thread BeginInvoke, without pumping it yet.
+            if (source == "move") fixture.OpenMoveMenu();
+            else fixture.OpenActionMenu();
+            Point anchor = fixture.Controller.NormalAnchor!.Value;
+            fixture.Controller.UpdateSelectionForCursor(new Point(anchor.X + 50, anchor.Y + 50));
+            var inputThread = new Thread(() =>
+            {
+                fixture.Service.ProcessProtocolAction(source, "down");
+                fixture.Service.ProcessProtocolAction(source, "up");
+                if (reset) fixture.Service.ReleaseAllControls(Ds4ControlResetReason.Disconnect);
+            });
+            inputThread.Start();
+            Assert.True(inputThread.Join(TimeSpan.FromSeconds(5)));
+            Assert.Empty(fixture.Keyboard.Events);
+            Assert.Equal(!reset, fixture.Service.HasRadialActionSession);
+
+            Application.DoEvents();
+
+            AssertClosedAndSynchronized(fixture);
+            Assert.False(fixture.Service.HasRadialActionSession);
+            if (reset) Assert.Empty(fixture.Keyboard.Events);
+            else Assert.Equal(new[] { (KeyboardKey.F1, true), (KeyboardKey.F1, false) }, fixture.Keyboard.Events);
+        });
+    }
+
     private static void AssertClosedAndSynchronized(Fixture fixture)
     {
         Assert.False(fixture.Controller.IsNormalMenuOpen);

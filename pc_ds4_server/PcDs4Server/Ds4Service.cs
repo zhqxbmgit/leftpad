@@ -37,6 +37,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     private int _radialDoubleTapWindowMs;
     private RadialTriggerSource? _radialOpenSource;
     private RadialTriggerSource? _radialSuppressedUpSource;
+    private RadialActionPressSession? _radialActionSession;
     private bool _disposed;
 
     public Ds4Service(
@@ -82,7 +83,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     public event Action<VirtualJoystickSnapshot>? OnJoystickStateChanged;
     public event Action<Ds4ControlResetReason>? OnInputStateReset;
     public event Action<RadialTriggerSource>? RadialMenuTriggered;
-    public event Action<RadialTriggerSource>? RadialMenuConfirmationRequested;
+    public event Action<RadialActionPressSession>? RadialMenuConfirmationRequested;
     public event Action? OnStopped;
 
     public bool IsRunning { get; private set; }
@@ -93,6 +94,166 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     public string LocalIp { get; private set; }
     public int Port { get; } = 8888;
     public int RadialDoubleTapWindowMs => Volatile.Read(ref _radialDoubleTapWindowMs);
+
+    internal bool HasRadialActionSession
+    {
+        get { lock (_lock) return _radialActionSession != null; }
+    }
+
+    // Selection ticks and confirmation DOWN share one serialization point. Once
+    // DOWN reserves a token, queued UI ticks cannot change its selected slot.
+    internal void UpdateRadialMenuSelection(Action updateSelection)
+    {
+        lock (_lock)
+        {
+            if (!_disposed && _radialActionSession == null) updateSelection();
+        }
+    }
+
+    internal void CompleteRadialActionPress(
+        RadialActionPressSession request,
+        Func<RadialActionSelection?> selectAndClose)
+    {
+        lock (_lock)
+        {
+            // Reject stale/reset or duplicate UI callbacks before touching the UI.
+            if (_disposed || !ReferenceEquals(request, _radialActionSession) || request.BeginHandled)
+                return;
+
+            try
+            {
+                RadialActionSelection? selection = selectAndClose();
+                if (!ReferenceEquals(request, _radialActionSession)) return;
+                if (selection is not RadialActionSelection selected)
+                {
+                    _radialActionSession = null;
+                    return;
+                }
+
+                request.BeginHandled = true;
+                request.SelectedSlot = selected.Slot;
+                RadialSlotMapping mapping = selected.Mapping with { };
+                if (selected.Slot == 0 || mapping.Kind == RadialActionKind.None)
+                {
+                    _radialActionSession = null;
+                    Log(selected.Slot == 0 ? "[环形菜单] 已取消" :
+                        $"[环形菜单] 已确认：Slot {selected.Slot}（未配置动作）");
+                    return;
+                }
+
+                if (!mapping.TryValidate(out string error))
+                {
+                    _radialActionSession = null;
+                    Log($"[环形菜单] Slot {selected.Slot} 动作开始失败：{error}");
+                    return;
+                }
+
+                string action;
+                if (mapping.Kind is RadialActionKind.KeyboardKey or RadialActionKind.KeyboardShortcut)
+                {
+                    request.KeyboardSources = _radialKeyboardActionExecutor.BeginPress(mapping);
+                    action = mapping.Kind == RadialActionKind.KeyboardKey
+                        ? $"键盘 {mapping.Key}" : RadialActionResolver.FormatShortcut(mapping);
+                }
+                else
+                {
+                    if (!TryBeginRadialDs4Press(request, mapping, out error))
+                    {
+                        _radialActionSession = null;
+                        Log($"[环形菜单] Slot {selected.Slot} DS4 动作开始失败：{error}");
+                        return;
+                    }
+                    action = $"DS4 {request.Ds4Target!.DisplayName}";
+                }
+
+                // UP may have arrived while this token was waiting in BeginInvoke.
+                // Begin and the queued release run under the same input lock.
+                if (request.ReleaseRequested && !EndRadialActionPress()) return;
+                Log($"[环形菜单] 已执行：Slot {selected.Slot}（{action}）");
+            }
+            catch (Exception ex)
+            {
+                try { ReleaseAllControls(Ds4ControlResetReason.OutputFailure); }
+                catch (Exception cleanupError) { Log($"输出安全释放失败：{cleanupError.Message}"); }
+                Log($"[环形菜单] Slot {request.SelectedSlot} 动作开始失败：{ex.GetBaseException().Message}");
+            }
+        }
+    }
+
+    private bool TryBeginRadialDs4Press(
+        RadialActionPressSession session, RadialSlotMapping mapping, out string error)
+    {
+        if (_outputMode != OutputMode.DirectDs4)
+        {
+            error = "当前输出模式不是 Direct DS4。";
+            return false;
+        }
+        lock (_outputLock)
+        {
+            if (_directDs4 == null)
+            {
+                error = "虚拟 DS4 当前不可用。";
+                return false;
+            }
+            RadialDs4ActionCatalog.TryGet(mapping.Ds4Button, out RadialDs4ActionMapping target);
+            if (target.Kind == RadialDs4ActionKind.DigitalButton &&
+                _controlState.ActiveButtons.Contains(target.DigitalButton!) ||
+                target.Kind == RadialDs4ActionKind.DPad &&
+                !Equals(_controlState.DPadDirection, DualShock4DPadDirection.None))
+            {
+                error = "目标 DS4 当前已按下或非空闲，为避免干扰现有输入，本次未执行。";
+                return false;
+            }
+
+            session.Ds4Target = target;
+            // Track before output: even a partially failed setter must be released.
+            MarkRadialTargetForFailureCleanup(target);
+            if (target.Kind == RadialDs4ActionKind.DigitalButton)
+                _directDs4.SetButton(target.DigitalButton!, true);
+            else
+                _directDs4.SetDPadDirection(target.DPadDirection!);
+            _directDs4.SubmitReport();
+            error = string.Empty;
+            return true;
+        }
+    }
+
+    // Called only under _lock. A pending token is invalidated without ever starting output.
+    private bool EndRadialActionPress()
+    {
+        RadialActionPressSession? session = _radialActionSession;
+        _radialActionSession = null;
+        if (session == null) return true;
+        try
+        {
+            if (!_radialKeyboardActionExecutor.TryEndPress(session.KeyboardSources, out string error))
+                throw new InvalidOperationException(error);
+            lock (_outputLock)
+            {
+                if (session.Ds4Target is RadialDs4ActionMapping target && _directDs4 != null &&
+                    !session.OrdinaryTargetPressed)
+                {
+                    if (target.Kind == RadialDs4ActionKind.DigitalButton)
+                        _directDs4.SetButton(target.DigitalButton!, false);
+                    else
+                        _directDs4.SetDPadDirection(DualShock4DPadDirection.None);
+                    _directDs4.SubmitReport();
+                    if (target.Kind == RadialDs4ActionKind.DigitalButton)
+                        _controlState.SetDigitalButton(target.DigitalButton!, false);
+                    else
+                        _controlState.SetDPadDirection(DualShock4DPadDirection.None);
+                }
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            try { ReleaseAllControls(Ds4ControlResetReason.OutputFailure); }
+            catch (Exception cleanupError) { Log($"输出安全释放失败：{cleanupError.Message}"); }
+            Log($"[环形菜单] Slot {session.SelectedSlot} 动作释放失败：{ex.GetBaseException().Message}");
+            return false;
+        }
+    }
 
     public bool TryExecuteRadialKeyboardAction(RadialSlotMapping mapping, out string error) =>
         _radialKeyboardActionExecutor.TryExecute(mapping, out error);
@@ -215,7 +376,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     {
         lock (_lock)
         {
-            if (IsRunning || _directDs4 != null) return false;
+            if (IsRunning || _directDs4 != null || _radialActionSession != null) return false;
             _outputMode = mode;
             return true;
         }
@@ -272,7 +433,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         _joystick.StateChanged += snapshot => OnJoystickStateChanged?.Invoke(snapshot);
         _joystick.CursorPositionReadFailed += error =>
         {
-            lock (_lock) ResetRadialRecognizers();
+            lock (_lock) ResetRadialInput(Ds4ControlResetReason.OutputFailure);
             Log($"光标采样已停止：GetCursorPos 失败，Win32 错误码 {error}。");
         };
         OnJoystickStateChanged?.Invoke(_joystick.Snapshot);
@@ -282,7 +443,14 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     {
         lock (_lock)
         {
-            ResetRadialRecognizers();
+            ResetRadialInput(reason switch
+            {
+                JoystickResetReason.Disconnect => Ds4ControlResetReason.Disconnect,
+                JoystickResetReason.SessionReplacement => Ds4ControlResetReason.SessionReplacement,
+                JoystickResetReason.ServiceStop or JoystickResetReason.NormalExit or
+                    JoystickResetReason.ControllerDispose => Ds4ControlResetReason.ServiceStop,
+                _ => Ds4ControlResetReason.OutputFailure
+            });
             _joystick?.Reset(reason);
         }
     }
@@ -319,7 +487,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         if (_outputMode == OutputMode.DirectDs4 && _directDs4 == null)
             throw new InvalidOperationException("Direct DS4 output must be initialized before starting.");
 
-        ResetRadialRecognizers();
+        lock (_lock) ResetRadialInput(Ds4ControlResetReason.ServiceStop);
         _server = new TcpListener(IPAddress.Any, Port);
         _server.Start();
         IsRunning = true;
@@ -429,6 +597,20 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
 
     public void ProcessProtocolAction(string protocolAction, string action)
     {
+        lock (_lock)
+        {
+            if (_disposed) return;
+            try { ProcessProtocolActionCore(protocolAction, action); }
+            catch (Exception ex)
+            {
+                ReleaseAllControls(Ds4ControlResetReason.OutputFailure);
+                Log($"输入处理失败：{ex.Message}");
+            }
+        }
+    }
+
+    private void ProcessProtocolActionCore(string protocolAction, string action)
+    {
         if (protocolAction.Equals("move", StringComparison.OrdinalIgnoreCase))
         {
             HandleMoveMessage(action);
@@ -441,9 +623,9 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         if (isGameAction)
         {
             RadialTriggerSource source = RadialTriggerSource.ForAction(mapping.ProtocolKey);
-            if (TryConsumeRadialMenuInput(source, pressed, out bool requestConfirmation))
+            if (TryConsumeRadialMenuInput(source, pressed, out RadialActionPressSession? request))
             {
-                if (requestConfirmation) RadialMenuConfirmationRequested?.Invoke(source);
+                if (request != null) RadialMenuConfirmationRequested?.Invoke(request);
                 OnButtonEvent?.Invoke($"{protocolAction} -> {action}");
                 return;
             }
@@ -461,7 +643,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
                 }
             }
 
-            if (HasOpenRadialMenu())
+            if (HasOpenRadialMenu() || HasRadialActionSession)
             {
                 RouteGameAction(protocolAction, pressed, mapping);
                 OnButtonEvent?.Invoke($"{protocolAction} -> {action}");
@@ -502,6 +684,14 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
             if (_directDs4 == null) return;
             if (mapping.Kind == Ds4ActionKind.DigitalButton)
             {
+                if (_radialActionSession is { Ds4Target.Kind: RadialDs4ActionKind.DigitalButton } held &&
+                    Equals(held.Ds4Target.DigitalButton, mapping.DigitalButton))
+                {
+                    // Ordinary input may join/leave this target, but must not drop
+                    // radial ownership. Transfer it on radial UP if still held.
+                    held.OrdinaryTargetPressed = pressed;
+                    return;
+                }
                 _directDs4.SetButton(mapping.DigitalButton!, pressed);
                 _controlState.SetDigitalButton(mapping.DigitalButton!, pressed);
             }
@@ -530,6 +720,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         }
         catch (KeyboardOutputException ex)
         {
+            ReleaseAllControls(Ds4ControlResetReason.OutputFailure);
             Log($"键盘输出失败：{ex.InnerException?.Message ?? ex.Message}");
         }
     }
@@ -545,21 +736,21 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
                     ? false
                     : null;
             if (pressed is bool movePressed &&
-                TryConsumeRadialMenuInput(RadialTriggerSource.Move, movePressed, out bool requestConfirmation))
+                TryConsumeRadialMenuInput(RadialTriggerSource.Move, movePressed, out RadialActionPressSession? request))
             {
-                if (requestConfirmation)
-                    RadialMenuConfirmationRequested?.Invoke(RadialTriggerSource.Move);
+                if (request != null)
+                    RadialMenuConfirmationRequested?.Invoke(request);
                 return;
             }
 
-            bool radialMenuAlreadyOpen = HasOpenRadialMenu();
+            bool radialMenuAlreadyOpen = HasOpenRadialMenu() || HasRadialActionSession;
 
             if (action.Equals("down", StringComparison.OrdinalIgnoreCase))
             {
                 bool wasPressed = _joystick.Snapshot.MoveButtonPressed;
                 if (!_joystick.TryMoveDown(out int error))
                 {
-                    ResetRadialRecognizers();
+                    ResetRadialInput(Ds4ControlResetReason.OutputFailure);
                     Log($"MOVE 激活失败，Win32 错误码 {error}。");
                 }
                 else if (!radialMenuAlreadyOpen && !wasPressed && _joystick.Snapshot.MoveButtonPressed)
@@ -608,6 +799,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         {
             lock (_lock)
             {
+                _radialActionSession = null;
                 ResetRadialRecognizers();
                 _keyboardState.ReleaseAll();
                 lock (_outputLock)
@@ -615,19 +807,28 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
                     Ds4ControlRelease release = _controlState.ReleaseAll(reason);
                     if (_directDs4 != null)
                     {
+                        Exception? failure = null;
+                        void Attempt(Action releaseOutput)
+                        {
+                            try { releaseOutput(); }
+                            catch (Exception ex) { failure ??= ex; }
+                        }
                         foreach (DualShock4Button button in release.DigitalButtons)
-                            _directDs4.SetButton(button, false);
+                            Attempt(() => _directDs4.SetButton(button, false));
                         if (release.ResetDPad)
-                            _directDs4.SetDPadDirection(DualShock4DPadDirection.None);
+                            Attempt(() => _directDs4.SetDPadDirection(DualShock4DPadDirection.None));
                         if (release.ResetLeftTrigger)
-                            _directDs4.SetTrigger(DualShock4Slider.LeftTrigger, 0);
+                            Attempt(() => _directDs4.SetTrigger(DualShock4Slider.LeftTrigger, 0));
                         if (release.ResetRightTrigger)
-                            _directDs4.SetTrigger(DualShock4Slider.RightTrigger, 0);
+                            Attempt(() => _directDs4.SetTrigger(DualShock4Slider.RightTrigger, 0));
                         if (release.DigitalButtons.Count > 0 || release.ResetDPad ||
                             release.ResetLeftTrigger || release.ResetRightTrigger)
                         {
-                            _directDs4.SubmitReport();
+                            Attempt(_directDs4.SubmitReport);
                         }
+                        // Preserve the existing caller-visible failure contract,
+                        // but only after attempting every tracked neutral output.
+                        if (failure != null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
                     }
                 }
             }
@@ -642,8 +843,9 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     {
         if (_outputMode == OutputMode.Keyboard)
         {
-            try { _keyboardMoveOutput.SetLeftStick(x, y); }
-            catch (KeyboardOutputException ex) { Log($"键盘 MOVE 输出失败：{ex.InnerException?.Message ?? ex.Message}"); }
+            // Let HandleMoveMessage / CursorJoystickSampler release the service
+            // after the joystick lock unwinds; never invert joystick -> input locks.
+            _keyboardMoveOutput.SetLeftStick(x, y);
             return;
         }
         lock (_outputLock)
@@ -717,31 +919,44 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
 
     private void OpenRadialMenu(RadialTriggerSource source)
     {
-        lock (_lock) _radialOpenSource = source;
-        RadialMenuTriggered?.Invoke(source);
+        lock (_lock)
+        {
+            if (_radialActionSession != null) return;
+            _radialOpenSource = source;
+            RadialMenuTriggered?.Invoke(source);
+        }
     }
 
     private bool TryConsumeRadialMenuInput(
         RadialTriggerSource source,
         bool pressed,
-        out bool requestConfirmation)
+        out RadialActionPressSession? request)
     {
         lock (_lock)
         {
-            requestConfirmation = false;
+            request = null;
             if (_radialSuppressedUpSource == source)
             {
-                if (!pressed) _radialSuppressedUpSource = null;
+                if (!pressed)
+                {
+                    _radialSuppressedUpSource = null;
+                    if (_radialActionSession is { } session)
+                    {
+                        if (session.BeginHandled) EndRadialActionPress();
+                        else session.ReleaseRequested = true;
+                    }
+                }
                 return true;
             }
 
-            if (!pressed || _radialOpenSource != source) return false;
+            if (!pressed || _radialOpenSource != source || _radialActionSession != null) return false;
 
             _radialOpenSource = null;
             _radialSuppressedUpSource = source;
             _actionDoubleTapRecognizer.Reset();
             _moveTapRecognizer.Reset();
-            requestConfirmation = true;
+            request = new RadialActionPressSession(source);
+            _radialActionSession = request;
             return true;
         }
     }
@@ -751,7 +966,14 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         lock (_lock)
         {
             if (_radialSuppressedUpSource == source) _radialSuppressedUpSource = null;
+            if (_radialActionSession?.Source == source) EndRadialActionPress();
         }
+    }
+
+    private void ResetRadialInput(Ds4ControlResetReason reason)
+    {
+        if (_radialActionSession != null) ReleaseAllControls(reason);
+        else ResetRadialRecognizers();
     }
 
     private static void ValidateRadialDoubleTapWindow(int milliseconds)

@@ -8,6 +8,7 @@ public sealed class KeyboardKeyState
     private readonly Dictionary<string, KeyboardKey> _sourceKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<KeyboardKey, HashSet<string>> _keyOwners = new();
     private readonly HashSet<KeyboardKey> _currentPressedKeys = new();
+    private readonly List<KeyboardKey> _pressedKeyOrder = new();
 
     public KeyboardKeyState(IKeyboardOutput output) => _output = output;
 
@@ -30,7 +31,11 @@ public sealed class KeyboardKeyState
                 _keyOwners[key] = owners;
             }
             owners.Add(source);
-            if (_currentPressedKeys.Add(key)) SendSafely(key, true);
+            if (_currentPressedKeys.Add(key))
+            {
+                _pressedKeyOrder.Add(key);
+                SendSafely(key, true);
+            }
         }
     }
 
@@ -47,6 +52,7 @@ public sealed class KeyboardKeyState
             {
                 SendSafely(key, false);
                 _currentPressedKeys.Remove(key);
+                _pressedKeyOrder.Remove(key);
             }
         }
     }
@@ -92,10 +98,12 @@ public sealed class KeyboardKeyState
 
     private void ReleaseAllCore()
     {
-        KeyboardKey[] keys = _currentPressedKeys.ToArray();
+        // Includes an attempted DOWN whose output threw; unwind in reverse acquisition order.
+        KeyboardKey[] keys = _pressedKeyOrder.AsEnumerable().Reverse().ToArray();
         _sourceKeys.Clear();
         _keyOwners.Clear();
         _currentPressedKeys.Clear();
+        _pressedKeyOrder.Clear();
         foreach (KeyboardKey key in keys)
         {
             try { _output.SetKeyState(key, false); }

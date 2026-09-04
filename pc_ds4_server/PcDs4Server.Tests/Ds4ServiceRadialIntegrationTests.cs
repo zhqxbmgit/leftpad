@@ -717,10 +717,15 @@ public sealed class Ds4ServiceRadialIntegrationTests
         var completions = new List<RadialMenuCompletion>();
         service.RadialMenuTriggered += source =>
             controller.OpenAt(new System.Drawing.Point(500, 500), source);
-        service.RadialMenuConfirmationRequested += source =>
+        service.RadialMenuConfirmationRequested += request =>
         {
-            if (controller.TryCompleteFrom(source, out RadialMenuCompletion completion))
+            service.CompleteRadialActionPress(request, () =>
+            {
+                if (!controller.TryCompleteFrom(request.Source, out RadialMenuCompletion completion))
+                    return null;
                 completions.Add(completion);
+                return new RadialActionSelection(completion.SelectedSlot, RadialSlotMapping.None);
+            });
         };
         controller.NormalMenuStateChanged += () =>
         {
