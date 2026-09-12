@@ -5,13 +5,17 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.BatteryManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.slideInHorizontally
@@ -56,6 +60,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -122,6 +127,12 @@ enum class MainButtonAction(
 private const val MAIN_BUTTON_PREFERENCES = "main_button_preferences"
 private const val MAIN_BUTTON_MODE_KEY = "main_button_mode"
 
+private data class PendingLanConnection(
+    val ip: String,
+    val port: String,
+    val isAuto: Boolean
+)
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -174,6 +185,8 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
     var writer: PrintWriter? by remember { mutableStateOf(null) }
     var isUserDisconnected by remember { mutableStateOf(false) }
     var isConnecting by remember { mutableStateOf(false) }
+    var pendingLanConnection by remember { mutableStateOf<PendingLanConnection?>(null) }
+    var permissionRequestInFlight by remember { mutableStateOf(false) }
     
     var showPanel by remember { mutableStateOf(false) }
     var isEditMode by remember { mutableStateOf(false) }
@@ -238,8 +251,49 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
     LaunchedEffect(Unit) { loadLayout() }
 
     fun disconnect(isManual: Boolean = true) { scope.launch(Dispatchers.IO) { try { writer?.close(); socket?.close() } catch (e: Exception) {} finally { withContext(Dispatchers.Main) { isConnected = false; socket = null; writer = null; if (isManual) { isUserDisconnected = true; connectionStatus = "已断开" } else { connectionStatus = "正在重连" } } } } }
-    fun connect(ip: String, port: String, isAuto: Boolean = false) { if (ip.isEmpty() || isConnecting || isConnected) return; isConnecting = true; if (!isAuto) { connectionStatus = "连接中..."; isUserDisconnected = false }; scope.launch(Dispatchers.IO) { try { val newSocket = Socket(); newSocket.connect(InetSocketAddress(ip, port.toInt()), 2000)
+    fun connectToLan(ip: String, port: String, isAuto: Boolean) { if (ip.isEmpty() || isConnecting || isConnected) return; isConnecting = true; if (!isAuto) { connectionStatus = "连接中..."; isUserDisconnected = false }; scope.launch(Dispatchers.IO) { try { val newSocket = Socket(); newSocket.connect(InetSocketAddress(ip, port.toInt()), 2000)
     val newWriter = PrintWriter(newSocket.getOutputStream(), true); withContext(Dispatchers.Main) { socket = newSocket; writer = newWriter; isConnected = true; connectionStatus = "已连接"; isConnecting = false; pcPrefs.edit().apply { putString("selected_pc", selectedPcId); if (selectedPcId == "A") { putString("pc_a_name", currentName); putString("pc_a_ip", currentIp); putString("pc_a_port", currentPort) } else { putString("pc_b_name", currentName); putString("pc_b_ip", currentIp); putString("pc_b_port", currentPort) }; apply() } }; launch(Dispatchers.IO) { try { val inputStream = newSocket.getInputStream(); while (isConnected) { if (inputStream.read() == -1) break } } catch (e: Exception) {} finally { disconnect(isManual = false) } } } catch (e: Exception) { withContext(Dispatchers.Main) { isConnecting = false; if (!isAuto) connectionStatus = "连接失败" else if (!isUserDisconnected) connectionStatus = "正在重连" } } } }
+
+    val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { permissionGranted ->
+        permissionRequestInFlight = false
+        val pendingConnection = pendingLanConnection
+        pendingLanConnection = null
+        if (permissionGranted && pendingConnection != null) {
+            isUserDisconnected = false
+            connectToLan(
+                pendingConnection.ip,
+                pendingConnection.port,
+                pendingConnection.isAuto
+            )
+        } else {
+            isUserDisconnected = true
+            connectionStatus = "需要本地网络权限"
+        }
+    }
+
+    fun connect(ip: String, port: String, isAuto: Boolean = false) {
+        if (ip.isEmpty() || isConnecting || isConnected || permissionRequestInFlight) return
+
+        val permissionGranted = !requiresLocalNetworkPermission(Build.VERSION.SDK_INT) ||
+            ContextCompat.checkSelfPermission(
+                context,
+                LOCAL_NETWORK_PERMISSION
+            ) == PackageManager.PERMISSION_GRANTED
+
+        if (!canAttemptLanConnection(Build.VERSION.SDK_INT, permissionGranted)) {
+            pendingLanConnection = PendingLanConnection(ip, port, isAuto)
+            permissionRequestInFlight = true
+            isUserDisconnected = true
+            connectionStatus = "需要本地网络权限"
+            localNetworkPermissionLauncher.launch(LOCAL_NETWORK_PERMISSION)
+            return
+        }
+
+        connectToLan(ip, port, isAuto)
+    }
+
     LaunchedEffect(isConnected, isUserDisconnected, currentIp, currentPort) { if (!isConnected && !isUserDisconnected && currentIp.isNotEmpty()) { while (!isConnected && !isUserDisconnected) { connect(currentIp, currentPort, isAuto = true); delay(3000) } } }
     fun sendMessage(button: String, action: String, allowWhenUiBlocked: Boolean = false) {
         if (!allowWhenUiBlocked && (isEditMode || showPanel)) return
