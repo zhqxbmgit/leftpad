@@ -514,6 +514,7 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
             try
             {
                 TcpClient client = await _server!.AcceptTcpClientAsync(token);
+                ConfigureClient(client);
                 long sessionId;
                 TcpClient? previousClient;
                 lock (_lock)
@@ -535,6 +536,11 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
                 Log($"接受客户端连接失败：{ex.Message}");
             }
         }
+    }
+
+    internal static void ConfigureClient(TcpClient client)
+    {
+        client.NoDelay = true;
     }
 
     private async Task HandleClientAsync(TcpClient client, long sessionId, CancellationToken token)
