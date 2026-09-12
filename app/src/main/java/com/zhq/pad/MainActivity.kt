@@ -65,13 +65,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.zhq.pad.ui.theme.PadTheme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.PrintWriter
-import java.net.InetSocketAddress
-import java.net.Socket
+import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.roundToInt
 
 // --- 极致赛博霓虹配色 (色彩纯净度强化) ---
@@ -127,12 +121,6 @@ enum class MainButtonAction(
 private const val MAIN_BUTTON_PREFERENCES = "main_button_preferences"
 private const val MAIN_BUTTON_MODE_KEY = "main_button_mode"
 
-private data class PendingLanConnection(
-    val ip: String,
-    val port: String,
-    val isAuto: Boolean
-)
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -163,37 +151,83 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
         onDispose { context.unregisterReceiver(receiver) }
     }
 
-    val pcPrefs = remember { context.getSharedPreferences("pc_configs", Context.MODE_PRIVATE) }
     val layoutPrefs = remember { context.getSharedPreferences("button_layout_v4_ratio", Context.MODE_PRIVATE) }
     val mainButtonPrefs = remember { context.getSharedPreferences(MAIN_BUTTON_PREFERENCES, Context.MODE_PRIVATE) }
 
-    var selectedPcId by remember { mutableStateOf(pcPrefs.getString("selected_pc", "A") ?: "A") }
-    var pcAName by remember { mutableStateOf(pcPrefs.getString("pc_a_name", "电脑 A") ?: "电脑 A") }
-    var pcAIp by remember { mutableStateOf(pcPrefs.getString("pc_a_ip", "") ?: "") }
-    var pcAPort by remember { mutableStateOf(pcPrefs.getString("pc_a_port", "8888") ?: "8888") }
-    var pcBName by remember { mutableStateOf(pcPrefs.getString("pc_b_name", "电脑 B") ?: "电脑 B") }
-    var pcBIp by remember { mutableStateOf(pcPrefs.getString("pc_b_ip", "") ?: "") }
-    var pcBPort by remember { mutableStateOf(pcPrefs.getString("pc_b_port", "8888") ?: "8888") }
-
-    var currentName by remember(selectedPcId) { mutableStateOf(if (selectedPcId == "A") pcAName else pcBName) }
-    var currentIp by remember(selectedPcId) { mutableStateOf(if (selectedPcId == "A") pcAIp else pcBIp) }
-    var currentPort by remember(selectedPcId) { mutableStateOf(if (selectedPcId == "A") pcAPort else pcBPort) }
-
-    var connectionStatus by remember { mutableStateOf("未连接") }
+    var connectionStatus by remember { mutableStateOf("搜索中") }
     var isConnected by remember { mutableStateOf(false) }
-    var socket: Socket? by remember { mutableStateOf(null) }
-    var writer: PrintWriter? by remember { mutableStateOf(null) }
-    var isUserDisconnected by remember { mutableStateOf(false) }
-    var isConnecting by remember { mutableStateOf(false) }
-    var activeSenderGeneration by remember { mutableLongStateOf(0L) }
-    var pendingLanConnection by remember { mutableStateOf<PendingLanConnection?>(null) }
-    var permissionRequestInFlight by remember { mutableStateOf(false) }
     val orderedMessageSender = remember(scope) { OrderedMessageSender(scope) }
-
-    DisposableEffect(orderedMessageSender) {
-        onDispose { orderedMessageSender.close() }
+    val controllerSession = remember(orderedMessageSender) { DiscoveredControllerSession(orderedMessageSender) }
+    val discovery = remember { WifiReceiverDiscovery(context.applicationContext) }
+    val permissionPrefs = remember { context.getSharedPreferences("lan_permission", Context.MODE_PRIVATE) }
+    fun hasLanPermission(): Boolean = canAttemptLanConnection(Build.VERSION.SDK_INT,
+        ContextCompat.checkSelfPermission(context, LOCAL_NETWORK_PERMISSION) == PackageManager.PERMISSION_GRANTED)
+    var lanAllowed by remember { mutableStateOf(hasLanPermission()) }
+    var permissionRequestInFlight by remember { mutableStateOf(false) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        permissionRequestInFlight = false
+        lanAllowed = canAttemptLanConnection(Build.VERSION.SDK_INT, granted)
+        connectionStatus = if (lanAllowed) "搜索中" else "需要本地网络权限"
     }
-    
+    fun requestLanPermission() {
+        if (permissionRequestInFlight) return
+        permissionRequestInFlight = true
+        permissionPrefs.edit().putBoolean("requested", true).apply()
+        permissionLauncher.launch(LOCAL_NETWORK_PERMISSION)
+    }
+    LaunchedEffect(Unit) {
+        if (!lanAllowed) {
+            connectionStatus = "需要本地网络权限"
+            if (!permissionPrefs.getBoolean("requested", false)) requestLanPermission()
+        }
+    }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) lanAllowed = hasLanPermission()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    DisposableEffect(orderedMessageSender) {
+        onDispose { controllerSession.stop(); orderedMessageSender.close() }
+    }
+    LaunchedEffect(lanAllowed) {
+        if (lanAllowed) discovery.run()
+        else connectionStatus = "需要本地网络权限"
+    }
+    LaunchedEffect(lanAllowed, discovery) {
+        if (!lanAllowed) return@LaunchedEffect
+        // collectLatest waits for the old block's finally to finish before connecting a new target.
+        discovery.target.collectLatest { target ->
+            connectionStatus = "搜索中"
+            if (target == null) return@collectLatest
+            runDiscoveredControllerConnection(target, controllerSession,
+                onConnected = {
+                    isConnected = true
+                    connectionStatus = "已连接 · ${target.address.hostAddress}"
+                    Log.i("LeftPadDiscovery", "TCP connected source=${target.address.hostAddress} generation=${controllerSession.generation}")
+                },
+                onDisconnected = {
+                    isConnected = false
+                    connectionStatus = if (lanAllowed) "搜索中" else "需要本地网络权限"
+                },
+                onFailure = { error ->
+                    if (error != null) Log.w("LeftPadDiscovery", "TCP connect failed", error)
+                    discovery.connectionFailed(target)
+                })
+        }
+    }
+    LaunchedEffect(orderedMessageSender) {
+        for (failure in orderedMessageSender.failures) {
+            if (failure.generation == controllerSession.generation) {
+                controllerSession.stop()
+                isConnected = false
+                discovery.target.value?.let { discovery.connectionFailed(it) }
+            }
+            Log.e("LeftPadSender", "Outgoing sender session ${failure.generation} failed", failure.cause)
+        }
+    }
     var showPanel by remember { mutableStateOf(false) }
     var isEditMode by remember { mutableStateOf(false) }
     var showAddMenu by remember { mutableStateOf(false) }
@@ -256,93 +290,16 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
 
     LaunchedEffect(Unit) { loadLayout() }
 
-    fun disconnect(isManual: Boolean = true, expectedGeneration: Long? = null) {
-        scope.launch {
-            if (expectedGeneration != null && expectedGeneration != activeSenderGeneration) return@launch
-            val closingGeneration = activeSenderGeneration
-            val closingWriter = writer
-            val closingSocket = socket
-            orderedMessageSender.stopSession(closingGeneration)
-            withContext(Dispatchers.IO) {
-                try {
-                    closingWriter?.close()
-                    closingSocket?.close()
-                } catch (_: Exception) { }
-            }
-            if (activeSenderGeneration != closingGeneration) return@launch
-            isConnected = false
-            activeSenderGeneration = 0L
-            socket = null
-            writer = null
-            if (isManual) {
-                isUserDisconnected = true
-                connectionStatus = "已断开"
-            } else {
-                connectionStatus = "正在重连"
-            }
-        }
-    }
-    fun connectToLan(ip: String, port: String, isAuto: Boolean) { if (ip.isEmpty() || isConnecting || isConnected) return; isConnecting = true; if (!isAuto) { connectionStatus = "连接中..."; isUserDisconnected = false }; scope.launch(Dispatchers.IO) { try { val newSocket = Socket(); configureControllerSocket(newSocket); newSocket.connect(InetSocketAddress(ip, port.toInt()), 2000)
-    val newWriter = PrintWriter(newSocket.getOutputStream(), true); val senderGeneration = withContext(Dispatchers.Main) { val generation = orderedMessageSender.startSession(PrintWriterMessageSink(newWriter)); socket = newSocket; writer = newWriter; activeSenderGeneration = generation; isConnected = true; connectionStatus = "已连接"; isConnecting = false; pcPrefs.edit().apply { putString("selected_pc", selectedPcId); if (selectedPcId == "A") { putString("pc_a_name", currentName); putString("pc_a_ip", currentIp); putString("pc_a_port", currentPort) } else { putString("pc_b_name", currentName); putString("pc_b_ip", currentIp); putString("pc_b_port", currentPort) }; apply() }; generation }; launch(Dispatchers.IO) { try { val inputStream = newSocket.getInputStream(); while (inputStream.read() != -1) { } } catch (_: Exception) {} finally { disconnect(isManual = false, expectedGeneration = senderGeneration) } } } catch (e: Exception) { withContext(Dispatchers.Main) { isConnecting = false; if (!isAuto) connectionStatus = "连接失败" else if (!isUserDisconnected) connectionStatus = "正在重连" } } } }
-
-    LaunchedEffect(orderedMessageSender) {
-        for (failure in orderedMessageSender.failures) {
-            Log.e("LeftPadSender", "Outgoing sender session ${failure.generation} failed", failure.cause)
-            disconnect(isManual = false, expectedGeneration = failure.generation)
-        }
-    }
-
-    val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { permissionGranted ->
-        permissionRequestInFlight = false
-        val pendingConnection = pendingLanConnection
-        pendingLanConnection = null
-        if (permissionGranted && pendingConnection != null) {
-            isUserDisconnected = false
-            connectToLan(
-                pendingConnection.ip,
-                pendingConnection.port,
-                pendingConnection.isAuto
-            )
-        } else {
-            isUserDisconnected = true
-            connectionStatus = "需要本地网络权限"
-        }
-    }
-
-    fun connect(ip: String, port: String, isAuto: Boolean = false) {
-        if (ip.isEmpty() || isConnecting || isConnected || permissionRequestInFlight) return
-
-        val permissionGranted = !requiresLocalNetworkPermission(Build.VERSION.SDK_INT) ||
-            ContextCompat.checkSelfPermission(
-                context,
-                LOCAL_NETWORK_PERMISSION
-            ) == PackageManager.PERMISSION_GRANTED
-
-        if (!canAttemptLanConnection(Build.VERSION.SDK_INT, permissionGranted)) {
-            pendingLanConnection = PendingLanConnection(ip, port, isAuto)
-            permissionRequestInFlight = true
-            isUserDisconnected = true
-            connectionStatus = "需要本地网络权限"
-            localNetworkPermissionLauncher.launch(LOCAL_NETWORK_PERMISSION)
-            return
-        }
-
-        connectToLan(ip, port, isAuto)
-    }
-
-    LaunchedEffect(isConnected, isUserDisconnected, currentIp, currentPort) { if (!isConnected && !isUserDisconnected && currentIp.isNotEmpty()) { while (!isConnected && !isUserDisconnected) { connect(currentIp, currentPort, isAuto = true); delay(3000) } } }
     fun sendMessage(button: String, action: String, allowWhenUiBlocked: Boolean = false) {
         if (!allowWhenUiBlocked && (isEditMode || showPanel)) return
-        if (isConnected && activeSenderGeneration != 0L) {
-            orderedMessageSender.tryEnqueue(OutgoingMessage.Button(button, action))
+        if (isConnected) {
+            controllerSession.button(button, action)
         }
     }
     fun sendSystemCommand(command: String) {
         if (isEditMode || showPanel) return
-        if (isConnected && activeSenderGeneration != 0L) {
-            orderedMessageSender.tryEnqueue(OutgoingMessage.Command(command))
+        if (isConnected) {
+            controllerSession.command(command)
         }
     }
 
@@ -425,6 +382,9 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.width(16.dp)); Text("DS4 模式", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Light); Spacer(modifier = Modifier.width(12.dp)); Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(if (isConnected) NeonTheme.Triangle else NeonTheme.Circle).blur(if (isConnected) 4.dp else 0.dp))
         }
 
+        Text(connectionStatus, modifier = Modifier.align(Alignment.TopEnd).padding(24.dp),
+            color = if (isConnected) NeonTheme.Triangle else Color.Gray, fontSize = 12.sp)
+
         // 电池电量
         Column(modifier = Modifier.align(Alignment.BottomStart).padding(24.dp)) {
             Text("电量", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold); Spacer(modifier = Modifier.height(6.dp))
@@ -442,8 +402,12 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
                 Surface(modifier = Modifier.fillMaxHeight().width(260.dp).clickable(enabled = false) { }, color = NeonTheme.PanelBg, border = BorderStroke(1.dp, NeonTheme.Accent.copy(alpha = 0.3f)), shape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)) {
                     Column(modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState())) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("控制台", color = NeonTheme.Accent, fontWeight = FontWeight.Bold, letterSpacing = 2.sp); IconButton(onClick = { showPanel = false }) { Icon(Icons.Default.Close, null, tint = Color.Gray) } }
-                        HorizontalDivider(color = NeonTheme.Accent.copy(alpha = 0.2f)); Spacer(modifier = Modifier.height(20.dp)); Text(currentName, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("状态: $connectionStatus", fontSize = 11.sp, color = if (isConnected) NeonTheme.Triangle else Color.Gray)
-                        Spacer(modifier = Modifier.height(24.dp)); Button(onClick = { if (!isConnected) connect(currentIp, currentPort) else disconnect(isManual = true) }, modifier = Modifier.fillMaxWidth().height(44.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent), border = BorderStroke(1.dp, if (isConnected) NeonTheme.Circle else NeonTheme.Triangle), shape = RoundedCornerShape(8.dp)) { Text(if (isConnected) "断开连接" else "建立连接", color = if (isConnected) NeonTheme.Circle else NeonTheme.Triangle) }
+                        HorizontalDivider(color = NeonTheme.Accent.copy(alpha = 0.2f)); Spacer(modifier = Modifier.height(20.dp)); Text("LeftPad Receiver", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold); Text("状态: $connectionStatus", fontSize = 11.sp, color = if (isConnected) NeonTheme.Triangle else Color.Gray)
+                        if (!lanAllowed) {
+                            OutlinedButton(onClick = { requestLanPermission() }, enabled = !permissionRequestInFlight) {
+                                Text("允许本地网络访问", color = NeonTheme.Accent)
+                            }
+                        }
                         Spacer(modifier = Modifier.height(12.dp)); Button(onClick = { if (isEditMode) saveLayout(); isEditMode = !isEditMode }, modifier = Modifier.fillMaxWidth().height(44.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent), border = BorderStroke(1.dp, if (isEditMode) NeonTheme.Triangle else NeonTheme.Accent), shape = RoundedCornerShape(8.dp)) { Text(if (isEditMode) "保存布局" else "编辑布局", color = if (isEditMode) NeonTheme.Triangle else NeonTheme.Accent) }
                         if (isEditMode) {
                             Spacer(modifier = Modifier.height(16.dp)); Row(modifier = Modifier.fillMaxWidth()) {
@@ -456,10 +420,7 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
                                 OutlinedButton(onClick = { buttonConfigs.clear(); buttonConfigs.addAll(getDefaultConfigs()); saveLayout() }, modifier = Modifier.weight(1f).padding(start = 4.dp), border = BorderStroke(1.dp, Color.Gray)) { Text("重置", fontSize = 11.sp, color = Color.Gray) }
                             }
                         }
-                        Spacer(modifier = Modifier.height(32.dp)); Text("目标配置", style = MaterialTheme.typography.labelSmall, color = Color.Gray); Spacer(modifier = Modifier.height(12.dp)); Row(modifier = Modifier.fillMaxWidth()) {
-                            Button(onClick = { if (selectedPcId != "A") { disconnect(); selectedPcId = "A" } }, modifier = Modifier.weight(1f).height(32.dp).padding(end = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = if (selectedPcId == "A") NeonTheme.Accent.copy(alpha = 0.2f) else Color.Transparent), border = BorderStroke(1.dp, if (selectedPcId == "A") NeonTheme.Accent else Color.DarkGray)) { Text("电脑 A", color = if (selectedPcId == "A") NeonTheme.Accent else Color.Gray) }
-                            Button(onClick = { if (selectedPcId != "B") { disconnect(); selectedPcId = "B" } }, modifier = Modifier.weight(1f).height(32.dp).padding(start = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = if (selectedPcId == "B") NeonTheme.Accent.copy(alpha = 0.2f) else Color.Transparent), border = BorderStroke(1.dp, if (selectedPcId == "B") NeonTheme.Accent else Color.DarkGray)) { Text("电脑 B", color = if (selectedPcId == "B") NeonTheme.Accent else Color.Gray) }
-                        }; Spacer(modifier = Modifier.height(12.dp)); OutlinedTextField(value = currentName, onValueChange = { currentName = it }, label = { Text("名称") }, modifier = Modifier.fillMaxWidth(), enabled = !isConnected, singleLine = true, colors = OutlinedTextFieldDefaults.colors(unfocusedTextColor = Color.White, focusedTextColor = Color.White, unfocusedBorderColor = Color.DarkGray, focusedBorderColor = NeonTheme.Accent, unfocusedLabelColor = Color.Gray, focusedLabelColor = NeonTheme.Accent), shape = RoundedCornerShape(8.dp)); OutlinedTextField(value = currentIp, onValueChange = { currentIp = it }, label = { Text("IP 地址") }, modifier = Modifier.fillMaxWidth(), enabled = !isConnected, singleLine = true, colors = OutlinedTextFieldDefaults.colors(unfocusedTextColor = Color.White, focusedTextColor = Color.White, unfocusedBorderColor = Color.DarkGray, focusedBorderColor = NeonTheme.Accent, unfocusedLabelColor = Color.Gray, focusedLabelColor = NeonTheme.Accent), shape = RoundedCornerShape(8.dp)); OutlinedTextField(value = currentPort, onValueChange = { currentPort = it }, label = { Text("端口") }, modifier = Modifier.fillMaxWidth(), enabled = !isConnected, singleLine = true, colors = OutlinedTextFieldDefaults.colors(unfocusedTextColor = Color.White, focusedTextColor = Color.White, unfocusedBorderColor = Color.DarkGray, focusedBorderColor = NeonTheme.Accent, unfocusedLabelColor = Color.Gray, focusedLabelColor = NeonTheme.Accent), shape = RoundedCornerShape(8.dp))
+
                     }
                 }
             }

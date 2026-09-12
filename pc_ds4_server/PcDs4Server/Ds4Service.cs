@@ -26,6 +26,8 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
     private readonly object _outputLock = new();
     private IDirectDs4Session? _directDs4;
     private TcpListener? _server;
+    private DiscoveryResponder? _discovery;
+    private readonly Func<byte[]> _receiverIdentityProvider;
     private CancellationTokenSource? _cts;
     private TcpClient? _activeClient;
     private long _activeSessionId;
@@ -45,9 +47,12 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         IKeyboardBindingStore? bindingStore = null,
         TimeSpan? doubleTapWindow = null,
         Func<TimeSpan>? inputTimestampProvider = null,
-        Action<int>? radialDs4Delay = null)
+        Action<int>? radialDs4Delay = null,
+        Func<byte[]>? receiverIdentityProvider = null)
     {
         _directDs4Factory = directDs4Factory ?? new VigemDirectDs4Factory();
+        _receiverIdentityProvider = receiverIdentityProvider ??
+            (() => ReceiverIdentityStore.LoadOrCreate(ReceiverIdentityStore.DefaultPath, Log));
         _keyboardState = new KeyboardKeyState(keyboardOutput ?? new SendInputKeyboardOutput());
         _keyboardMoveOutput = new KeyboardMoveOutput(_keyboardState);
         _radialKeyboardActionExecutor = new RadialKeyboardActionExecutor(_keyboardState);
@@ -491,6 +496,24 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         _server.Start();
         IsRunning = true;
         _cts = new CancellationTokenSource();
+        try
+        {
+            _discovery = new DiscoveryResponder(
+                _receiverIdentityProvider(),
+                () => IsRunning, Log);
+            _discovery.Start();
+            Log("[Discovery] UDP 8889 listening; controller TCP 8888 ready.");
+        }
+        catch
+        {
+            IsRunning = false;
+            _discovery?.Dispose();
+            _discovery = null;
+            _server.Stop();
+            _cts.Dispose();
+            _cts = null;
+            throw;
+        }
         if (_joystick != null)
         {
             _joystickSampler = new CursorJoystickSampler(_joystick);
@@ -504,7 +527,8 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         Log($"TCP 服务器正在端口 {Port} 监听，输出模式：{_outputMode}。");
         Log($"[环形菜单] 双击窗口：{RadialDoubleTapWindowMs} ms");
         OnConnectionChanged?.Invoke("等待手机连接...");
-        _ = Task.Run(() => AcceptClientsAsync(_cts.Token));
+        CancellationToken token = _cts.Token;
+        _ = Task.Run(() => AcceptClientsAsync(token));
     }
 
     private async Task AcceptClientsAsync(CancellationToken token)
@@ -861,6 +885,9 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
 
     public void Stop()
     {
+        IsRunning = false;
+        _discovery?.Dispose();
+        _discovery = null;
         _cts?.Cancel();
         _server?.Stop();
         lock (_lock)
