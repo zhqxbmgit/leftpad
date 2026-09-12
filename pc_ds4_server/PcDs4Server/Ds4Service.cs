@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Text.Json;
 using Nefarius.ViGEm.Client.Targets.DualShock4;
 
@@ -545,17 +544,15 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         try
         {
             using (client)
-            using (var reader = new StreamReader(client.GetStream(), Encoding.UTF8))
             {
-                while (!token.IsCancellationRequested)
-                {
-                    string? line = await reader.ReadLineAsync(token);
-                    if (line == null) break;
-                    ProcessMessage(line, sessionId);
-                }
+                await LineFrameReader.ReadAsync(
+                    client.GetStream(),
+                    line => ProcessMessage(line, sessionId),
+                    token);
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (LineFrameException ex) { Log($"协议错误（{remote}）：{ex.Message}"); }
         catch (Exception ex) { Log($"连接错误（{remote}）：{ex.Message}"); }
         finally
         {
@@ -574,11 +571,11 @@ public sealed class Ds4Service : ILeftStickOutput, IServerLifecycle, IDisposable
         }
     }
 
-    private void ProcessMessage(string rawData, long sessionId)
+    private void ProcessMessage(string line, long sessionId)
     {
         try
         {
-            ButtonMessage? message = JsonSerializer.Deserialize<ButtonMessage>(rawData.Trim());
+            ButtonMessage? message = JsonSerializer.Deserialize<ButtonMessage>(line.Trim());
             if (message == null) return;
             lock (_lock)
             {
