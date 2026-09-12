@@ -185,8 +185,14 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
     var writer: PrintWriter? by remember { mutableStateOf(null) }
     var isUserDisconnected by remember { mutableStateOf(false) }
     var isConnecting by remember { mutableStateOf(false) }
+    var activeSenderGeneration by remember { mutableLongStateOf(0L) }
     var pendingLanConnection by remember { mutableStateOf<PendingLanConnection?>(null) }
     var permissionRequestInFlight by remember { mutableStateOf(false) }
+    val orderedMessageSender = remember(scope) { OrderedMessageSender(scope) }
+
+    DisposableEffect(orderedMessageSender) {
+        onDispose { orderedMessageSender.close() }
+    }
     
     var showPanel by remember { mutableStateOf(false) }
     var isEditMode by remember { mutableStateOf(false) }
@@ -250,9 +256,41 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
 
     LaunchedEffect(Unit) { loadLayout() }
 
-    fun disconnect(isManual: Boolean = true) { scope.launch(Dispatchers.IO) { try { writer?.close(); socket?.close() } catch (e: Exception) {} finally { withContext(Dispatchers.Main) { isConnected = false; socket = null; writer = null; if (isManual) { isUserDisconnected = true; connectionStatus = "已断开" } else { connectionStatus = "正在重连" } } } } }
+    fun disconnect(isManual: Boolean = true, expectedGeneration: Long? = null) {
+        scope.launch {
+            if (expectedGeneration != null && expectedGeneration != activeSenderGeneration) return@launch
+            val closingGeneration = activeSenderGeneration
+            val closingWriter = writer
+            val closingSocket = socket
+            orderedMessageSender.stopSession(closingGeneration)
+            withContext(Dispatchers.IO) {
+                try {
+                    closingWriter?.close()
+                    closingSocket?.close()
+                } catch (_: Exception) { }
+            }
+            if (activeSenderGeneration != closingGeneration) return@launch
+            isConnected = false
+            activeSenderGeneration = 0L
+            socket = null
+            writer = null
+            if (isManual) {
+                isUserDisconnected = true
+                connectionStatus = "已断开"
+            } else {
+                connectionStatus = "正在重连"
+            }
+        }
+    }
     fun connectToLan(ip: String, port: String, isAuto: Boolean) { if (ip.isEmpty() || isConnecting || isConnected) return; isConnecting = true; if (!isAuto) { connectionStatus = "连接中..."; isUserDisconnected = false }; scope.launch(Dispatchers.IO) { try { val newSocket = Socket(); newSocket.connect(InetSocketAddress(ip, port.toInt()), 2000)
-    val newWriter = PrintWriter(newSocket.getOutputStream(), true); withContext(Dispatchers.Main) { socket = newSocket; writer = newWriter; isConnected = true; connectionStatus = "已连接"; isConnecting = false; pcPrefs.edit().apply { putString("selected_pc", selectedPcId); if (selectedPcId == "A") { putString("pc_a_name", currentName); putString("pc_a_ip", currentIp); putString("pc_a_port", currentPort) } else { putString("pc_b_name", currentName); putString("pc_b_ip", currentIp); putString("pc_b_port", currentPort) }; apply() } }; launch(Dispatchers.IO) { try { val inputStream = newSocket.getInputStream(); while (isConnected) { if (inputStream.read() == -1) break } } catch (e: Exception) {} finally { disconnect(isManual = false) } } } catch (e: Exception) { withContext(Dispatchers.Main) { isConnecting = false; if (!isAuto) connectionStatus = "连接失败" else if (!isUserDisconnected) connectionStatus = "正在重连" } } } }
+    val newWriter = PrintWriter(newSocket.getOutputStream(), true); val senderGeneration = withContext(Dispatchers.Main) { val generation = orderedMessageSender.startSession(PrintWriterMessageSink(newWriter)); socket = newSocket; writer = newWriter; activeSenderGeneration = generation; isConnected = true; connectionStatus = "已连接"; isConnecting = false; pcPrefs.edit().apply { putString("selected_pc", selectedPcId); if (selectedPcId == "A") { putString("pc_a_name", currentName); putString("pc_a_ip", currentIp); putString("pc_a_port", currentPort) } else { putString("pc_b_name", currentName); putString("pc_b_ip", currentIp); putString("pc_b_port", currentPort) }; apply() }; generation }; launch(Dispatchers.IO) { try { val inputStream = newSocket.getInputStream(); while (inputStream.read() != -1) { } } catch (_: Exception) {} finally { disconnect(isManual = false, expectedGeneration = senderGeneration) } } } catch (e: Exception) { withContext(Dispatchers.Main) { isConnecting = false; if (!isAuto) connectionStatus = "连接失败" else if (!isUserDisconnected) connectionStatus = "正在重连" } } } }
+
+    LaunchedEffect(orderedMessageSender) {
+        for (failure in orderedMessageSender.failures) {
+            Log.e("LeftPadSender", "Outgoing sender session ${failure.generation} failed", failure.cause)
+            disconnect(isManual = false, expectedGeneration = failure.generation)
+        }
+    }
 
     val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -297,19 +335,16 @@ fun ControllerScreen(modifier: Modifier = Modifier) {
     LaunchedEffect(isConnected, isUserDisconnected, currentIp, currentPort) { if (!isConnected && !isUserDisconnected && currentIp.isNotEmpty()) { while (!isConnected && !isUserDisconnected) { connect(currentIp, currentPort, isAuto = true); delay(3000) } } }
     fun sendMessage(button: String, action: String, allowWhenUiBlocked: Boolean = false) {
         if (!allowWhenUiBlocked && (isEditMode || showPanel)) return
-        if (isConnected && writer != null) {
-            scope.launch(Dispatchers.IO) {
-                try {
-                    writer?.println("{\"button\":\"$button\",\"action\":\"$action\"}")
-                    writer?.flush()
-                    if (writer?.checkError() == true) disconnect(isManual = false)
-                } catch (e: Exception) {
-                    disconnect(isManual = false)
-                }
-            }
+        if (isConnected && activeSenderGeneration != 0L) {
+            orderedMessageSender.tryEnqueue(OutgoingMessage.Button(button, action))
         }
     }
-    fun sendSystemCommand(command: String) { if (isEditMode || showPanel) return; if (isConnected && writer != null) { scope.launch(Dispatchers.IO) { try { writer?.println("{\"command\":\"$command\"}"); writer?.flush(); if (writer?.checkError() == true) disconnect(isManual = false) } catch (e: Exception) { disconnect(isManual = false) } } } }
+    fun sendSystemCommand(command: String) {
+        if (isEditMode || showPanel) return
+        if (isConnected && activeSenderGeneration != 0L) {
+            orderedMessageSender.tryEnqueue(OutgoingMessage.Command(command))
+        }
+    }
 
     fun selectMainButtonAction(nextAction: MainButtonAction) {
         if (isEditMode || mainButtonPressed || pressedButtonKey != null) return
