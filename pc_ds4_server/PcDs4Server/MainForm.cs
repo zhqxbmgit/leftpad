@@ -88,7 +88,20 @@ namespace PcDs4Server
             : this(
                 service,
                 radialSettingsStore,
-                () => (Control.MouseButtons & MouseButtons.Left) != 0)
+                () => (Control.MouseButtons & MouseButtons.Left) != 0,
+                startupRegistration: null)
+        {
+        }
+
+        internal MainForm(
+            Ds4Service service,
+            RadialMenuSettingsStore? radialSettingsStore,
+            StartupRegistration startupRegistration)
+            : this(
+                service,
+                radialSettingsStore,
+                () => (Control.MouseButtons & MouseButtons.Left) != 0,
+                startupRegistration)
         {
         }
 
@@ -96,6 +109,15 @@ namespace PcDs4Server
             Ds4Service service,
             RadialMenuSettingsStore? radialSettingsStore,
             Func<bool> leftMouseButtonDown)
+            : this(service, radialSettingsStore, leftMouseButtonDown, startupRegistration: null)
+        {
+        }
+
+        private MainForm(
+            Ds4Service service,
+            RadialMenuSettingsStore? radialSettingsStore,
+            Func<bool> leftMouseButtonDown,
+            StartupRegistration? startupRegistration)
         {
             _service = service;
             _leftMouseButtonDown = leftMouseButtonDown ??
@@ -127,6 +149,8 @@ namespace PcDs4Server
                 ApplyRadialMenuSettings,
                 LogRadialMessage,
                 _radialVisualPackCatalog);
+            if (startupRegistration != null)
+                _settingsPage.InitializeStartup(startupRegistration);
             _radialSelectionTimer = new System.Windows.Forms.Timer
             {
                 Interval = radialSettings.Settings.SelectionPollIntervalMs

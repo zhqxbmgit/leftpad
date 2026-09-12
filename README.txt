@@ -30,6 +30,10 @@ Windows 防火墙按需允许专用网络入站 TCP 8888 和 UDP 8889。
 Discovery 独立规则名：LeftPad Receiver Discovery UDP 8889；Inbound / Allow /
 UDP / LocalPort 8889 / Private only。不开放 Public，不修改 rightpad 规则。
 如果已有 TCP 8888 规则，不需要重建。
+
+Windows Receiver 的“设置 → 基础 → 接收器界面”提供 Start with Windows
+（开机启动）开关。开启后，Receiver 会在当前 Windows 用户登录时自动启动；
+关闭开关只会删除 LeftPad 自己的当前用户启动项。
 若仍搜索中，检查 Wi-Fi 与 PC 是否在同一 LAN、Receiver 是否启动，以及
 防火墙或路由器的客户端隔离是否阻止广播/连接。
 

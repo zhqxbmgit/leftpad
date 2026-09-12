@@ -33,7 +33,13 @@ namespace PcDs4Server
             Application.SetCompatibleTextRenderingDefault(false);
 
             var service = new Ds4Service();
-            var mainForm = new MainForm(service);
+            var startup = new StartupRegistration(
+                new WindowsStartupValueStore(),
+                Environment.ProcessPath);
+            var mainForm = new MainForm(
+                service,
+                radialSettingsStore: null,
+                startupRegistration: startup);
             SingleInstanceActivationServer? activationServer = null;
             mainForm.Shown += (_, _) =>
             {

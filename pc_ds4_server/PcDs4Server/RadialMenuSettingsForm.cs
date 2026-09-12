@@ -19,6 +19,7 @@ public sealed class RadialMenuSettingsControl : UserControl
 
     private readonly ComboBox _visualPack = VisualPackDropDown();
     private readonly ComboBox _receiverUiScale = ReceiverUiScaleDropDown();
+    private readonly StartupToggleControl _startupToggle = new();
     private readonly NumericUpDown _scale = Editor(
         "scalePercent",
         RadialMenuSettings.MinimumScalePercent,
@@ -163,6 +164,9 @@ public sealed class RadialMenuSettingsControl : UserControl
     {
         _hostUiScaling = receiverUiScaling ?? throw new ArgumentNullException(nameof(receiverUiScaling));
     }
+
+    internal void InitializeStartup(StartupRegistration registration) =>
+        _startupToggle.Initialize(registration);
 
     public void RefreshFromRuntime()
     {
@@ -527,7 +531,11 @@ public sealed class RadialMenuSettingsControl : UserControl
         _receiverSettingsGroup = EditorGroup(
             "receiverInterfaceSettingsGroup",
             "接收器界面",
-            rows: [("接收器界面缩放", _receiverUiScale)]);
+            rows:
+            [
+                ("接收器界面缩放", _receiverUiScale),
+                ("开机启动", _startupToggle)
+            ]);
 
         ApplyBasicLayout(compact: false);
         return _basicLayout;
@@ -778,9 +786,10 @@ public sealed class RadialMenuSettingsControl : UserControl
 
         for (int row = 0; row < rows.Length; row++)
         {
-            table.RowStyles.Add(new RowStyle(
-                SizeType.Absolute,
-                ReceiverUiLayoutMetrics.SettingsEditorRowHeight));
+            int rowHeight = Math.Max(
+                ReceiverUiLayoutMetrics.SettingsEditorRowHeight,
+                rows[row].Editor.MinimumSize.Height + 14);
+            table.RowStyles.Add(new RowStyle(SizeType.Absolute, rowHeight));
             table.Controls.Add(new Label
             {
                 Text = rows[row].Label,
